@@ -887,6 +887,53 @@ namespace {
                           "controller completions require the exact BackendCore session and acquire/release role transition");
     }
 
+    void testContentEventCoalescing(tests::support::TestResult& result) {
+        const auto contentEvent = [](std::uint64_t sequence,
+                                     std::string itemId,
+                                     std::string delta,
+                                     std::size_t before) {
+            backend::ItemContentChanged content;
+            content.threadId = ai::openai::codex::typed::ThreadId{"thread"};
+            content.turnId = ai::openai::codex::typed::TurnId{"turn"};
+            content.itemId = ai::openai::codex::typed::ItemId{std::move(itemId)};
+            content.kind = backend::ItemContentChanged::Kind::CommandOutput;
+            content.delta = std::move(delta);
+            content.channelBytesBefore = before;
+            content.droppedContentBytesBefore = 0;
+            return backend::SequencedBackendEvent{backend::SequenceNumber{sequence}, std::move(content)};
+        };
+
+        const std::vector<backend::SequencedBackendEvent> events{
+            contentEvent(10, "same", "alpha", 7),
+            contentEvent(11, "other", "gamma", 0),
+            contentEvent(12, "same", " beta", 12),
+        };
+        const auto coalesced = server::BackendCoreBridgeTestAccess::coalesceItemContentEvents(events);
+        const auto* combined = coalesced && coalesced->size() == 2
+                                   ? std::get_if<backend::ItemContentChanged>(&coalesced->back().event)
+                                   : nullptr;
+        const std::vector<backend::SequencedBackendEvent> mixed{
+            events.front(),
+            {backend::SequenceNumber{13}, backend::CapacityChanged{backend::CapacityMetric::RejectedSessions, 1}},
+        };
+        result.expectTrue(coalesced && combined && combined->delta == "alpha beta" &&
+                              combined->channelBytesBefore == std::optional<std::size_t>{7} &&
+                              coalesced->back().sequence == backend::SequenceNumber{12} &&
+                              std::get<backend::ItemContentChanged>(coalesced->front().event).itemId.value == "other" &&
+                              !server::BackendCoreBridgeTestAccess::coalesceItemContentEvents(mixed),
+                          "one observer drain composes interleaved same-channel deltas from the first base through the last sequence");
+    }
+
+    void testItemContentSnapshotSequenceClassification(tests::support::TestResult& result) {
+        result.expectTrue(
+            !server::BackendCoreBridgeTestAccess::itemContentSnapshotIsAhead(
+                backend::SequenceNumber{17}, backend::SequenceNumber{16}) &&
+                !server::BackendCoreBridgeTestAccess::itemContentSnapshotIsAhead(
+                    backend::SequenceNumber{17}, backend::SequenceNumber{17}) &&
+                server::BackendCoreBridgeTestAccess::itemContentSnapshotIsAhead(
+                    backend::SequenceNumber{17}, backend::SequenceNumber{18}),
+            "item-content projection distinguishes exact snapshots from future snapshots that require per-key coverage");
+    }
     void testInlineBackendObserverAdmission(tests::support::TestResult& result) {
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();
         backend::BackendCoreOptions backendOptions;
@@ -1110,6 +1157,8 @@ int main() {
     testReentrantServiceCloseFromCommandCompletion(result);
     testExternalBackendTopologyCompatibility(result);
     testControllerCompletionAuthority(result);
+    testContentEventCoalescing(result);
+    testItemContentSnapshotSequenceClassification(result);
     testInlineBackendObserverAdmission(result);
     testInlineObserverResynchronizationAdmission(result);
     testControllerCompletionWaitsForObserverFence(result);

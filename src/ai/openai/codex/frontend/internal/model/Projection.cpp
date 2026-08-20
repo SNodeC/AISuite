@@ -362,42 +362,59 @@ namespace ai::openai::codex::frontend::internal::model {
             }
         }
 
+        bool commandOutputVisible(std::optional<ThreadItemKind> kind, const ProjectionContext& context) noexcept {
+            return kind == ThreadItemKind::CommandExecution
+                       ? hasScope(context, FrontendScope::CommandExecution)
+                       : (kind == ThreadItemKind::FileChange ? hasScope(context, FrontendScope::FilesystemWrite)
+                                                             : hasScope(context, FrontendScope::CommandExecution) &&
+                                                                   hasScope(context, FrontendScope::FilesystemWrite));
+        }
+
+        bool itemContentVisible(const ItemContentUpdatedOccurrence& update, const ProjectionContext& context) noexcept {
+            return update.channel != std::optional<std::string>{"commandOutput"} ||
+                   commandOutputVisible(update.itemKind, context);
+        }
+
+        void filterItemData(ItemData& value,
+                            std::optional<ThreadItemKind> kind,
+                            const ProjectionAuthority& authority,
+                            const ProjectionContext& context,
+                            ProjectionMetadata& metadata,
+                            std::string_view prefix) {
+            if (!commandOutputVisible(kind, context) &&
+                (value.commandOutput.has_value() || value.commandOutputOverflowV2.has_value())) {
+                value.commandOutput.reset();
+                value.commandOutputOverflowV2.reset();
+                metadata.omittedPaths.push_back(std::string(prefix) + "/commandOutput");
+            }
+            if (!hasScope(context, FrontendScope::FilesystemRead) && value.location.has_value()) {
+                value.location.reset();
+                metadata.omittedPaths.push_back(std::string(prefix) + "/location");
+            }
+            const std::vector<ProjectionRule> rules = boundedDomainRules();
+            if (value.safeDetails.has_value()) {
+                projectSafeDetail(*value.safeDetails, authority, context, metadata, prefix, rules);
+            }
+            if (!hasScope(context, FrontendScope::SensitiveResponse) &&
+                (!value.extensions.empty() || !value.legacyExtensions.empty())) {
+                value.extensions = {};
+                value.legacyExtensions = {};
+                metadata.omittedPaths.push_back(std::string(prefix) + "/extensions");
+            } else {
+                projectSafeDetail(value.extensions, authority, context, metadata, prefix, rules);
+                projectSafeDetail(value.legacyExtensions, authority, context, metadata, std::string(prefix) + "/extensions", rules);
+            }
+        }
+
         void filterItem(ThreadItem& item,
                         const ProjectionAuthority& authority,
                         const ProjectionContext& context,
                         ProjectionMetadata& metadata,
                         std::string_view prefix) {
+            const ThreadItemKind kind = threadItemKind(item);
             std::visit(
                 [&](auto& typed) {
-                    ItemData& value = typed.value;
-                    const ThreadItemKind kind = threadItemKind(item);
-                    const bool commandOutputVisible =
-                        kind == ThreadItemKind::CommandExecution
-                            ? hasScope(context, FrontendScope::CommandExecution)
-                            : (kind == ThreadItemKind::FileChange ? hasScope(context, FrontendScope::FilesystemWrite)
-                                                                  : hasScope(context, FrontendScope::CommandExecution) &&
-                                                                        hasScope(context, FrontendScope::FilesystemWrite));
-                    if (!commandOutputVisible && value.commandOutput.has_value()) {
-                        value.commandOutput.reset();
-                        metadata.omittedPaths.push_back(std::string(prefix) + "/commandOutput");
-                    }
-                    if (!hasScope(context, FrontendScope::FilesystemRead) && value.location.has_value()) {
-                        value.location.reset();
-                        metadata.omittedPaths.push_back(std::string(prefix) + "/location");
-                    }
-                    const std::vector<ProjectionRule> rules = boundedDomainRules();
-                    if (value.safeDetails.has_value()) {
-                        projectSafeDetail(*value.safeDetails, authority, context, metadata, prefix, rules);
-                    }
-                    if (!hasScope(context, FrontendScope::SensitiveResponse) &&
-                        (!value.extensions.empty() || !value.legacyExtensions.empty())) {
-                        value.extensions = {};
-                        value.legacyExtensions = {};
-                        metadata.omittedPaths.push_back(std::string(prefix) + "/extensions");
-                    } else {
-                        projectSafeDetail(value.extensions, authority, context, metadata, prefix, rules);
-                        projectSafeDetail(value.legacyExtensions, authority, context, metadata, std::string(prefix) + "/extensions", rules);
-                    }
+                    filterItemData(typed.value, kind, authority, context, metadata, prefix);
                 },
                 item);
         }
@@ -439,6 +456,14 @@ namespace ai::openai::codex::frontend::internal::model {
             }
             for (std::size_t index = 0; index < projected.items.size(); ++index) {
                 filterItem(projected.items[index], authority, context, metadata, "/items/" + std::to_string(index));
+            }
+            for (std::size_t index = 0; index < projected.legacyItems.size(); ++index) {
+                filterItemData(projected.legacyItems[index].value,
+                               std::nullopt,
+                               authority,
+                               context,
+                               metadata,
+                               "/legacyItems/" + std::to_string(index));
             }
             for (std::size_t index = 0; index < projected.pendingRequests.size(); ++index) {
                 std::visit(
@@ -612,7 +637,11 @@ namespace ai::openai::codex::frontend::internal::model {
             }
             std::vector<OccurrencePayload> payloads = occurrence.expandedPayloads();
             if (std::any_of(payloads.begin(), payloads.end(), [&](const OccurrencePayload& payload) {
-                    return !payloadVisible(occurrenceType(payload), context);
+                    if (!payloadVisible(occurrenceType(payload), context)) {
+                        return true;
+                    }
+                    const auto* content = std::get_if<ItemContentUpdatedOccurrence>(&payload);
+                    return content != nullptr && !itemContentVisible(*content, context);
                 })) {
                 // Equal-sequence groups are one semantic occurrence.  Suppress
                 // the whole group when no complete authorized projection can
@@ -684,6 +713,14 @@ namespace ai::openai::codex::frontend::internal::model {
             }
             LegacyCompatibilityPayload legacy = occurrence.legacyCompatibility();
             ProjectionMetadata legacyMetadata;
+            if (legacy.legacyItem.has_value()) {
+                filterItemData(legacy.legacyItem->value,
+                               std::nullopt,
+                               *this,
+                               context,
+                               legacyMetadata,
+                               "/legacy/item");
+            }
             if (legacy.safeExtension.has_value()) {
                 projectSafeDetail(legacy.safeExtension->params, *this, context, legacyMetadata, "/legacy/params", rules);
                 projectSafeDetail(legacy.safeExtension->extensions, *this, context, legacyMetadata, "/legacy", rules);

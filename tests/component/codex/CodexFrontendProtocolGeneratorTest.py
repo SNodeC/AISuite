@@ -759,7 +759,7 @@ def main() -> int:
         raise AssertionError(
             f"runtime numeric-format profile changed: {runtime_audit.numeric_formats}"
         )
-    if len(runtime_audit.patterns) != 2:
+    if len(runtime_audit.patterns) != 3:
         raise AssertionError(
             f"runtime pattern count changed: {len(runtime_audit.patterns)}"
         )

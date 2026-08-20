@@ -22,6 +22,78 @@ namespace ai::openai::codex::frontend::internal::model {
     namespace {
         constexpr std::size_t LegacySnapshotMaximumObjectMembers = 4'096;
         constexpr std::size_t FrontendDetailMaximumStringCharacters = 16U * 1024U;
+        constexpr std::string_view Base64Alphabet =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+        std::string base64Encode(std::string_view value) {
+            std::string encoded;
+            encoded.reserve(((value.size() + 2U) / 3U) * 4U);
+            for (std::size_t offset = 0; offset < value.size(); offset += 3U) {
+                const std::uint32_t first = static_cast<unsigned char>(value[offset]);
+                const bool hasSecond = offset + 1U < value.size();
+                const bool hasThird = offset + 2U < value.size();
+                const std::uint32_t second = hasSecond ? static_cast<unsigned char>(value[offset + 1U]) : 0U;
+                const std::uint32_t third = hasThird ? static_cast<unsigned char>(value[offset + 2U]) : 0U;
+                const std::uint32_t packed = (first << 16U) | (second << 8U) | third;
+                encoded.push_back(Base64Alphabet[(packed >> 18U) & 0x3fU]);
+                encoded.push_back(Base64Alphabet[(packed >> 12U) & 0x3fU]);
+                encoded.push_back(hasSecond ? Base64Alphabet[(packed >> 6U) & 0x3fU] : '=');
+                encoded.push_back(hasThird ? Base64Alphabet[packed & 0x3fU] : '=');
+            }
+            return encoded;
+        }
+
+        std::optional<std::string> base64Decode(std::string_view value) {
+            if (value.empty() || value.size() % 4U != 0) {
+                return std::nullopt;
+            }
+            const auto sextet = [](char character) -> std::optional<std::uint32_t> {
+                if (character >= 'A' && character <= 'Z') {
+                    return static_cast<std::uint32_t>(character - 'A');
+                }
+                if (character >= 'a' && character <= 'z') {
+                    return static_cast<std::uint32_t>(character - 'a' + 26);
+                }
+                if (character >= '0' && character <= '9') {
+                    return static_cast<std::uint32_t>(character - '0' + 52);
+                }
+                if (character == '+') {
+                    return 62U;
+                }
+                if (character == '/') {
+                    return 63U;
+                }
+                return std::nullopt;
+            };
+
+            std::string decoded;
+            decoded.reserve((value.size() / 4U) * 3U);
+            for (std::size_t offset = 0; offset < value.size(); offset += 4U) {
+                const bool finalBlock = offset + 4U == value.size();
+                const bool thirdPadding = value[offset + 2U] == '=';
+                const bool fourthPadding = value[offset + 3U] == '=';
+                const std::optional<std::uint32_t> first = sextet(value[offset]);
+                const std::optional<std::uint32_t> second = sextet(value[offset + 1U]);
+                const std::optional<std::uint32_t> third = thirdPadding ? std::optional<std::uint32_t>{0U}
+                                                                        : sextet(value[offset + 2U]);
+                const std::optional<std::uint32_t> fourth = fourthPadding ? std::optional<std::uint32_t>{0U}
+                                                                          : sextet(value[offset + 3U]);
+                if (!first || !second || !third || !fourth || (thirdPadding && !fourthPadding) ||
+                    ((thirdPadding || fourthPadding) && !finalBlock) || (thirdPadding && ((*second & 0x0fU) != 0U)) ||
+                    (fourthPadding && !thirdPadding && ((*third & 0x03U) != 0U))) {
+                    return std::nullopt;
+                }
+                const std::uint32_t packed = (*first << 18U) | (*second << 12U) | (*third << 6U) | *fourth;
+                decoded.push_back(static_cast<char>((packed >> 16U) & 0xffU));
+                if (!thirdPadding) {
+                    decoded.push_back(static_cast<char>((packed >> 8U) & 0xffU));
+                }
+                if (!fourthPadding) {
+                    decoded.push_back(static_cast<char>(packed & 0xffU));
+                }
+            }
+            return decoded;
+        }
 
         void setSafeDetailError(SafeDetailError* target, SafeDetailError value) noexcept {
             if (target != nullptr) {
@@ -331,6 +403,77 @@ namespace ai::openai::codex::frontend::internal::model {
             return member != value.end() && member->is_boolean() ? member->get<bool>() : fallback;
         }
 
+        Json encodeTurnPlan(const TurnPlanState& plan, const std::string& path) {
+            constexpr std::size_t MaximumSteps = 32;
+            constexpr std::size_t MaximumStepBytes = 1024;
+            constexpr std::size_t MaximumExplanationBytes = 8U * 1024U;
+            if (plan.steps.size() > MaximumSteps || plan.totalSteps < plan.steps.size() ||
+                (plan.totalSteps > plan.steps.size() && !plan.truncated)) {
+                fail(ModelErrorCode::InvalidShape, path, "turn plan count and truncation metadata are inconsistent");
+            }
+            Json encoded{{"steps", Json::array()},
+                         {"statuses", Json::array()},
+                         {"totalSteps", plan.totalSteps},
+                         {"truncated", plan.truncated}};
+            if (plan.explanation) {
+                if (plan.explanation->size() > MaximumExplanationBytes ||
+                    frontendUtf8PrefixLength(*plan.explanation, plan.explanation->size()) != plan.explanation->size()) {
+                    fail(ModelErrorCode::InvalidShape, path + "/explanation", "turn plan explanation is invalid or over capacity");
+                }
+                encoded["explanation"] = *plan.explanation;
+            }
+            for (std::size_t index = 0; index < plan.steps.size(); ++index) {
+                const TurnPlanStepState& step = plan.steps[index];
+                if (step.step.size() > MaximumStepBytes ||
+                    frontendUtf8PrefixLength(step.step, step.step.size()) != step.step.size() || step.status.size() > 256 ||
+                    frontendUtf8PrefixLength(step.status, step.status.size()) != step.status.size()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         path + "/steps/" + std::to_string(index),
+                         "turn plan step is invalid or over capacity");
+                }
+                encoded["steps"].push_back(step.step);
+                encoded["statuses"].push_back(step.status);
+            }
+            return encoded;
+        }
+
+        TurnPlanState decodeTurnPlan(const Json& encoded, const std::string& path) {
+            if (!encoded.is_object()) {
+                fail(ModelErrorCode::InvalidShape, path, "turn plan must be an object");
+            }
+            const auto steps = encoded.find("steps");
+            const auto statuses = encoded.find("statuses");
+            const std::optional<std::uint64_t> totalSteps = optionalUnsigned(encoded, "totalSteps");
+            const auto truncated = encoded.find("truncated");
+            if (steps == encoded.end() || !steps->is_array() || steps->size() > 32 || statuses == encoded.end() ||
+                !statuses->is_array() || statuses->size() != steps->size() || !totalSteps ||
+                *totalSteps > std::numeric_limits<std::size_t>::max() || truncated == encoded.end() || !truncated->is_boolean()) {
+                fail(ModelErrorCode::InvalidShape, path, "turn plan lacks bounded required fields");
+            }
+            TurnPlanState result;
+            if (const auto explanation = encoded.find("explanation"); explanation != encoded.end()) {
+                if (!explanation->is_string()) {
+                    fail(ModelErrorCode::InvalidShape, path + "/explanation", "turn plan explanation must be a string");
+                }
+                result.explanation = explanation->get<std::string>();
+            }
+            result.steps.reserve(steps->size());
+            for (std::size_t index = 0; index < steps->size(); ++index) {
+                if (!steps->at(index).is_string() || !statuses->at(index).is_string()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         path + "/steps/" + std::to_string(index),
+                         "turn plan step lacks required fields");
+                }
+                result.steps.push_back({steps->at(index).get<std::string>(), statuses->at(index).get<std::string>()});
+            }
+            result.totalSteps = static_cast<std::size_t>(*totalSteps);
+            result.truncated = truncated->get<bool>();
+            // Reuse the encoder as the single UTF-8, byte-bound, and
+            // truncation-consistency validator for decoded plans.
+            (void) encodeTurnPlan(result, path);
+            return result;
+        }
+
         StateFreshness protocolFreshness(Freshness freshness) noexcept {
             switch (freshness) {
                 case Freshness::Unknown:
@@ -475,8 +618,27 @@ namespace ai::openai::codex::frontend::internal::model {
             encoded.completedAtMs = data.completedAtMs;
             Json projected = data.safeDetails.has_value() ? expandedItemDetailObject(*data.safeDetails) : Json::object();
             bool dataOmittedForOverflow = projected.erase(std::string(ItemContentOverflowV1Property)) != 0;
-            const bool emitOverflow = itemContentMode == ItemContentWireMode::AppendV1 && data.agentTextOverflowV1.has_value();
-            if (emitOverflow && projected.size() >= 64) {
+            dataOmittedForOverflow = projected.erase(std::string(CommandOutputOverflowV2Property)) != 0 || dataOmittedForOverflow;
+            const bool emitAgentOverflow = itemContentMode != ItemContentWireMode::Replacement && data.agentTextOverflowV1.has_value();
+            const ThreadItemKind kind = threadItemKind(item);
+            const bool commandOutputKind = kind == ThreadItemKind::CommandExecution || kind == ThreadItemKind::FileChange;
+            const bool emitCommandOverflow = itemContentMode == ItemContentWireMode::AppendV2 && commandOutputKind &&
+                                             data.commandOutputOverflowV2.has_value();
+            std::optional<Json> encodedCommandOverflow;
+            if (emitCommandOverflow) {
+                const auto overflow = encodeCommandOutputOverflowV2(*data.commandOutputOverflowV2);
+                if (!overflow) {
+                    fail(overflow.error().code, overflow.error().path, overflow.error().message);
+                }
+                if (overflow.value().dump().size() <= MaximumCommandOutputOverflowV2EncodedBytes) {
+                    encodedCommandOverflow = overflow.value();
+                } else {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/items/data/" + std::string(CommandOutputOverflowV2Property),
+                         "command-output overflow exceeds its negotiated encoded bound");
+                }
+            }
+            if ((emitAgentOverflow || emitCommandOverflow) && projected.size() >= 64) {
                 while (projected.size() >= 64) {
                     projected.erase(std::prev(projected.end()));
                 }
@@ -484,18 +646,66 @@ namespace ai::openai::codex::frontend::internal::model {
                 // omittedFields array is itself already at capacity.
                 dataOmittedForOverflow = true;
             }
-            if (emitOverflow) {
+            std::optional<ItemContentOverflowV1> agentOverflow =
+                emitAgentOverflow ? data.agentTextOverflowV1 : std::nullopt;
+            std::optional<ItemContentOverflowV1> commandOverflow =
+                emitCommandOverflow ? data.commandOutputOverflowV2 : std::nullopt;
+            if (agentOverflow || commandOverflow) {
+                std::uint64_t restoredBytes = 0;
+                bool contentTruncatedBefore = true;
+                bool truncationBefore = true;
+                const auto account = [&](const std::optional<ItemContentOverflowV1>& overflow) {
+                    if (!overflow) {
+                        return;
+                    }
+                    const std::uint64_t suffixBytes = static_cast<std::uint64_t>(overflow->suffix.size());
+                    if (suffixBytes > std::numeric_limits<std::uint64_t>::max() - restoredBytes) {
+                        fail(ModelErrorCode::InvalidShape, "/state/items/data", "item content overflow accounting exceeds capacity");
+                    }
+                    restoredBytes += suffixBytes;
+                    contentTruncatedBefore = contentTruncatedBefore && overflow->contentTruncatedBeforeProjection;
+                    truncationBefore = truncationBefore && overflow->truncationBeforeProjection;
+                };
+                account(agentOverflow);
+                account(commandOverflow);
+                if (!data.droppedContentBytes || *data.droppedContentBytes < restoredBytes) {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/items/data",
+                         "item content overflow exceeds aggregate projection-drop metadata");
+                }
+                const std::uint64_t baseline = *data.droppedContentBytes - restoredBytes;
+                const auto normalize = [&](std::optional<ItemContentOverflowV1>& overflow) {
+                    if (overflow) {
+                        overflow->droppedContentBytesBeforeProjection = baseline;
+                        overflow->contentTruncatedBeforeProjection = contentTruncatedBefore || baseline != 0;
+                        overflow->truncationBeforeProjection = truncationBefore;
+                    }
+                };
+                normalize(agentOverflow);
+                normalize(commandOverflow);
                 ItemData validatedItem = data;
-                if (const std::optional<ModelError> validation =
-                        restoreAgentTextOverflowV1(validatedItem, *data.agentTextOverflowV1, "/state/items/agentText");
+                if (const std::optional<ModelError> validation = restoreItemContentOverflows(
+                        validatedItem, agentOverflow, commandOverflow, "/state/items/data");
                     validation.has_value()) {
                     fail(validation->code, validation->path, validation->message);
                 }
-                const auto overflow = encodeItemContentOverflowV1(*data.agentTextOverflowV1);
+            }
+            if (agentOverflow) {
+                const auto overflow = encodeItemContentOverflowV1(*agentOverflow);
                 if (!overflow) {
                     fail(overflow.error().code, overflow.error().path, overflow.error().message);
                 }
                 projected[std::string(ItemContentOverflowV1Property)] = overflow.value();
+            }
+            if (commandOverflow && encodedCommandOverflow) {
+                // Encoding shape and chunking are unchanged by the normalized
+                // pre-projection counters, so update just those scalar fields.
+                (*encodedCommandOverflow)["droppedContentBytesBeforeProjection"] =
+                    commandOverflow->droppedContentBytesBeforeProjection;
+                (*encodedCommandOverflow)["contentTruncatedBeforeProjection"] =
+                    commandOverflow->contentTruncatedBeforeProjection;
+                (*encodedCommandOverflow)["truncationBeforeProjection"] = commandOverflow->truncationBeforeProjection;
+                projected[std::string(CommandOutputOverflowV2Property)] = std::move(*encodedCommandOverflow);
             }
             if (threadItemKind(item) == ThreadItemKind::UserMessage && data.userMessage) {
                 while (projected.size() > 56) {
@@ -556,12 +766,14 @@ namespace ai::openai::codex::frontend::internal::model {
             data.truncation.omittedPaths = item.omittedFields;
             if (item.data.has_value()) {
                 Json details = *item.data;
+                std::optional<ItemContentOverflowV1> agentOverflow;
+                std::optional<ItemContentOverflowV1> commandOverflow;
                 if (item.type == ThreadItemKind::UserMessage) {
                     data.userMessage = takeUserMessageProjection(details);
                 }
                 const auto overflowMember = details.find(std::string(ItemContentOverflowV1Property));
                 if (overflowMember != details.end()) {
-                    if (itemContentMode != ItemContentWireMode::AppendV1) {
+                    if (itemContentMode == ItemContentWireMode::Replacement) {
                         fail(ModelErrorCode::InvalidShape,
                              path + "/data/" + std::string(ItemContentOverflowV1Property),
                              "item content overflow representation was not negotiated");
@@ -571,12 +783,33 @@ namespace ai::openai::codex::frontend::internal::model {
                     if (!overflow) {
                         fail(overflow.error().code, overflow.error().path, overflow.error().message);
                     }
+                    agentOverflow = overflow.value();
                     details.erase(overflowMember);
-                    const std::optional<ModelError> restoration =
-                        restoreAgentTextOverflowV1(data, overflow.value(), path + "/agentText");
-                    if (restoration.has_value()) {
-                        fail(restoration->code, restoration->path, restoration->message);
+                }
+                const auto commandOverflowMember = details.find(std::string(CommandOutputOverflowV2Property));
+                if (commandOverflowMember != details.end()) {
+                    if (itemContentMode != ItemContentWireMode::AppendV2) {
+                        fail(ModelErrorCode::InvalidShape,
+                             path + "/data/" + std::string(CommandOutputOverflowV2Property),
+                             "command-output overflow representation was not negotiated");
                     }
+                    if (item.type != ThreadItemKind::CommandExecution && item.type != ThreadItemKind::FileChange) {
+                        fail(ModelErrorCode::InvalidShape,
+                             path + "/data/" + std::string(CommandOutputOverflowV2Property),
+                             "command-output overflow is invalid for this item kind");
+                    }
+                    const auto overflow = decodeCommandOutputOverflowV2(
+                        *commandOverflowMember, path + "/data/" + std::string(CommandOutputOverflowV2Property));
+                    if (!overflow) {
+                        fail(overflow.error().code, overflow.error().path, overflow.error().message);
+                    }
+                    commandOverflow = overflow.value();
+                    details.erase(commandOverflowMember);
+                }
+                if (const std::optional<ModelError> restoration =
+                        restoreItemContentOverflows(data, agentOverflow, commandOverflow, path + "/data");
+                    restoration.has_value()) {
+                    fail(restoration->code, restoration->path, restoration->message);
                 }
                 if (!details.empty()) {
                     data.safeDetails = safeDetail(std::move(details), path + "/data");
@@ -1500,6 +1733,98 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
+    ModelResult<Json> encodeCommandOutputOverflowV2(const ItemContentOverflowV1& overflow) noexcept {
+        try {
+            if (overflow.suffix.empty() || overflow.baseContentBytes > MaximumCommandOutputOverflowV2Bytes ||
+                overflow.suffix.size() >
+                    MaximumCommandOutputOverflowV2Bytes - static_cast<std::size_t>(overflow.baseContentBytes) ||
+                frontendUtf8PrefixLength(overflow.suffix, overflow.suffix.size()) != overflow.suffix.size()) {
+                return ModelError{ModelErrorCode::InvalidShape,
+                                  "/" + std::string(CommandOutputOverflowV2Property),
+                                  "command-output overflow suffix is invalid or over capacity"};
+            }
+            Json chunksBase64 = Json::array();
+            constexpr std::size_t RawChunkBytes = 12U * 1024U;
+            std::size_t offset = 0;
+            while (offset < overflow.suffix.size()) {
+                const std::size_t chunkBytes = std::min(RawChunkBytes, overflow.suffix.size() - offset);
+                chunksBase64.push_back(base64Encode(std::string_view{overflow.suffix}.substr(offset, chunkBytes)));
+                offset += chunkBytes;
+            }
+            return Json{{"baseContentBytes", overflow.baseContentBytes},
+                        {"chunksBase64", std::move(chunksBase64)},
+                        {"droppedContentBytesBeforeProjection", overflow.droppedContentBytesBeforeProjection},
+                        {"contentTruncatedBeforeProjection", overflow.contentTruncatedBeforeProjection},
+                        {"truncationBeforeProjection", overflow.truncationBeforeProjection}};
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape,
+                              "/" + std::string(CommandOutputOverflowV2Property),
+                              "command-output overflow encoding failed"};
+        }
+    }
+
+    ModelResult<ItemContentOverflowV1> decodeCommandOutputOverflowV2(const Json& encoded, std::string path) noexcept {
+        try {
+            const auto unsignedValue = [](const Json& value) -> std::optional<std::uint64_t> {
+                if (value.is_number_unsigned()) {
+                    return value.get<std::uint64_t>();
+                }
+                if (value.is_number_integer()) {
+                    const std::int64_t signedValue = value.get<std::int64_t>();
+                    if (signedValue >= 0) {
+                        return static_cast<std::uint64_t>(signedValue);
+                    }
+                }
+                return std::nullopt;
+            };
+            if (!encoded.is_object() || encoded.size() != 5 || !encoded.contains("baseContentBytes") ||
+                !encoded.contains("chunksBase64") || !encoded.at("chunksBase64").is_array() ||
+                encoded.at("chunksBase64").empty() || encoded.at("chunksBase64").size() > 342 ||
+                !encoded.contains("droppedContentBytesBeforeProjection") ||
+                !encoded.contains("contentTruncatedBeforeProjection") ||
+                !encoded.at("contentTruncatedBeforeProjection").is_boolean() ||
+                !encoded.contains("truncationBeforeProjection") || !encoded.at("truncationBeforeProjection").is_boolean()) {
+                return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow is malformed"};
+            }
+            const std::optional<std::uint64_t> base = unsignedValue(encoded.at("baseContentBytes"));
+            const std::optional<std::uint64_t> droppedBefore =
+                unsignedValue(encoded.at("droppedContentBytesBeforeProjection"));
+            if (!base || !droppedBefore) {
+                return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow counters are invalid"};
+            }
+            std::string suffix;
+            for (const Json& chunk : encoded.at("chunksBase64")) {
+                if (!chunk.is_string()) {
+                    return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow chunk is invalid"};
+                }
+                const std::string& value = chunk.get_ref<const std::string&>();
+                if (value.size() > 16U * 1024U) {
+                    return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow chunk is over capacity"};
+                }
+                std::optional<std::string> decoded = base64Decode(value);
+                if (!decoded || decoded->size() > MaximumCommandOutputOverflowV2Bytes - suffix.size()) {
+                    return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow chunk is invalid"};
+                }
+                suffix.append(*decoded);
+            }
+            if (frontendUtf8PrefixLength(suffix, suffix.size()) != suffix.size()) {
+                return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow is invalid UTF-8"};
+            }
+            ItemContentOverflowV1 overflow{*base,
+                                          std::move(suffix),
+                                          *droppedBefore,
+                                          encoded.at("contentTruncatedBeforeProjection").get<bool>(),
+                                          encoded.at("truncationBeforeProjection").get<bool>()};
+            const auto validated = encodeCommandOutputOverflowV2(overflow);
+            if (!validated) {
+                return ModelError{validated.error().code, std::move(path), validated.error().message};
+            }
+            return overflow;
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow decoding failed"};
+        }
+    }
+
     std::optional<ModelError>
     restoreAgentTextOverflowV1(ItemData& item, const ItemContentOverflowV1& overflow, std::string path) noexcept {
         try {
@@ -1544,6 +1869,126 @@ namespace ai::openai::codex::frontend::internal::model {
             item.truncation.truncated = overflow.truncationBeforeProjection || item.contentTruncated ||
                                         item.truncation.omittedEntries.value_or(0) != 0 || !item.truncation.omittedPaths.empty();
             item.agentTextOverflowV1.reset();
+            return std::nullopt;
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, std::move(path), "item content overflow restoration failed"};
+        }
+    }
+
+    std::optional<ModelError>
+    restoreCommandOutputOverflowV2(ItemData& item, const ItemContentOverflowV1& overflow, std::string path) noexcept {
+        try {
+            const auto invalid = [&path](std::string message) {
+                return std::optional<ModelError>{ModelError{ModelErrorCode::InvalidShape, path, std::move(message)}};
+            };
+            if (!item.commandOutput.has_value() || item.commandOutput->size() != overflow.baseContentBytes ||
+                frontendUtf8PrefixLength(*item.commandOutput, item.commandOutput->size()) != item.commandOutput->size()) {
+                return invalid("command-output overflow base does not match the retained output");
+            }
+            if (!item.contentTruncated || !item.droppedContentBytes.has_value() ||
+                *item.droppedContentBytes < overflow.suffix.size()) {
+                return invalid("command-output overflow has no matching projection-drop metadata");
+            }
+            const std::uint64_t remainingDropped = *item.droppedContentBytes - static_cast<std::uint64_t>(overflow.suffix.size());
+            if (remainingDropped != overflow.droppedContentBytesBeforeProjection) {
+                return invalid("command-output overflow would subtract non-projection drop metadata");
+            }
+            const auto omitted = std::find(item.truncation.omittedPaths.begin(), item.truncation.omittedPaths.end(), "/commandOutput");
+            if (!item.truncation.truncated || omitted == item.truncation.omittedPaths.end()) {
+                return invalid("command-output overflow has no matching truncation marker");
+            }
+            std::optional<std::uint64_t> remainingCanonicalDropped;
+            if (item.truncation.droppedBytesPresent || item.truncation.droppedBytes != 0) {
+                if (item.truncation.droppedBytes < overflow.suffix.size()) {
+                    return invalid("command-output overflow exceeds canonical dropped-byte metadata");
+                }
+                remainingCanonicalDropped = item.truncation.droppedBytes - static_cast<std::uint64_t>(overflow.suffix.size());
+            }
+            std::string restored = *item.commandOutput;
+            restored.append(overflow.suffix);
+            item.commandOutput = std::move(restored);
+            item.droppedContentBytes = remainingDropped;
+            if (!overflow.contentTruncatedBeforeProjection) {
+                item.truncation.omittedPaths.erase(omitted);
+            }
+            if (remainingCanonicalDropped) {
+                item.truncation.droppedBytes = *remainingCanonicalDropped;
+            }
+            item.contentTruncated = overflow.contentTruncatedBeforeProjection || remainingDropped != 0;
+            item.truncation.truncated = overflow.truncationBeforeProjection || item.contentTruncated ||
+                                        item.truncation.omittedEntries.value_or(0) != 0 || !item.truncation.omittedPaths.empty();
+            item.commandOutputOverflowV2.reset();
+            return std::nullopt;
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, std::move(path), "command-output overflow restoration failed"};
+        }
+    }
+
+    std::optional<ModelError>
+    restoreItemContentOverflows(ItemData& item,
+                                const std::optional<ItemContentOverflowV1>& agentText,
+                                const std::optional<ItemContentOverflowV1>& commandOutput,
+                                std::string path) noexcept {
+        if (!agentText) {
+            return commandOutput ? restoreCommandOutputOverflowV2(item, *commandOutput, std::move(path)) : std::nullopt;
+        }
+        if (!commandOutput) {
+            return restoreAgentTextOverflowV1(item, *agentText, std::move(path));
+        }
+        try {
+            const auto invalid = [&path](std::string message) {
+                return std::optional<ModelError>{ModelError{ModelErrorCode::InvalidShape, path, std::move(message)}};
+            };
+            if (!item.agentText || item.agentText->size() != agentText->baseContentBytes ||
+                frontendUtf8PrefixLength(*item.agentText, item.agentText->size()) != item.agentText->size() ||
+                !item.commandOutput || item.commandOutput->size() != commandOutput->baseContentBytes ||
+                frontendUtf8PrefixLength(*item.commandOutput, item.commandOutput->size()) != item.commandOutput->size()) {
+                return invalid("item content overflow bases do not match the retained channels");
+            }
+            const std::uint64_t agentSuffix = static_cast<std::uint64_t>(agentText->suffix.size());
+            const std::uint64_t commandSuffix = static_cast<std::uint64_t>(commandOutput->suffix.size());
+            if (commandSuffix > std::numeric_limits<std::uint64_t>::max() - agentSuffix) {
+                return invalid("item content overflow suffix accounting exceeds capacity");
+            }
+            const std::uint64_t restoredBytes = agentSuffix + commandSuffix;
+            if (!item.contentTruncated || !item.droppedContentBytes || *item.droppedContentBytes < restoredBytes) {
+                return invalid("item content overflow has no matching aggregate projection-drop metadata");
+            }
+            const std::uint64_t remainingDropped = *item.droppedContentBytes - restoredBytes;
+            if (agentText->droppedContentBytesBeforeProjection != remainingDropped ||
+                commandOutput->droppedContentBytesBeforeProjection != remainingDropped) {
+                return invalid("item content overflows do not share one canonical pre-projection baseline");
+            }
+            const auto agentPath = std::find(item.truncation.omittedPaths.begin(), item.truncation.omittedPaths.end(), "/agentText");
+            const auto commandPath =
+                std::find(item.truncation.omittedPaths.begin(), item.truncation.omittedPaths.end(), "/commandOutput");
+            if (!item.truncation.truncated || agentPath == item.truncation.omittedPaths.end() ||
+                commandPath == item.truncation.omittedPaths.end()) {
+                return invalid("item content overflows have no matching truncation markers");
+            }
+            if ((item.truncation.droppedBytesPresent || item.truncation.droppedBytes != 0) &&
+                item.truncation.droppedBytes < restoredBytes) {
+                return invalid("item content overflows exceed canonical dropped-byte metadata");
+            }
+
+            item.agentText->append(agentText->suffix);
+            item.commandOutput->append(commandOutput->suffix);
+            item.droppedContentBytes = remainingDropped;
+            const bool contentTruncatedBefore = agentText->contentTruncatedBeforeProjection &&
+                                                commandOutput->contentTruncatedBeforeProjection;
+            const bool truncationBefore = agentText->truncationBeforeProjection && commandOutput->truncationBeforeProjection;
+            if (!contentTruncatedBefore) {
+                std::erase(item.truncation.omittedPaths, "/agentText");
+                std::erase(item.truncation.omittedPaths, "/commandOutput");
+            }
+            if (item.truncation.droppedBytesPresent || item.truncation.droppedBytes != 0) {
+                item.truncation.droppedBytes -= restoredBytes;
+            }
+            item.contentTruncated = contentTruncatedBefore || remainingDropped != 0;
+            item.truncation.truncated = truncationBefore || item.contentTruncated ||
+                                        item.truncation.omittedEntries.value_or(0) != 0 || !item.truncation.omittedPaths.empty();
+            item.agentTextOverflowV1.reset();
+            item.commandOutputOverflowV2.reset();
             return std::nullopt;
         } catch (...) {
             return ModelError{ModelErrorCode::InvalidShape, std::move(path), "item content overflow restoration failed"};
@@ -1736,6 +2181,9 @@ namespace ai::openai::codex::frontend::internal::model {
                 encoded["status"] = turn.status.value_or("unknown");
                 encoded["active"] = turn.active;
                 encoded["terminal"] = turn.terminal;
+                if (turn.plan) {
+                    encoded["plan"] = encodeTurnPlan(*turn.plan, "/state/turns/plan");
+                }
                 if (turn.stampKnown) {
                     encoded["stamp"] = encodeSourceMetadata(turn.stamp);
                 }
@@ -2007,8 +2455,12 @@ namespace ai::openai::codex::frontend::internal::model {
                         value.freshness = value.stamp.freshness;
                     }
                     value.connectionInvalidated = booleanOr(turn, "connectionInvalidated", false);
+                    if (const auto plan = turn.find("plan"); plan != turn.end()) {
+                        value.plan = decodeTurnPlan(*plan, path + "/plan");
+                    }
                     Json turnDetails = turn;
-                    for (std::string_view key : {"id", "threadId", "status", "active", "terminal", "stamp", "connectionInvalidated"}) {
+                    for (std::string_view key :
+                         {"id", "threadId", "status", "active", "terminal", "plan", "stamp", "connectionInvalidated"}) {
                         turnDetails.erase(key);
                     }
                     value.safeDetails = safeDetail(std::move(turnDetails), path);

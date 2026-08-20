@@ -302,8 +302,8 @@ temporarily deprecated while the final façade shape was undecided. Final A1b
 retained both paths. A1.5 resolves that deferred decision in favor of direct
 domain access and removes the redundant public grouped client.
 
-The Codex libraries use SOVERSION 3 after the additive public execution-
-configuration State API changed the C++ ABI. A1.6a established
+The Codex libraries use SOVERSION 4 after typed turn-plan State changed the C++
+ABI. A1.6a established
 the backend foundation, and A1.6b completes the trusted BackendCore command
 and canonical-state layer. Frontend Protocol redesign and provider-neutral
 architecture remain separate A1.7 and A2 work.

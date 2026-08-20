@@ -44,6 +44,11 @@
 
 namespace ai::openai::codex::backend {
 
+    inline constexpr std::size_t MaxRetainedTurnPlanSteps = 32;
+    inline constexpr std::size_t MaxRetainedTurnPlanStepBytes = 1024;
+    inline constexpr std::size_t MaxRetainedTurnPlanStatusBytes = 256;
+    inline constexpr std::size_t MaxRetainedTurnPlanExplanationBytes = 8U * 1024U;
+
     class SessionId {
     public:
         constexpr SessionId() noexcept = default;
@@ -285,12 +290,32 @@ namespace ai::openai::codex::backend {
         std::string reasoningText;
         std::string reasoningSummary;
         std::string commandOutput;
+        std::uint64_t agentTextDroppedContentBytes = 0;
+        std::uint64_t reasoningTextDroppedContentBytes = 0;
+        std::uint64_t reasoningSummaryDroppedContentBytes = 0;
+        std::uint64_t commandOutputDroppedContentBytes = 0;
         std::uint64_t droppedContentBytes = 0;
         std::optional<std::int64_t> startedAtMs;
         std::optional<std::int64_t> completedAtMs;
         Json extensions = Json::object();
         SourceStamp stamp;
         bool connectionInvalidated = false;
+    };
+
+    struct TurnPlanStepState {
+        std::string step;
+        typed::TurnPlanStepStatus status;
+
+        bool operator==(const TurnPlanStepState&) const = default;
+    };
+
+    struct TurnPlanState {
+        std::optional<std::string> explanation;
+        std::vector<TurnPlanStepState> steps;
+        std::size_t totalSteps = 0;
+        bool truncated = false;
+
+        bool operator==(const TurnPlanState&) const = default;
     };
 
     struct TurnState {
@@ -301,6 +326,7 @@ namespace ai::openai::codex::backend {
         bool terminal = false;
         std::optional<Json> failure;
         std::optional<Json> tokenUsage;
+        std::optional<TurnPlanState> plan;
         std::optional<typed::ThreadSettings> effectiveExecutionConfiguration;
         std::optional<std::string> effectiveExecutionConfigurationProvenance;
         std::vector<ModelRerouteRecord> modelReroutes;

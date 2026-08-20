@@ -30,10 +30,10 @@ if(NOT archive_count EQUAL 1)
 endif()
 list(GET archives 0 archive)
 get_filename_component(archive_name "${archive}" NAME)
-if(NOT archive_name MATCHES "^AISuite-0[.]2[.]0(-[^/]*)?[.]tar[.]gz$")
+if(NOT archive_name MATCHES "^AISuite-0[.]3[.]0(-[^/]*)?[.]tar[.]gz$")
     message(
         FATAL_ERROR
-            "unexpected AISuite 0.2.0 binary archive name ${archive_name}"
+            "unexpected AISuite 0.3.0 binary archive name ${archive_name}"
     )
 endif()
 execute_process(
@@ -140,13 +140,13 @@ set(required_package_entries
     "include/aisuite/ai/openai/codex/frontend/Protocol.h"
     "include/aisuite/ai/openai/codex/frontend/Security.h"
     "include/aisuite/ai/openai/codex/frontend/FrontendService.h"
-    "lib/libaisuite-openai-codex.so.3"
-    "lib/libaisuite-openai-codex-backend.so.3"
-    "lib/libaisuite-openai-codex-frontend-protocol.so.3"
-    "lib/libaisuite-openai-codex-frontend.so.3"
+    "lib/libaisuite-openai-codex.so.4"
+    "lib/libaisuite-openai-codex-backend.so.4"
+    "lib/libaisuite-openai-codex-frontend-protocol.so.4"
+    "lib/libaisuite-openai-codex-frontend.so.4"
     "lib/cmake/AISuite/AISuiteConfig.cmake"
     "lib/cmake/AISuite/AISuiteTargets.cmake"
-    "lib/cmake/AISuite/AISuiteTargets-v3.cmake"
+    "lib/cmake/AISuite/AISuiteTargets-v4.cmake"
 )
 if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     list(
@@ -162,7 +162,7 @@ if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
         "include/aisuite/ai/openai/codex/frontend/client/Synchronization.h"
         "include/aisuite/ai/openai/codex/frontend/client/Threads.h"
         "include/aisuite/ai/openai/codex/frontend/client/Turns.h"
-        "lib/libaisuite-openai-codex-frontend-client.so.3"
+        "lib/libaisuite-openai-codex-frontend-client.so.4"
     )
 endif()
 if(AISUITE_BUILD_APPS)
@@ -191,6 +191,14 @@ set(forbidden_package_entries
     "lib/libaisuite-openai-codex-frontend-protocol.so.2"
     "lib/libaisuite-openai-codex-frontend.so.2"
     "lib/libaisuite-openai-codex-frontend-client.so.2"
+    "lib/libaisuite-openai-codex.so.3"
+    "lib/libaisuite-openai-codex-backend.so.3"
+    "lib/libaisuite-openai-codex-frontend-protocol.so.3"
+    "lib/libaisuite-openai-codex-frontend.so.3"
+    "lib/libaisuite-openai-codex-frontend-client.so.3"
+    "lib/cmake/AISuite/AISuiteTargets-v1.cmake"
+    "lib/cmake/AISuite/AISuiteTargets-v2.cmake"
+    "lib/cmake/AISuite/AISuiteTargets-v3.cmake"
     "tools/codex/"
     "tools/extraction/"
     "tests/component/codex/"
@@ -215,7 +223,7 @@ if(NOT AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
     list(
         APPEND forbidden_package_entries
         "include/aisuite/ai/openai/codex/frontend/client/"
-        "lib/libaisuite-openai-codex-frontend-client.so.3"
+        "lib/libaisuite-openai-codex-frontend-client.so.4"
         "bin/codex-backend-client"
     )
 endif()

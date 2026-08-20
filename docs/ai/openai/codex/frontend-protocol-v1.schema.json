@@ -2249,6 +2249,9 @@
         },
         "failure": true,
         "tokenUsage": true,
+        "plan": {
+          "$ref": "#/$defs/TurnPlanState"
+        },
         "effectiveExecutionConfiguration": {
           "$ref": "#/$defs/ExecutionConfiguration"
         },
@@ -2676,11 +2679,23 @@
         "content": {
           "type": "string"
         },
+        "contentDelta": {
+          "type": "string"
+        },
+        "baseContentBytes": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "discardPrefixBytes": {
+          "$ref": "#/$defs/UInt64"
+        },
         "contentTruncated": {
           "type": "boolean"
         },
         "droppedContentBytes": {
           "$ref": "#/$defs/UInt64"
+        },
+        "aisuiteCommandOutputOverflowV2": {
+          "$ref": "#/$defs/CommandOutputOverflowV2"
         }
       },
       "additionalProperties": true
@@ -32528,6 +32543,105 @@
         "$ref": "#/$defs/SafePropertyName"
       }
     },
+    "CommandOutputOverflowV2": {
+      "type": "object",
+      "required": [
+        "baseContentBytes",
+        "chunksBase64",
+        "droppedContentBytesBeforeProjection",
+        "contentTruncatedBeforeProjection",
+        "truncationBeforeProjection"
+      ],
+      "properties": {
+        "baseContentBytes": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "chunksBase64": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 342,
+          "items": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 16384,
+            "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+          }
+        },
+        "droppedContentBytesBeforeProjection": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "contentTruncatedBeforeProjection": {
+          "type": "boolean"
+        },
+        "truncationBeforeProjection": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "maxProperties": 512,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      }
+    },
+    "CommandOrFileSemanticData": {
+      "type": "object",
+      "maxProperties": 64,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      },
+      "properties": {
+        "aisuiteCommandOutputOverflowV2": {
+          "$ref": "#/$defs/CommandOutputOverflowV2"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeDetailLeafValue"
+      }
+    },
+    "TurnPlanState": {
+      "type": "object",
+      "required": [
+        "steps",
+        "statuses",
+        "totalSteps",
+        "truncated"
+      ],
+      "properties": {
+        "explanation": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "steps": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "statuses": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "totalSteps": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/SafeDetailValue"
+      },
+      "maxProperties": 512,
+      "propertyNames": {
+        "$ref": "#/$defs/SafePropertyName"
+      }
+    },
     "ExpandedThreadItemBase": {
       "type": "object",
       "required": [
@@ -32681,7 +32795,7 @@
                   "const": "commandExecution"
                 },
                 "data": {
-                  "$ref": "#/$defs/SafeDetailObject"
+                  "$ref": "#/$defs/CommandOrFileSemanticData"
                 }
               },
               "maxProperties": 512,
@@ -32791,7 +32905,7 @@
                   "const": "fileChange"
                 },
                 "data": {
-                  "$ref": "#/$defs/SafeDetailObject"
+                  "$ref": "#/$defs/CommandOrFileSemanticData"
                 }
               },
               "maxProperties": 512,
@@ -33730,6 +33844,9 @@
         },
         "tokenUsage": {
           "$ref": "#/$defs/SafeDetailObject"
+        },
+        "plan": {
+          "$ref": "#/$defs/TurnPlanState"
         },
         "effectiveExecutionConfiguration": {
           "$ref": "#/$defs/ExecutionConfiguration"
@@ -35302,6 +35419,19 @@
                 },
                 "diagnostic": {
                   "$ref": "#/$defs/SafeDetailObject"
+                },
+                "aisuiteCommandOutputOverflowV2": {
+                  "$ref": "#/$defs/CommandOutputOverflowV2"
+                },
+                "contentDelta": {
+                  "type": "string",
+                  "maxLength": 16384
+                },
+                "baseContentBytes": {
+                  "$ref": "#/$defs/UInt64"
+                },
+                "discardPrefixBytes": {
+                  "$ref": "#/$defs/UInt64"
                 }
               },
               "maxProperties": 32,

@@ -11,7 +11,9 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
+#include <type_traits>
 
 namespace ai::openai::codex::frontend::internal::model {
     namespace {
@@ -24,6 +26,65 @@ namespace ai::openai::codex::frontend::internal::model {
             identity.itemId = draft.itemId;
             identity.pendingRequestId = draft.pendingRequestId;
             identity.processHandle = draft.processHandle;
+        }
+
+        bool checkedAdd(std::size_t& total, std::size_t amount) noexcept {
+            if (amount > std::numeric_limits<std::size_t>::max() - total) {
+                return false;
+            }
+            total += amount;
+            return true;
+        }
+
+        bool addRetainedItemBytes(std::size_t& total, const ItemData& item) noexcept {
+            return (!item.agentTextOverflowV1.has_value() || checkedAdd(total, item.agentTextOverflowV1->suffix.size())) &&
+                   (!item.commandOutputOverflowV2.has_value() ||
+                    checkedAdd(total, item.commandOutputOverflowV2->suffix.size()));
+        }
+
+        bool addRetainedItemBytes(std::size_t& total, const ThreadItem& item) noexcept {
+            return std::visit([&](const auto& typed) { return addRetainedItemBytes(total, typed.value); }, item);
+        }
+
+        std::optional<std::size_t> retainedOccurrenceDynamicBytes(const CanonicalOccurrence& occurrence) noexcept {
+            std::size_t total = 0;
+            try {
+                for (const OccurrencePayload& payload : occurrence.expandedPayloads()) {
+                    const bool valid = std::visit(
+                        [&](const auto& update) {
+                            using Update = std::decay_t<decltype(update)>;
+                            if constexpr (std::is_same_v<Update, ThreadUpsertedOccurrence> ||
+                                          std::is_same_v<Update, TurnUpsertedOccurrence>) {
+                                for (const ThreadItem& item : update.items) {
+                                    if (!addRetainedItemBytes(total, item)) {
+                                        return false;
+                                    }
+                                }
+                            } else if constexpr (std::is_same_v<Update, ItemUpsertedOccurrence>) {
+                                return addRetainedItemBytes(total, update.item);
+                            } else if constexpr (std::is_same_v<Update, ItemContentUpdatedOccurrence>) {
+                                if (update.appendHint.has_value() && !checkedAdd(total, update.appendHint->delta.size())) {
+                                    return false;
+                                }
+                                if (update.overflowV1.has_value() && !checkedAdd(total, update.overflowV1->suffix.size())) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        },
+                        payload);
+                    if (!valid) {
+                        return std::nullopt;
+                    }
+                }
+                const LegacyCompatibilityPayload& legacy = occurrence.legacyCompatibility();
+                if (legacy.legacyItem.has_value() && !addRetainedItemBytes(total, legacy.legacyItem->value)) {
+                    return std::nullopt;
+                }
+                return total;
+            } catch (...) {
+                return std::nullopt;
+            }
         }
     } // namespace
 
@@ -101,6 +162,11 @@ namespace ai::openai::codex::frontend::internal::model {
                 return result;
             }
             byteCount += encodedLegacy.value().dump().size();
+            const std::optional<std::size_t> retainedDynamicBytes = retainedOccurrenceDynamicBytes(occurrence.value());
+            if (!retainedDynamicBytes.has_value() || !checkedAdd(byteCount, *retainedDynamicBytes)) {
+                result.status = JournalAppendStatus::EncodingFailure;
+                return result;
+            }
 
             result.sequence = assigned;
             result.records = {occurrence.value()};

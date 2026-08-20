@@ -27,6 +27,7 @@ namespace ai::openai::codex::backend {
     inline constexpr std::size_t MaxSnapshotCodexExtensions = 64;
     inline constexpr std::size_t MaxSnapshotExtensionMethodBytes = 1024;
     inline constexpr std::size_t MaxSnapshotExtensionPayloadBytes = 32U * 1024U;
+    inline constexpr std::size_t MaxSnapshotCommandOutputBytes = 4U * 1024U * 1024U;
     inline constexpr std::size_t MaxSnapshotExtensionDecodingErrorBytes = 2U * 1024U;
     inline constexpr std::size_t MaxSerializedCodexExtensionEventBytes = 64U * 1024U;
     inline constexpr std::size_t MaxSerializedCodexExtensionEnvelopeOverheadBytes = 4U * 1024U;
@@ -65,6 +66,10 @@ namespace ai::openai::codex::backend {
         std::string reasoningText;
         std::string reasoningSummary;
         std::string commandOutput;
+        std::uint64_t agentTextDroppedContentBytes = 0;
+        std::uint64_t reasoningTextDroppedContentBytes = 0;
+        std::uint64_t reasoningSummaryDroppedContentBytes = 0;
+        std::uint64_t commandOutputDroppedContentBytes = 0;
         std::uint64_t droppedContentBytes = 0;
         bool contentTruncated = false;
         std::optional<std::int64_t> startedAtMs;
@@ -109,6 +114,7 @@ namespace ai::openai::codex::backend {
     // not retain the other content channels or general item details.
     struct ItemContentSnapshot {
         ItemContentSnapshotKey key;
+        std::string type;
         std::string status;
         std::string content;
         // Item-wide projected truncation accumulated before the selected
@@ -143,6 +149,7 @@ namespace ai::openai::codex::backend {
         bool terminal = false;
         std::optional<Json> failure;
         std::optional<Json> tokenUsage;
+        std::optional<TurnPlanState> plan;
         std::optional<Json> effectiveExecutionConfiguration;
         std::optional<std::string> effectiveExecutionConfigurationProvenance;
         std::vector<ItemSnapshot> items;

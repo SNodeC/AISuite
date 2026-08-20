@@ -339,8 +339,12 @@ namespace {
                               state.threads.size() == 4,
                           "subsequent thread/list page uses ID merge semantics and marks terminal pagination complete");
 
-        const typed::Turn readTurnA = turn("thread-start", "turn-z");
-        const typed::Turn readTurnB = turn("thread-start", "turn-a", typed::TurnStatus::completed());
+        const typed::Turn readTurnA =
+            turn("thread-start", "turn-z", typed::TurnStatus::inProgress(), {agentItem("thread-start", "turn-z", "item-stale", "stale")});
+        const typed::Turn readTurnB = turn("thread-start",
+                                                 "turn-a",
+                                                 typed::TurnStatus::completed(),
+                                                 {agentItem("thread-start", "turn-a", "item-removed", "removed")});
         typed::Thread read = thread("thread-start", {readTurnA, readTurnB});
         read.title = "Fully read";
         reducer.apply(state, backend::ThreadUpserted{read, backend::EntityLoad::Full});
@@ -360,6 +364,105 @@ namespace {
                               snapshot.threads.front().turns.size() == 2 && snapshot.threads.front().turns[0].id == "turn-z" &&
                               snapshot.threads.front().turns[1].id == "turn-a",
                           "snapshot preserves first-seen thread, turn, and item ordering instead of map key ordering");
+
+        typed::TurnPlanUpdatedNotification retainedPlan;
+        retainedPlan.threadId = typed::ThreadId{"thread-start"};
+        retainedPlan.turnId = typed::TurnId{"turn-z"};
+        retainedPlan.explanation = typed::OptionalNullable<std::string>::withValue("keep");
+        typed::TurnPlanStep retainedStep;
+        retainedStep.step = "verify";
+        retainedStep.status = typed::TurnPlanStepStatus::pending();
+        retainedPlan.plan = {std::move(retainedStep)};
+        retainedPlan.raw = Json{{"params", Json::object()}};
+        for (const backend::BackendEvent& event : reducer.translate(typed::Event{std::move(retainedPlan)})) {
+            reducer.apply(state, event);
+        }
+
+        typed::Thread authoritative = thread(
+            "thread-start",
+            {turn("thread-start",
+                  "turn-z",
+                  typed::TurnStatus::completed(),
+                  {agentItem("thread-start", "turn-z", "item-current", "replacement")})});
+        reducer.apply(state, backend::ThreadUpserted{std::move(authoritative), backend::EntityLoad::Full});
+        const backend::ThreadState& reconciled = state.threads.at("thread-start");
+        const backend::TurnState& reconciledTurn = reconciled.turns.at("turn-z");
+        result.expectTrue(reconciled.turns.size() == 1 && reconciled.turnOrder.size() == 1 &&
+                              !reconciled.turns.contains("turn-a") && reconciledTurn.items.size() == 1 &&
+                              reconciledTurn.items.contains("item-current") && !reconciledTurn.items.contains("item-stale") &&
+                              reconciledTurn.plan && reconciledTurn.plan->steps.size() == 1 &&
+                              reconciledTurn.plan->steps.front().step == "verify" && state.capacity.retainedTurns == 1 &&
+                              state.capacity.retainedItems == 1 && state.capacity.accumulatedContentBytes == 28,
+                          "a full thread response removes absent descendants while preserving retained plan state and exact content accounting");
+
+        typed::ThreadMetadataUpdateParams metadataParams;
+        metadataParams.threadId = typed::ThreadId{"thread-start"};
+        typed::ThreadMetadataUpdateResponse metadataResponse;
+        metadataResponse.thread = thread("thread-start");
+        metadataResponse.thread.title = "Renamed without turns";
+        reducer.apply(state,
+                      backend::ProviderOperationCompleted{
+                          "thread/metadata/update",
+                          backend::BackendCommand{backend::ThreadMetadataUpdate{std::move(metadataParams)}},
+                          backend::ProviderOperationValue{std::move(metadataResponse)},
+                          std::nullopt});
+
+        typed::ThreadUnarchiveParams unarchiveParams;
+        unarchiveParams.threadId = typed::ThreadId{"thread-start"};
+        typed::ThreadUnarchiveResponse unarchiveResponse;
+        unarchiveResponse.thread = thread("thread-start");
+        reducer.apply(state,
+                      backend::ProviderOperationCompleted{
+                          "thread/unarchive",
+                          backend::BackendCommand{backend::ThreadUnarchive{std::move(unarchiveParams)}},
+                          backend::ProviderOperationValue{std::move(unarchiveResponse)},
+                          std::nullopt});
+        const backend::ThreadState& summaryUpdated = state.threads.at("thread-start");
+        result.expectTrue(summaryUpdated.turns.size() == 1 && summaryUpdated.turns.at("turn-z").plan &&
+                              summaryUpdated.turns.at("turn-z").items.contains("item-current") &&
+                              state.capacity.accumulatedContentBytes == 28,
+                          "metadata update and unarchive responses with omitted turns preserve retained history and plan state");
+    }
+
+    void testFullThreadReconciliationRestoresAuthoritativeOrder(tests::support::TestResult& result) {
+        backend::BackendState state;
+        backend::Reducer reducer;
+
+        typed::Thread latestOnly = thread(
+            "thread-order",
+            {turn("thread-order",
+                  "turn-b",
+                  typed::TurnStatus::completed(),
+                  {agentItem("thread-order", "turn-b", "item-b", "second")})});
+        reducer.apply(state, backend::ThreadUpserted{std::move(latestOnly), backend::EntityLoad::Summary});
+
+        typed::Thread authoritative = thread(
+            "thread-order",
+            {turn("thread-order",
+                  "turn-a",
+                  typed::TurnStatus::completed(),
+                  {agentItem("thread-order", "turn-a", "item-a", "first")}),
+             turn("thread-order",
+                  "turn-b",
+                  typed::TurnStatus::completed(),
+                  {agentItem("thread-order", "turn-b", "item-b-before", "before"),
+                   agentItem("thread-order", "turn-b", "item-b", "second")})});
+        reducer.apply(state, backend::ThreadUpserted{std::move(authoritative), backend::EntityLoad::Full});
+
+        const backend::ThreadState& reconciled = state.threads.at("thread-order");
+        const backend::TurnState& reconciledTurnB = reconciled.turns.at("turn-b");
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        result.expectTrue(
+            reconciled.turnOrder ==
+                    std::vector<typed::TurnId>{typed::TurnId{"turn-a"}, typed::TurnId{"turn-b"}} &&
+                reconciledTurnB.itemOrder ==
+                    std::vector<typed::ItemId>{typed::ItemId{"item-b-before"}, typed::ItemId{"item-b"}} &&
+                snapshot.threads.size() == 1 && snapshot.threads.front().turns.size() == 2 &&
+                snapshot.threads.front().turns[0].id == "turn-a" && snapshot.threads.front().turns[1].id == "turn-b" &&
+                snapshot.threads.front().turns[1].items.size() == 2 &&
+                snapshot.threads.front().turns[1].items[0].id == "item-b-before" &&
+                snapshot.threads.front().turns[1].items[1].id == "item-b",
+            "a full thread response replaces partial first-seen turn and item order with its authoritative arrays");
     }
 
     void testExecutionConfigurationRetention(tests::support::TestResult& result) {
@@ -403,6 +506,28 @@ namespace {
                                                           backend::ProviderOperationValue{std::move(started)},
                                                           std::nullopt});
 
+        typed::TurnPlanUpdatedNotification planUpdated;
+        planUpdated.threadId = typed::ThreadId{"thread-config"};
+        planUpdated.turnId = typed::TurnId{"turn-config"};
+        planUpdated.explanation = typed::OptionalNullable<std::string>::withValue(
+            std::string(backend::MaxRetainedTurnPlanExplanationBytes + 3, 'e'));
+        planUpdated.raw = Json{{"params", Json::object()}};
+        for (std::size_t index = 0; index < backend::MaxRetainedTurnPlanSteps + 2; ++index) {
+            typed::TurnPlanStep step;
+            step.status = index == 0 ? typed::TurnPlanStepStatus::inProgress()
+                                     : (index == 1 ? typed::TurnPlanStepStatus::completed()
+                                                   : typed::TurnPlanStepStatus::pending());
+            if (index == 2) {
+                step.status.value = std::string(backend::MaxRetainedTurnPlanStatusBytes + 5, 'x');
+            }
+            step.step = index == 0 ? std::string(backend::MaxRetainedTurnPlanStepBytes - 1, 's') + "\xE2\x82\xAC" + "tail"
+                                   : "step-" + std::to_string(index);
+            planUpdated.plan.push_back(std::move(step));
+        }
+        for (const backend::BackendEvent& event : reducer.translate(typed::Event{std::move(planUpdated)})) {
+            reducer.apply(state, event);
+        }
+
         typed::ThreadArchivedNotification archived;
         archived.threadId = typed::ThreadId{"thread-config"};
         archived.raw = Json{{"params", Json::object()}};
@@ -423,7 +548,18 @@ namespace {
                               retainedTurn.effectiveExecutionConfiguration->personality.value == typed::Personality::friendly() &&
                               retainedTurn.effectiveExecutionConfiguration->serviceTier.hasValue() &&
                               retainedTurn.effectiveExecutionConfiguration->serviceTier.value == std::optional<std::string>{"priority"} &&
-                              retainedTurn.effectiveExecutionConfigurationProvenance == "turn_start_accepted",
+                              retainedTurn.effectiveExecutionConfigurationProvenance == "turn_start_accepted" && retainedTurn.plan &&
+                              retainedTurn.plan->steps.size() == backend::MaxRetainedTurnPlanSteps &&
+                              retainedTurn.plan->totalSteps == backend::MaxRetainedTurnPlanSteps + 2 && retainedTurn.plan->truncated &&
+                              retainedTurn.plan->steps[0].step.size() == backend::MaxRetainedTurnPlanStepBytes - 1 &&
+                              retainedTurn.plan->steps[0].step ==
+                                  std::string(backend::MaxRetainedTurnPlanStepBytes - 1, 's') &&
+                              retainedTurn.plan->steps[0].status == typed::TurnPlanStepStatus::inProgress() &&
+                              retainedTurn.plan->steps[1].step == "step-1" &&
+                              retainedTurn.plan->steps[1].status == typed::TurnPlanStepStatus::completed() &&
+                              retainedTurn.plan->steps[2].status.value.size() == backend::MaxRetainedTurnPlanStatusBytes &&
+                              retainedTurn.plan->explanation &&
+                              retainedTurn.plan->explanation->size() == backend::MaxRetainedTurnPlanExplanationBytes,
                           "thread settings remain authoritative and turn/start captures the accepted effective configuration");
         result.expectTrue(projectedThread.ephemeral == true && projectedThread.archived == true &&
                               projectedThread.cwd == "/workspace/current",
@@ -434,12 +570,40 @@ namespace {
         result.expectTrue(projectedTurn.effectiveExecutionConfiguration &&
                               projectedTurn.effectiveExecutionConfiguration->value("model", "") == "gpt-turn" &&
                               projectedTurn.effectiveExecutionConfiguration->value("cwd", "") == "/workspace/turn" &&
-                              projectedTurn.effectiveExecutionConfigurationProvenance == "turn_start_accepted",
-                          "snapshots retain historical effective turn settings and their provenance: " +
+                              projectedTurn.effectiveExecutionConfigurationProvenance == "turn_start_accepted" && projectedTurn.plan &&
+                              projectedTurn.plan == retainedTurn.plan,
+                              "snapshots retain historical effective turn settings, plan state, and their provenance: " +
                               (projectedTurn.effectiveExecutionConfiguration
                                    ? projectedTurn.effectiveExecutionConfiguration->dump()
                                    : std::string{"missing"}) +
                               " / " + projectedTurn.effectiveExecutionConfigurationProvenance.value_or("missing"));
+
+        const auto retainedPlanBytes = [](const backend::TurnPlanState& plan) {
+            std::size_t bytes = plan.explanation ? plan.explanation->size() : 0;
+            for (const backend::TurnPlanStepState& step : plan.steps) {
+                bytes += step.step.size() + step.status.value.size();
+            }
+            return bytes;
+        };
+        result.expectTrue(retainedTurn.plan && state.capacity.accumulatedContentBytes == retainedPlanBytes(*retainedTurn.plan),
+                          "typed turn-plan text participates exactly in the accumulated-content ledger");
+
+        typed::TurnPlanUpdatedNotification replacementPlan;
+        replacementPlan.threadId = typed::ThreadId{"thread-config"};
+        replacementPlan.turnId = typed::TurnId{"turn-config"};
+        replacementPlan.explanation = typed::OptionalNullable<std::string>::withValue("short");
+        typed::TurnPlanStep replacementStep;
+        replacementStep.status = typed::TurnPlanStepStatus::completed();
+        replacementStep.step = "verify";
+        replacementPlan.plan = {std::move(replacementStep)};
+        replacementPlan.raw = Json{{"params", Json::object()}};
+        for (const backend::BackendEvent& event : reducer.translate(typed::Event{std::move(replacementPlan)})) {
+            reducer.apply(state, event);
+        }
+        const backend::TurnState& replacedPlanTurn = state.threads.at("thread-config").turns.at("turn-config");
+        result.expectTrue(replacedPlanTurn.plan && replacedPlanTurn.plan->steps.size() == 1 &&
+                              state.capacity.accumulatedContentBytes == retainedPlanBytes(*replacedPlanTurn.plan),
+                          "turn-plan replacement removes the previous plan contribution from the capacity ledger");
 
         typed::TurnStartParams resetStart;
         resetStart.threadId = typed::ThreadId{"thread-config"};
@@ -625,6 +789,77 @@ namespace {
                               snapshot.threads[0].turns[0].items[1].reasoningText == expectedReasoning &&
                               snapshot.threads[0].turns[0].items[2].commandOutput == expectedCommand,
                           "snapshot exposes exact accumulated content for each item without merging entities");
+
+        backend::ReducerOptions rollingOptions;
+        rollingOptions.maxAccumulatedItemBytes = 8;
+        backend::Reducer rollingReducer(rollingOptions);
+        backend::BackendState rollingState;
+        rollingReducer.apply(rollingState, backend::TurnUpserted{turn("thread-rolling", "turn-rolling")});
+        rollingReducer.apply(rollingState,
+                             backend::ItemUpserted{typed::ThreadId{"thread-rolling"},
+                                                   typed::TurnId{"turn-rolling"},
+                                                   commandItem("thread-rolling", "turn-rolling", "item-rolling"),
+                                                   backend::ItemLifecycle::Started,
+                                                   1});
+        rollingReducer.apply(rollingState,
+                             backend::ItemContentChanged{typed::ThreadId{"thread-rolling"},
+                                                         typed::TurnId{"turn-rolling"},
+                                                         typed::ItemId{"item-rolling"},
+                                                         backend::ItemContentChanged::Kind::CommandOutput,
+                                                         "abcdefgh",
+                                                         std::nullopt});
+        const backend::Reduction rolling = rollingReducer.apply(
+            rollingState,
+            backend::ItemContentChanged{typed::ThreadId{"thread-rolling"},
+                                        typed::TurnId{"turn-rolling"},
+                                        typed::ItemId{"item-rolling"},
+                                        backend::ItemContentChanged::Kind::CommandOutput,
+                                        "ij",
+                                        std::nullopt});
+        const backend::ItemState* rollingItem = findItem(rollingState, "thread-rolling", "turn-rolling", "item-rolling");
+        result.expectTrue(rollingItem && rollingItem->commandOutput == "cdefghij" &&
+                              rollingItem->commandOutputDroppedContentBytes == 2 && !rolling.canonicalStateRewritten &&
+                              std::ranges::none_of(rolling.capacityChanges, [](const backend::CapacityChanged& change) {
+                                  return change.canonicalStateRewritten;
+                              }),
+                          "nominal per-channel rolling retention drops only the target prefix without claiming an unrelated canonical rewrite");
+
+        backend::BackendState aggregateState;
+        backend::Reducer aggregateReducer;
+        backend::BackendCapacityOptions aggregateLimits;
+        aggregateLimits.maxAccumulatedContentBytes = 8;
+        aggregateReducer.apply(aggregateState, backend::CapacityConfigured{aggregateLimits});
+        const backend::Reduction aggregate = aggregateReducer.apply(
+            aggregateState,
+            backend::ItemUpserted{typed::ThreadId{"thread-aggregate"},
+                                  typed::TurnId{"turn-aggregate"},
+                                  commandItem("thread-aggregate", "turn-aggregate", "item-aggregate", "abcdefghij"),
+                                  backend::ItemLifecycle::Started,
+                                  1});
+        const backend::ItemState* aggregateItem = findItem(aggregateState, "thread-aggregate", "turn-aggregate", "item-aggregate");
+        const auto aggregateDrop = std::ranges::find(
+            aggregate.capacityChanges,
+            backend::CapacityChanged{backend::CapacityMetric::DroppedContentBytes, 2, true});
+        result.expectTrue(aggregateItem && aggregateItem->commandOutput == "cdefghij" && aggregate.canonicalStateRewritten &&
+                              aggregateDrop != aggregate.capacityChanges.end(),
+                          "aggregate retention trimming marks its out-of-band canonical rewrite so frontend delivery can rebase");
+
+        backend::BackendState saturatedState;
+        saturatedState.capacity.droppedContentBytes = std::numeric_limits<std::uint64_t>::max();
+        backend::Reducer saturatedReducer;
+        saturatedReducer.apply(saturatedState, backend::CapacityConfigured{aggregateLimits});
+        const backend::Reduction saturated = saturatedReducer.apply(
+            saturatedState,
+            backend::ItemUpserted{typed::ThreadId{"thread-saturated"},
+                                  typed::TurnId{"turn-saturated"},
+                                  commandItem("thread-saturated", "turn-saturated", "item-saturated", "abcdefghij"),
+                                  backend::ItemLifecycle::Started,
+                                  1});
+        const backend::ItemState* saturatedItem =
+            findItem(saturatedState, "thread-saturated", "turn-saturated", "item-saturated");
+        result.expectTrue(saturatedItem && saturatedItem->commandOutput == "cdefghij" && saturated.canonicalStateRewritten &&
+                              saturated.capacityChanges.empty(),
+                          "canonical retention rewrites remain explicit after their accounting counter saturates and emits no delta");
     }
 
     void testCompletionFailureAndAuxiliaryUpdates(tests::support::TestResult& result) {
@@ -674,6 +909,23 @@ namespace {
         const backend::ItemState* fileState = findItem(state, "thread-terminal", "turn-failed", "file-item");
         result.expectTrue(fileState && fileState->extensions.at("fileChanges") == changes,
                           "file-change updates remain associated with the correct item");
+
+        typed::FileChangeOutputDeltaNotification outputDelta;
+        outputDelta.threadId = typed::ThreadId{"thread-terminal"};
+        outputDelta.turnId = typed::TurnId{"turn-failed"};
+        outputDelta.itemId = typed::ItemId{"file-item"};
+        outputDelta.delta = "patch output";
+        outputDelta.raw = Json{{"params", Json::object()}};
+        const std::vector<backend::BackendEvent> outputEvents = reducer.translate(typed::Event{std::move(outputDelta)});
+        const auto* extension =
+            outputEvents.size() == 1 ? std::get_if<backend::CodexExtensionReceived>(&outputEvents.front()) : nullptr;
+        for (const backend::BackendEvent& event : outputEvents) {
+            reducer.apply(state, event);
+        }
+        fileState = findItem(state, "thread-terminal", "turn-failed", "file-item");
+        result.expectTrue(extension && extension->method == "item/fileChange/outputDelta" && extension->typedEvent && fileState &&
+                              fileState->commandOutput == "patch output",
+                          "file-change output deltas retain legacy compatibility while updating canonical command output");
     }
 
     void testUserMessageLifecycle(tests::support::TestResult& result) {
@@ -2360,6 +2612,7 @@ int main() {
 
     testInitialStateAndLifecycle(result);
     testThreadAndTurnHydration(result);
+    testFullThreadReconciliationRestoresAuthoritativeOrder(result);
     testExecutionConfigurationRetention(result);
     testStatusOnlyPlaceholderParity(result);
     testItemsAndHighVolumeDeltas(result);

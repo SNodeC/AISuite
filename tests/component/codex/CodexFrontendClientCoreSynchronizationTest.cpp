@@ -548,6 +548,36 @@ namespace {
                               terminalClient.state()->visibleSequence == model::FrontendSequence::maximum() &&
                               terminalClient.state()->snapshot->backendCursor.frontendSequenceExhausted,
                           "the frozen same-sequence terminal live Snapshot is accepted with explicit exhaustion metadata");
+
+        const std::vector<frontend::FrontendCapability> items{frontend::FrontendCapability::CompleteThreadItems};
+        Harness reconciliationHarness;
+        core::ClientOptions reconciliationOptions = clientOptions();
+        reconciliationOptions.requestedCapabilities = items;
+        core::ClientCore reconciliationClient(std::move(reconciliationOptions));
+        const core::PhysicalGeneration reconciliationGeneration =
+            readyWithCapabilities(reconciliationClient, reconciliationHarness, items);
+        model::CanonicalSnapshot authoritative;
+        authoritative.sequence = model::FrontendSequence{1};
+        model::ThreadState thread{model::ThreadIdentity{"partial-thread"}};
+        thread.fullyLoaded = true;
+        authoritative.threads.push_back(std::move(thread));
+        authoritative.turns.emplace_back(model::TurnIdentity{"replacement-turn"}, model::ThreadIdentity{"partial-thread"});
+        model::ItemData item{model::ItemIdentity{"replacement-item"},
+                             model::ThreadIdentity{"partial-thread"},
+                             model::TurnIdentity{"replacement-turn"}};
+        item.commandOutput = "authoritative";
+        authoritative.items.emplace_back(model::CommandExecutionItem{std::move(item)});
+        const bool replacementAccepted = reconciliationClient.receive(
+            reconciliationGeneration,
+            frontend::ServerMessage{projectedSnapshot(std::move(authoritative), items)});
+        const auto reconciled = reconciliationClient.state();
+        const bool staleTurnRemoved = reconciled && reconciled->snapshot &&
+                                      std::ranges::none_of(reconciled->snapshot->turns, [](const model::TurnState& value) {
+                                          return value.id == model::TurnIdentity{"partial-turn"};
+                                      });
+        result.expectTrue(replacementAccepted && reconciliationClient.ready() && reconciled && staleTurnRemoved &&
+                              reconciled->item("partial-item") == nullptr && reconciled->item("replacement-item") != nullptr,
+                          "an authoritative expanded Snapshot replaces stale turns and items instead of merging a full thread read as an upsert");
     }
 
     void testLiveCallbackLifecycleInvalidation(tests::support::TestResult& result) {
@@ -1003,8 +1033,9 @@ namespace {
             generation,
             frontend::ServerMessage{frontend::EventBatch{append.sequence, append.sequence, {std::move(append)}}});
         const model::ThreadItem* item = client.state() ? client.state()->item("partial-item") : nullptr;
-        result.expectTrue(requestedModes != nullptr && *requestedModes == frontend::Json::array({"append-v1"}),
-                          "client Hello explicitly offers the append-v1 item-content update mode");
+        result.expectTrue(requestedModes != nullptr &&
+                              *requestedModes == frontend::Json::array({"append-v2", "append-v1"}),
+                          "client Hello offers append-v2 first and retains append-v1 compatibility");
         result.expectTrue(accepted && client.ready() && item != nullptr &&
                               model::itemData(*item).commandOutput == std::optional<std::string>{"initial+delta"} &&
                               observedReplacementChange,
@@ -1107,7 +1138,7 @@ namespace {
                                                             false,
                                                             false};
         pastFrozen.appendHint = model::ItemContentAppendHint{
-            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", true};
+            static_cast<std::uint64_t>(overflowPrefix.size() + overflowSuffix.size()), " next", 0, true};
         model::OccurrenceIdentity pastFrozenIdentity{model::FrontendSequence{1},
                                                      model::OccurrenceGroupIdentity{"overflow-live"},
                                                      0,
@@ -1191,6 +1222,172 @@ namespace {
                               model::itemData(*hybridItem).agentText ==
                                   std::optional<std::string>{overflowPrefix + overflowSuffix},
                           "append-v1 restores overflow in the CompleteThreadItems hybrid snapshot representation");
+
+        const std::string commandSuffix = std::string(20'000, 'o') + "\xE2\x82\xAC";
+        model::CanonicalSnapshot commandState = itemSnapshotState(0);
+        std::visit(
+            [&](auto& value) {
+                value.value.commandOutput = overflowPrefix;
+                value.value.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+                    static_cast<std::uint64_t>(overflowPrefix.size()), commandSuffix, 0, false, false};
+                value.value.contentTruncated = true;
+                value.value.droppedContentBytes = static_cast<std::uint64_t>(commandSuffix.size());
+                value.value.truncation.truncated = true;
+                value.value.truncation.droppedBytes = static_cast<std::uint64_t>(commandSuffix.size());
+                value.value.truncation.omittedPaths = {"/commandOutput"};
+            },
+            commandState.items.front());
+        Harness commandHarness;
+        core::ClientOptions commandOptions = clientOptions();
+        commandOptions.requestedCapabilities = expandedItems;
+        core::ClientCore commandClient(std::move(commandOptions));
+        const core::PhysicalGeneration commandGeneration = *commandClient.attach(commandHarness.transport());
+        commandClient.transportConnected(commandGeneration);
+        frontend::Welcome commandWelcome{"command-overflow-session",
+                                         frontend::SessionRole::Observer,
+                                         frontend::SequenceNumber{0},
+                                         frontend::SyncMode::Snapshot,
+                                         {{"permittedScopes", frontend::Json::array({"observe"})},
+                                          {"projection", {{"itemContentUpdateMode", "append-v2"}}}},
+                                         representationCapabilities(expandedItems),
+                                         allMethods(),
+                                         allMethods()};
+        const bool commandWelcomeAccepted =
+            commandClient.receive(commandGeneration, frontend::ServerMessage{std::move(commandWelcome)});
+        const bool commandSnapshotAccepted = commandClient.receive(
+            commandGeneration,
+            frontend::ServerMessage{
+                projectedSnapshot(commandState, expandedItems, model::ItemContentWireMode::AppendV2)});
+        const bool commandSynchronized = commandClient.receive(
+            commandGeneration, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber{0}}});
+        const model::ThreadItem* commandSnapshotItem =
+            commandClient.state() ? commandClient.state()->item("partial-item") : nullptr;
+        const bool commandSnapshotExact =
+            commandSnapshotItem != nullptr &&
+            model::itemData(*commandSnapshotItem).commandOutput ==
+                std::optional<std::string>{overflowPrefix + commandSuffix};
+
+        model::ItemContentUpdatedOccurrence commandAppend{model::ItemIdentity{"partial-item"}};
+        commandAppend.threadId = model::ThreadIdentity{"partial-thread"};
+        commandAppend.turnId = model::TurnIdentity{"partial-turn"};
+        commandAppend.channel = "commandOutput";
+        commandAppend.itemKind = frontend::ThreadItemKind::CommandExecution;
+        commandAppend.content = overflowPrefix;
+        commandAppend.truncation.truncated = true;
+        commandAppend.truncation.droppedBytes = static_cast<std::uint64_t>(commandSuffix.size() + 5);
+        commandAppend.overflowV1 = model::ItemContentOverflowV1{static_cast<std::uint64_t>(overflowPrefix.size()),
+                                                               commandSuffix + " next",
+                                                               0,
+                                                               false,
+                                                               false};
+        commandAppend.appendHint = model::ItemContentAppendHint{
+            static_cast<std::uint64_t>(overflowPrefix.size() + commandSuffix.size()), " next", 0, true};
+        model::OccurrenceIdentity commandAppendIdentity{model::FrontendSequence{1},
+                                                        model::OccurrenceGroupIdentity{"command-overflow-live"},
+                                                        0,
+                                                        1,
+                                                        model::SourceStamp{"command-overflow-live"}};
+        const auto commandAppendOccurrence =
+            model::makeOccurrence(std::move(commandAppendIdentity), std::move(commandAppend));
+        const auto commandAppendEncoded =
+            commandAppendOccurrence
+                ? model::encodeExpandedOccurrence(commandAppendOccurrence.value(), model::ItemContentWireMode::AppendV2)
+                : model::OccurrenceResult<std::vector<frontend::ExpandedFrontendEvent>>{commandAppendOccurrence.error()};
+        frontend::FrontendEvent commandAppendEvent;
+        if (commandAppendEncoded) {
+            const frontend::ExpandedFrontendEvent& expanded = commandAppendEncoded.value().front();
+            commandAppendEvent =
+                frontend::FrontendEvent{expanded.sequence, std::string(frontend::toString(expanded.type)), expanded.data, expanded.extensions};
+        }
+        const bool commandAppendAccepted = commandAppendEncoded && commandClient.receive(
+                                                                   commandGeneration,
+                                                                   frontend::ServerMessage{frontend::EventBatch{
+                                                                       commandAppendEvent.sequence,
+                                                                       commandAppendEvent.sequence,
+                                                                       {std::move(commandAppendEvent)}}});
+        const model::ThreadItem* commandLiveItem =
+            commandClient.state() ? commandClient.state()->item("partial-item") : nullptr;
+        result.expectTrue(commandWelcomeAccepted && commandSnapshotAccepted && commandSynchronized && commandSnapshotExact &&
+                              commandAppendEncoded &&
+                              commandAppendEncoded.value().front().data.value("baseContentBytes", std::uint64_t{0}) > 16'384 &&
+                              commandAppendAccepted && commandLiveItem != nullptr &&
+                              model::itemData(*commandLiveItem).commandOutput ==
+                                  std::optional<std::string>{overflowPrefix + commandSuffix + " next"},
+                          "append-v2 ClientCore publishes complete command output for synchronization and past-prefix live appends");
+
+        const std::string rollingBase(model::MaximumCommandOutputOverflowV2Bytes, '"');
+        const std::string rollingPrefix = rollingBase.substr(0, 16'384);
+        const std::string rollingSuffix = rollingBase.substr(rollingPrefix.size());
+        model::CanonicalSnapshot rollingState = itemSnapshotState(0);
+        std::visit(
+            [&](auto& value) {
+                value.value.commandOutput = rollingPrefix;
+                value.value.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+                    static_cast<std::uint64_t>(rollingPrefix.size()), rollingSuffix, 0, false, false};
+                value.value.contentTruncated = true;
+                value.value.droppedContentBytes = static_cast<std::uint64_t>(rollingSuffix.size());
+                value.value.truncation.truncated = true;
+                value.value.truncation.droppedBytes = static_cast<std::uint64_t>(rollingSuffix.size());
+                value.value.truncation.omittedPaths = {"/commandOutput"};
+            },
+            rollingState.items.front());
+
+        Harness rollingHarness;
+        core::ClientOptions rollingOptions = clientOptions();
+        rollingOptions.requestedCapabilities = expandedItems;
+        core::ClientCore rollingClient(std::move(rollingOptions));
+        const core::PhysicalGeneration rollingGeneration = *rollingClient.attach(rollingHarness.transport());
+        rollingClient.transportConnected(rollingGeneration);
+        frontend::Welcome rollingWelcome{"rolling-command-session",
+                                          frontend::SessionRole::Observer,
+                                          frontend::SequenceNumber{0},
+                                          frontend::SyncMode::Snapshot,
+                                          {{"permittedScopes", frontend::Json::array({"observe"})},
+                                           {"projection", {{"itemContentUpdateMode", "append-v2"}}}},
+                                          representationCapabilities(expandedItems),
+                                          allMethods(),
+                                          allMethods()};
+        const bool rollingWelcomeAccepted =
+            rollingClient.receive(rollingGeneration, frontend::ServerMessage{std::move(rollingWelcome)});
+        const bool rollingSnapshotAccepted = rollingClient.receive(
+            rollingGeneration,
+            frontend::ServerMessage{
+                projectedSnapshot(rollingState, expandedItems, model::ItemContentWireMode::AppendV2)});
+        const bool rollingSynchronized = rollingClient.receive(
+            rollingGeneration, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber{0}}});
+        const model::ThreadItem* rollingSnapshotItem =
+            rollingClient.state() ? rollingClient.state()->item("partial-item") : nullptr;
+        const bool rollingSnapshotExact =
+            rollingSnapshotItem != nullptr &&
+            model::itemData(*rollingSnapshotItem).commandOutput == std::optional<std::string>{rollingBase};
+
+        frontend::FrontendEvent rollingAppend{
+            frontend::SequenceNumber{1},
+            "item.content.updated",
+            {{"threadId", "partial-thread"},
+             {"turnId", "partial-turn"},
+             {"itemId", "partial-item"},
+             {"channel", "commandOutput"},
+             {"content", ""},
+             {"contentDelta", "tail"},
+             {"baseContentBytes", static_cast<std::uint64_t>(rollingBase.size())},
+             {"discardPrefixBytes", std::uint64_t{4}},
+             {"contentTruncated", true},
+             {"droppedContentBytes", std::uint64_t{4}}}};
+        const bool rollingAppendAccepted = rollingClient.receive(
+            rollingGeneration,
+            frontend::ServerMessage{
+                frontend::EventBatch{rollingAppend.sequence, rollingAppend.sequence, {std::move(rollingAppend)}}});
+        const model::ThreadItem* rollingItem =
+            rollingClient.state() ? rollingClient.state()->item("partial-item") : nullptr;
+        const model::ItemData* rollingData = rollingItem != nullptr ? &model::itemData(*rollingItem) : nullptr;
+        result.expectTrue(
+            rollingWelcomeAccepted && rollingSnapshotAccepted && rollingSynchronized && rollingSnapshotExact &&
+                rollingAppendAccepted && rollingClient.ready() && rollingData != nullptr &&
+                rollingData->commandOutput == std::optional<std::string>{rollingBase.substr(4) + "tail"} &&
+                rollingData->commandOutput->size() == model::MaximumCommandOutputOverflowV2Bytes &&
+                rollingData->contentTruncated && rollingData->droppedContentBytes == std::optional<std::uint64_t>{4},
+            "append-v2 restores JSON-expanding 4 MiB command output and applies a truthful bounded rolling append");
     }
 
     void testLegacyUnknownCompatibility(tests::support::TestResult& result) {

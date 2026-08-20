@@ -30,21 +30,33 @@ namespace ai::openai::codex::frontend::internal::server {
 
     namespace {
 
-        constexpr std::string_view ItemContentAppendMode = "append-v1";
+        constexpr std::string_view ItemContentAppendV1Mode = "append-v1";
+        constexpr std::string_view ItemContentAppendV2Mode = "append-v2";
 
-        [[nodiscard]] bool requestsItemContentAppend(const Json& extensions) noexcept {
+        [[nodiscard]] model::ItemContentWireMode requestedItemContentMode(const Json& extensions) noexcept {
             try {
                 const auto projection = extensions.find("projection");
                 if (projection == extensions.end() || !projection->is_object()) {
-                    return false;
+                    return model::ItemContentWireMode::Replacement;
                 }
                 const auto modes = projection->find("itemContentUpdateModes");
-                return modes != projection->end() && modes->is_array() &&
-                       std::any_of(modes->begin(), modes->end(), [](const Json& mode) {
-                           return mode.is_string() && mode.get_ref<const std::string&>() == ItemContentAppendMode;
-                       });
+                if (modes == projection->end() || !modes->is_array()) {
+                    return model::ItemContentWireMode::Replacement;
+                }
+                const auto requests = [&](std::string_view requested) {
+                    return std::any_of(modes->begin(), modes->end(), [&](const Json& mode) {
+                        return mode.is_string() && mode.get_ref<const std::string&>() == requested;
+                    });
+                };
+                if (requests(ItemContentAppendV2Mode)) {
+                    return model::ItemContentWireMode::AppendV2;
+                }
+                if (requests(ItemContentAppendV1Mode)) {
+                    return model::ItemContentWireMode::AppendV1;
+                }
+                return model::ItemContentWireMode::Replacement;
             } catch (...) {
-                return false;
+                return model::ItemContentWireMode::Replacement;
             }
         }
 
@@ -89,21 +101,51 @@ namespace ai::openai::codex::frontend::internal::server {
                 return;
             }
 
-            constexpr std::size_t MaximumAppendBytes = 64U * 1024U;
+            constexpr std::size_t MaximumAppendBytes = 16U * 1024U;
             const model::ItemContentAppendHint& first = *prior->appendHint;
             const model::ItemContentAppendHint& second = *next->appendHint;
+            if (first.discardPrefixBytes > first.baseContentBytes || second.discardPrefixBytes > second.baseContentBytes) {
+                next->appendHint.reset();
+                return;
+            }
+            const std::uint64_t retainedFirstBase = first.baseContentBytes - first.discardPrefixBytes;
             const std::uint64_t firstDeltaBytes = static_cast<std::uint64_t>(first.delta.size());
-            if (firstDeltaBytes > std::numeric_limits<std::uint64_t>::max() - first.baseContentBytes ||
-                second.baseContentBytes != first.baseContentBytes + firstDeltaBytes ||
-                first.delta.size() > MaximumAppendBytes || second.delta.size() > MaximumAppendBytes - first.delta.size()) {
+            if (firstDeltaBytes > std::numeric_limits<std::uint64_t>::max() - retainedFirstBase ||
+                second.baseContentBytes != retainedFirstBase + firstDeltaBytes) {
                 next->appendHint.reset();
                 return;
             }
             try {
-                std::string combined = first.delta;
+                std::uint64_t combinedDiscard = first.discardPrefixBytes;
+                std::size_t retainedFirstDeltaOffset = 0;
+                if (second.discardPrefixBytes <= retainedFirstBase) {
+                    combinedDiscard += second.discardPrefixBytes;
+                } else {
+                    const std::uint64_t deltaDiscard = second.discardPrefixBytes - retainedFirstBase;
+                    if (deltaDiscard > first.delta.size()) {
+                        next->appendHint.reset();
+                        return;
+                    }
+                    retainedFirstDeltaOffset = static_cast<std::size_t>(deltaDiscard);
+                    if (retainedFirstDeltaOffset < first.delta.size() &&
+                        (static_cast<unsigned char>(first.delta[retainedFirstDeltaOffset]) & 0xc0U) == 0x80U) {
+                        next->appendHint.reset();
+                        return;
+                    }
+                    combinedDiscard = first.baseContentBytes;
+                }
+                if (first.delta.size() - retainedFirstDeltaOffset > MaximumAppendBytes ||
+                    second.delta.size() > MaximumAppendBytes - (first.delta.size() - retainedFirstDeltaOffset)) {
+                    next->appendHint.reset();
+                    return;
+                }
+                std::string combined = first.delta.substr(retainedFirstDeltaOffset);
                 combined.append(second.delta);
                 next->appendHint = model::ItemContentAppendHint{
-                    first.baseContentBytes, std::move(combined), first.sourceVerified && second.sourceVerified};
+                    first.baseContentBytes,
+                    std::move(combined),
+                    combinedDiscard,
+                    first.sourceVerified && second.sourceVerified};
             } catch (...) {
                 next->appendHint.reset();
             }
@@ -406,7 +448,7 @@ namespace ai::openai::codex::frontend::internal::server {
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
             std::vector<FrontendCapability> negotiatedCapabilities;
-            bool itemContentAppendV1 = false;
+            model::ItemContentWireMode itemContentWireMode = model::ItemContentWireMode::Replacement;
             std::deque<SerializedServerMessage> outbound;
             // A live Snapshot published from inside BackendPort::snapshot()
             // is accepted immediately but must follow the outer snapshot
@@ -495,7 +537,7 @@ namespace ai::openai::codex::frontend::internal::server {
             ConnectionToken token;
             model::ProjectionContext projection;
             std::vector<FrontendCapability> negotiatedCapabilities;
-            bool itemContentAppendV1 = false;
+            model::ItemContentWireMode itemContentWireMode = model::ItemContentWireMode::Replacement;
         };
 
         struct SnapshotBarrier {
@@ -1626,9 +1668,10 @@ namespace ai::openai::codex::frontend::internal::server {
                 negotiated.push_back(requested);
             }
         }
-        const bool itemContentAppendV1 =
-            requestsItemContentAppend(hello.extensions) &&
-            containsCapability(negotiated, FrontendCapability::CompleteThreadItems);
+        const model::ItemContentWireMode itemContentWireMode =
+            containsCapability(negotiated, FrontendCapability::CompleteThreadItems)
+                ? requestedItemContentMode(hello.extensions)
+                : model::ItemContentWireMode::Replacement;
 
         connection = findConnection(awaitingHello);
         if (!connection) {
@@ -1654,7 +1697,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         connection->principal = principal;
         connection->negotiatedCapabilities = std::move(negotiated);
-        connection->itemContentAppendV1 = itemContentAppendV1;
+        connection->itemContentWireMode = itemContentWireMode;
         const ConnectionContinuation openingSession{*token, false, false};
         const FrontendSessionToken backendSessionToken{token->identity, token->generation, session};
         connection = nullptr;
@@ -1712,8 +1755,11 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             welcome.extensions["permittedScopes"] = std::move(permittedScopes);
         }
-        if (connection->itemContentAppendV1) {
-            welcome.extensions["projection"] = Json{{"itemContentUpdateMode", std::string(ItemContentAppendMode)}};
+        if (connection->itemContentWireMode != model::ItemContentWireMode::Replacement) {
+            const std::string_view selectedMode = connection->itemContentWireMode == model::ItemContentWireMode::AppendV2
+                                                      ? ItemContentAppendV2Mode
+                                                      : ItemContentAppendV1Mode;
+            welcome.extensions["projection"] = Json{{"itemContentUpdateMode", std::string(selectedMode)}};
         }
         if (!options.serverVersion.empty()) {
             welcome.serverVersion = options.serverVersion;
@@ -2170,7 +2216,7 @@ namespace ai::openai::codex::frontend::internal::server {
             return std::nullopt;
         }
         return FrozenSnapshotRecipient{
-            token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities, connection->itemContentAppendV1};
+            token, projectionContext(token.identity, *connection), connection->negotiatedCapabilities, connection->itemContentWireMode};
     }
 
     bool ServerCore::Impl::enqueueFrozenSnapshot(const FrozenSnapshotRecipient& recipient,
@@ -2188,11 +2234,8 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             const model::CanonicalSnapshot& snapshot = projected.value();
 
-            const model::ModelResult<Snapshot> encoded = model::encodeProjectedSnapshot(
-                snapshot,
-                recipient.negotiatedCapabilities,
-                recipient.itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
-                                              : model::ItemContentWireMode::Replacement);
+            const model::ModelResult<Snapshot> encoded =
+                model::encodeProjectedSnapshot(snapshot, recipient.negotiatedCapabilities, recipient.itemContentWireMode);
             return encoded && (deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
                                                          : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
         } catch (...) {
@@ -2314,10 +2357,8 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 std::vector<FrontendEvent> groupEvents;
                 if (useExpanded) {
-                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded = model::encodeExpandedOccurrence(
-                        *projected,
-                        connection.itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
-                                                       : model::ItemContentWireMode::Replacement);
+                    const model::OccurrenceResult<std::vector<ExpandedFrontendEvent>> encoded =
+                        model::encodeExpandedOccurrence(*projected, connection.itemContentWireMode);
                     if (!encoded) {
                         result.batches.clear();
                         return result;

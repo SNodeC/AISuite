@@ -989,19 +989,22 @@ namespace ai::openai::codex::backend {
                 content->channelBytesBefore.reset();
                 content->droppedContentBytesBefore.reset();
                 if (const ItemState* item = findItem(state, content->threadId, content->turnId, content->itemId)) {
-                    content->droppedContentBytesBefore = item->droppedContentBytes;
                     switch (content->kind) {
                         case ItemContentChanged::Kind::AgentText:
                             content->channelBytesBefore = item->agentText.size();
+                            content->droppedContentBytesBefore = item->agentTextDroppedContentBytes;
                             break;
                         case ItemContentChanged::Kind::ReasoningText:
                             content->channelBytesBefore = item->reasoningText.size();
+                            content->droppedContentBytesBefore = item->reasoningTextDroppedContentBytes;
                             break;
                         case ItemContentChanged::Kind::ReasoningSummary:
                             content->channelBytesBefore = item->reasoningSummary.size();
+                            content->droppedContentBytesBefore = item->reasoningSummaryDroppedContentBytes;
                             break;
                         case ItemContentChanged::Kind::CommandOutput:
                             content->channelBytesBefore = item->commandOutput.size();
+                            content->droppedContentBytesBefore = item->commandOutputDroppedContentBytes;
                             break;
                     }
                 }
@@ -1011,7 +1014,25 @@ namespace ai::openai::codex::backend {
             if (!reduction.changed) {
                 return false;
             }
-            if (const auto* operation = std::get_if<ProviderOperationCompleted>(&event)) {
+            const auto canonicalRewrite = std::find_if(
+                reduction.capacityChanges.begin(), reduction.capacityChanges.end(), [](const CapacityChanged& change) {
+                    return change.canonicalStateRewritten;
+                });
+            if (reduction.canonicalStateRewritten) {
+                // Capacity enforcement can rewrite entities beyond the event's
+                // nominal target. Publish one post-reduction fence instead of
+                // an incremental event that can no longer describe the final
+                // state; the frontend bridge rebases from a snapshot. The
+                // reduction flag remains authoritative when every affected
+                // capacity counter is already saturated and no counter delta
+                // can be emitted.
+                const CapacityChanged fence = canonicalRewrite != reduction.capacityChanges.end()
+                                                  ? *canonicalRewrite
+                                                  : CapacityChanged{CapacityMetric::SnapshotOmissions, 0, true};
+                if (!emitReducedEvent(fence)) {
+                    return false;
+                }
+            } else if (const auto* operation = std::get_if<ProviderOperationCompleted>(&event)) {
                 if (!emitReducedEvent(ProviderOperationStateChanged{operation->method})) {
                     return false;
                 }
@@ -1043,14 +1064,18 @@ namespace ai::openai::codex::backend {
                     return false;
                 }
             }
-            for (const CapacityChanged& capacityChange : reduction.capacityChanges) {
-                if (!emitReducedEvent(capacityChange)) {
-                    return false;
+            if (!reduction.canonicalStateRewritten) {
+                for (const CapacityChanged& capacityChange : reduction.capacityChanges) {
+                    if (!emitReducedEvent(capacityChange)) {
+                        return false;
+                    }
                 }
             }
-            for (const PendingRequestRemoved& pendingRequestRemoval : reduction.pendingRequestRemovals) {
-                if (!emitReducedEvent(pendingRequestRemoval)) {
-                    return false;
+            if (!reduction.canonicalStateRewritten) {
+                for (const PendingRequestRemoved& pendingRequestRemoval : reduction.pendingRequestRemovals) {
+                    if (!emitReducedEvent(pendingRequestRemoval)) {
+                        return false;
+                    }
                 }
             }
             if (reduction.providerCapacityFailure) {

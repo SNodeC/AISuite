@@ -32,7 +32,8 @@ namespace ai::openai::codex::frontend::internal::client {
             FrontendCapability::ScopeProjectedState,
         };
         constexpr std::size_t MaximumContinuityKeyBytes = 256;
-        constexpr std::string_view ItemContentAppendMode = "append-v1";
+        constexpr std::string_view ItemContentAppendV1Mode = "append-v1";
+        constexpr std::string_view ItemContentAppendV2Mode = "append-v2";
 
         template <typename Callback>
         class ScopeExit final {
@@ -2390,7 +2391,8 @@ namespace ai::openai::codex::frontend::internal::client {
 
         const bool sensitive = std::holds_alternative<BearerCredential>(authentication.credential);
         Json helloExtensions{{"projection",
-                              {{"itemContentUpdateModes", Json::array({std::string(ItemContentAppendMode)})}}}};
+                              {{"itemContentUpdateModes",
+                                Json::array({std::string(ItemContentAppendV2Mode), std::string(ItemContentAppendV1Mode)})}}}};
         OutboundMessage outbound{Hello{helloResumeAfter ? std::optional<SequenceNumber>{helloResumeAfter->protocolValue()} : std::nullopt,
                                        std::move(helloExtensions),
                                        options.requestedCapabilities,
@@ -2575,15 +2577,25 @@ namespace ai::openai::codex::frontend::internal::client {
                 return;
             }
             if (const auto selectedMode = projection->find("itemContentUpdateMode"); selectedMode != projection->end()) {
-                if (!selectedMode->is_string() || selectedMode->get_ref<const std::string&>() != ItemContentAppendMode ||
-                    !contains(decoded.selectedCapabilities, FrontendCapability::CompleteThreadItems)) {
+                if (!selectedMode->is_string() || !contains(decoded.selectedCapabilities, FrontendCapability::CompleteThreadItems)) {
                     failConnection(protocolError(ClientErrorCode::UnexpectedMessage,
                                                  "item-content update mode selection is invalid or unavailable"),
                                    "frontend projection metadata rejected",
                                    true);
                     return;
                 }
-                decoded.itemContentAppendV1 = true;
+                const std::string& mode = selectedMode->get_ref<const std::string&>();
+                if (mode == ItemContentAppendV2Mode) {
+                    decoded.itemContentWireMode = model::ItemContentWireMode::AppendV2;
+                } else if (mode == ItemContentAppendV1Mode) {
+                    decoded.itemContentWireMode = model::ItemContentWireMode::AppendV1;
+                } else {
+                    failConnection(protocolError(ClientErrorCode::UnexpectedMessage,
+                                                 "item-content update mode selection is invalid or unavailable"),
+                                   "frontend projection metadata rejected",
+                                   true);
+                    return;
+                }
             }
             explicitProjectionMetadata = *projection;
         }
@@ -2663,11 +2675,7 @@ namespace ai::openai::codex::frontend::internal::client {
         if (!expandedDomains && !options.allowLegacyV1) {
             return std::nullopt;
         }
-        auto decoded = model::decodeProjectedSnapshot(
-            snapshot,
-            session->selectedCapabilities,
-            session->itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
-                                         : model::ItemContentWireMode::Replacement);
+        auto decoded = model::decodeProjectedSnapshot(snapshot, session->selectedCapabilities, session->itemContentWireMode);
         if (!decoded) {
             return std::nullopt;
         }
@@ -2892,11 +2900,10 @@ namespace ai::openai::codex::frontend::internal::client {
                             return model::OccurrenceResult<model::CanonicalOccurrence>{model::OccurrenceError{
                                 model::OccurrenceErrorCode::InvalidPayload, "/events", "expanded event validation failed"}};
                         }
-                        return model::decodeExpandedOccurrence(
-                            expanded,
-                            context,
-                            session.has_value() && session->itemContentAppendV1 ? model::ItemContentWireMode::AppendV1
-                                                                               : model::ItemContentWireMode::Replacement);
+                        return model::decodeExpandedOccurrence(expanded,
+                                                               context,
+                                                               session.has_value() ? session->itemContentWireMode
+                                                                                   : model::ItemContentWireMode::Replacement);
                     }
                     return model::decodeLegacyOccurrence(event, context);
                 }();
@@ -2908,7 +2915,8 @@ namespace ai::openai::codex::frontend::internal::client {
                         const auto* update = std::get_if<model::ItemContentUpdatedOccurrence>(&payload);
                         return update != nullptr && update->appendWireRepresentation;
                     });
-                if (containsAppend && (!session.has_value() || !session->itemContentAppendV1)) {
+                if (containsAppend &&
+                    (!session.has_value() || session->itemContentWireMode == model::ItemContentWireMode::Replacement)) {
                     return false;
                 }
                 decodedMembers.push_back(std::move(decoded).value());

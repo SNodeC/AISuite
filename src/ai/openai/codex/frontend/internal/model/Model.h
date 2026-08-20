@@ -172,9 +172,14 @@ namespace ai::openai::codex::frontend::internal::model {
     };
 
     inline constexpr std::string_view ItemContentOverflowV1Property = "aisuiteItemContentOverflowV1";
+    inline constexpr std::string_view CommandOutputOverflowV2Property = "aisuiteCommandOutputOverflowV2";
     inline constexpr std::size_t MaximumItemContentOverflowV1Bytes = 32U * 1024U;
+    inline constexpr std::size_t MaximumCommandOutputOverflowV2Bytes = 4U * 1024U * 1024U;
+    // Base64 chunks make this bound independent of JSON escaping while
+    // retaining room in the 11 MiB server queue and 16 MiB client frame.
+    inline constexpr std::size_t MaximumCommandOutputOverflowV2EncodedBytes = 8U * 1024U * 1024U;
 
-    enum class ItemContentWireMode { Replacement, AppendV1 };
+    enum class ItemContentWireMode { Replacement, AppendV1, AppendV2 };
 
     struct ItemContentOverflowV1 {
         std::uint64_t baseContentBytes = 0;
@@ -452,6 +457,22 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const ThreadState&) const = default;
     };
 
+    struct TurnPlanStepState {
+        std::string step;
+        std::string status;
+
+        bool operator==(const TurnPlanStepState&) const = default;
+    };
+
+    struct TurnPlanState {
+        std::optional<std::string> explanation;
+        std::vector<TurnPlanStepState> steps;
+        std::size_t totalSteps = 0;
+        bool truncated = false;
+
+        bool operator==(const TurnPlanState&) const = default;
+    };
+
     struct TurnState {
         TurnIdentity id;
         ThreadIdentity threadId;
@@ -462,6 +483,7 @@ namespace ai::openai::codex::frontend::internal::model {
         SourceMetadata stamp;
         bool stampKnown = true;
         bool connectionInvalidated = false;
+        std::optional<TurnPlanState> plan;
         SafeDetail safeDetails;
         SafeDetail legacyExtensions;
 
@@ -501,6 +523,9 @@ namespace ai::openai::codex::frontend::internal::model {
         // Connection-neutral suffix retained only so append-v1 recipients can
         // reconstruct agentText beyond the frozen v1 scalar field bound.
         std::optional<ItemContentOverflowV1> agentTextOverflowV1;
+        // Append-v2 peers reconstruct the backend-bounded command output from
+        // UTF-8 chunks while the frozen v1 commandOutput scalar remains bounded.
+        std::optional<ItemContentOverflowV1> commandOutputOverflowV2;
         std::optional<std::uint64_t> droppedContentBytes;
         bool contentTruncated = false;
         std::optional<std::int64_t> startedAtMs;
@@ -861,8 +886,18 @@ namespace ai::openai::codex::frontend::internal::model {
     [[nodiscard]] ModelResult<Json> encodeItemContentOverflowV1(const ItemContentOverflowV1& overflow) noexcept;
     [[nodiscard]] ModelResult<ItemContentOverflowV1>
     decodeItemContentOverflowV1(const Json& encoded, std::string path) noexcept;
+    [[nodiscard]] ModelResult<Json> encodeCommandOutputOverflowV2(const ItemContentOverflowV1& overflow) noexcept;
+    [[nodiscard]] ModelResult<ItemContentOverflowV1>
+    decodeCommandOutputOverflowV2(const Json& encoded, std::string path) noexcept;
     [[nodiscard]] std::optional<ModelError>
     restoreAgentTextOverflowV1(ItemData& item, const ItemContentOverflowV1& overflow, std::string path) noexcept;
+    [[nodiscard]] std::optional<ModelError>
+    restoreCommandOutputOverflowV2(ItemData& item, const ItemContentOverflowV1& overflow, std::string path) noexcept;
+    [[nodiscard]] std::optional<ModelError>
+    restoreItemContentOverflows(ItemData& item,
+                                const std::optional<ItemContentOverflowV1>& agentText,
+                                const std::optional<ItemContentOverflowV1>& commandOutput,
+                                std::string path) noexcept;
 
     [[nodiscard]] ModelResult<ExpandedSnapshot>
     encodeSnapshot(const CanonicalSnapshot& snapshot, ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;

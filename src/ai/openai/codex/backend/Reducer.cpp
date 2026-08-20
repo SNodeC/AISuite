@@ -338,6 +338,58 @@ namespace ai::openai::codex::backend {
             return value;
         }
 
+        std::size_t boundedUtf8PrefixLength(std::string_view value, std::size_t byteLimit) noexcept {
+            std::size_t offset = 0;
+            while (offset < value.size() && offset < byteLimit) {
+                const unsigned char first = static_cast<unsigned char>(value[offset]);
+                std::size_t width = 0;
+                if (first <= 0x7fU) {
+                    width = 1;
+                } else if (first >= 0xc2U && first <= 0xdfU) {
+                    width = 2;
+                } else if (first >= 0xe0U && first <= 0xefU) {
+                    width = 3;
+                } else if (first >= 0xf0U && first <= 0xf4U) {
+                    width = 4;
+                } else {
+                    break;
+                }
+                if (offset + width > value.size() || offset + width > byteLimit) {
+                    break;
+                }
+                bool valid = true;
+                for (std::size_t index = 1; index < width; ++index) {
+                    valid = valid &&
+                            (static_cast<unsigned char>(value[offset + index]) & 0xc0U) == 0x80U;
+                }
+                if (valid && width == 3) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    valid = (first != 0xe0U || second >= 0xa0U) && (first != 0xedU || second <= 0x9fU);
+                } else if (valid && width == 4) {
+                    const unsigned char second = static_cast<unsigned char>(value[offset + 1]);
+                    valid = (first != 0xf0U || second >= 0x90U) && (first != 0xf4U || second <= 0x8fU);
+                }
+                if (!valid) {
+                    break;
+                }
+                offset += width;
+            }
+            return offset;
+        }
+
+        std::string boundedUtf8Text(std::string_view value, std::size_t limit) {
+            return std::string(value.substr(0, boundedUtf8PrefixLength(value, limit)));
+        }
+
+        std::size_t utf8PrefixRemovalLength(std::string_view value, std::size_t minimumBytes) noexcept {
+            std::size_t removed = std::min(minimumBytes, value.size());
+            while (removed < value.size() &&
+                   (static_cast<unsigned char>(value[removed]) & 0xc0U) == 0x80U) {
+                ++removed;
+            }
+            return removed;
+        }
+
         std::string boundedIdentity(std::string_view kind, std::string_view value) {
             constexpr std::uint64_t FnvOffset = 1469598103934665603ULL;
             constexpr std::uint64_t FnvPrime = 1099511628211ULL;
@@ -1000,42 +1052,73 @@ namespace ai::openai::codex::backend {
             return iterator->second;
         }
 
-        void assignBounded(std::string& target, const std::string& value, std::size_t limit, std::uint64_t& dropped) {
+        void assignBounded(std::string& target,
+                           const std::string& value,
+                           std::size_t limit,
+                           std::uint64_t& dropped,
+                           std::uint64_t* channelDropped = nullptr) {
+            const auto recordDropped = [&dropped, channelDropped](std::size_t bytes) {
+                saturatingAdd(dropped, saturatingUint64(bytes));
+                if (channelDropped != nullptr) {
+                    saturatingAdd(*channelDropped, saturatingUint64(bytes));
+                }
+            };
+            const std::size_t validBytes = boundedUtf8PrefixLength(value, value.size());
+            if (validBytes != value.size()) {
+                recordDropped(value.size() - validBytes);
+            }
+            const std::string_view validValue{value.data(), validBytes};
             if (limit == 0) {
-                saturatingAdd(dropped, saturatingUint64(value.size()));
+                recordDropped(validValue.size());
                 target.clear();
-            } else if (value.size() > limit) {
-                saturatingAdd(dropped, saturatingUint64(value.size() - limit));
-                target.assign(value.end() - static_cast<std::ptrdiff_t>(limit), value.end());
+            } else if (validValue.size() > limit) {
+                const std::size_t removed = utf8PrefixRemovalLength(validValue, validValue.size() - limit);
+                recordDropped(removed);
+                target.assign(validValue.substr(removed));
             } else {
-                target = value;
+                target = validValue;
             }
         }
 
-        void appendBounded(std::string& target, const std::string& value, std::size_t limit, std::uint64_t& dropped) {
-            if (value.empty()) {
+        void appendBounded(std::string& target,
+                           const std::string& value,
+                           std::size_t limit,
+                           std::uint64_t& dropped,
+                           std::uint64_t* channelDropped = nullptr) {
+            const auto recordDropped = [&dropped, channelDropped](std::size_t bytes) {
+                saturatingAdd(dropped, saturatingUint64(bytes));
+                if (channelDropped != nullptr) {
+                    saturatingAdd(*channelDropped, saturatingUint64(bytes));
+                }
+            };
+            const std::size_t validBytes = boundedUtf8PrefixLength(value, value.size());
+            if (validBytes != value.size()) {
+                recordDropped(value.size() - validBytes);
+            }
+            const std::string_view validValue{value.data(), validBytes};
+            if (validValue.empty()) {
                 return;
             }
             if (limit == 0) {
-                const std::uint64_t targetBytes = saturatingUint64(target.size());
-                const std::uint64_t valueBytes = saturatingUint64(value.size());
-                saturatingAdd(dropped, targetBytes);
-                saturatingAdd(dropped, valueBytes);
+                recordDropped(target.size());
+                recordDropped(validValue.size());
                 target.clear();
                 return;
             }
-            if (value.size() >= limit) {
-                saturatingAdd(dropped, saturatingUint64(target.size()));
-                saturatingAdd(dropped, saturatingUint64(value.size() - limit));
-                target.assign(value.end() - static_cast<std::ptrdiff_t>(limit), value.end());
+            if (validValue.size() >= limit) {
+                recordDropped(target.size());
+                const std::size_t removed = utf8PrefixRemovalLength(validValue, validValue.size() - limit);
+                recordDropped(removed);
+                target.assign(validValue.substr(removed));
                 return;
             }
-            if (target.size() > limit - value.size()) {
-                const std::size_t remove = target.size() - (limit - value.size());
-                saturatingAdd(dropped, saturatingUint64(remove));
+            if (target.size() > limit - validValue.size()) {
+                const std::size_t remove =
+                    utf8PrefixRemovalLength(target, target.size() - (limit - validValue.size()));
+                recordDropped(remove);
                 target.erase(0, remove);
             }
-            target += value;
+            target.append(validValue.data(), validValue.size());
         }
 
         std::size_t processOutputBytes(const ProcessState& process) noexcept {
@@ -1582,20 +1665,40 @@ namespace ai::openai::codex::backend {
         }
 
         void initializeVisibleContent(ItemState& state, bool authoritative, std::size_t limit) {
-            std::visit(Overloaded{[&state, authoritative, limit](const typed::AgentMessageThreadItem& item) {
+            const auto resetChannelDrop = [&state](std::uint64_t& channelDropped) {
+                state.droppedContentBytes = channelDropped > state.droppedContentBytes
+                                                ? 0
+                                                : state.droppedContentBytes - channelDropped;
+                channelDropped = 0;
+            };
+            std::visit(Overloaded{[&state, &resetChannelDrop, authoritative, limit](const typed::AgentMessageThreadItem& item) {
                                       if ((!item.text.empty() && authoritative) || state.agentText.empty()) {
-                                          assignBounded(state.agentText, item.text, limit, state.droppedContentBytes);
+                                          if (authoritative) {
+                                              resetChannelDrop(state.agentTextDroppedContentBytes);
+                                          }
+                                          assignBounded(state.agentText,
+                                                        item.text,
+                                                        limit,
+                                                        state.droppedContentBytes,
+                                                        &state.agentTextDroppedContentBytes);
                                       }
                                   },
-                                  [&state, authoritative, limit](const typed::ReasoningThreadItem& item) {
+                                  [&state, &resetChannelDrop, authoritative, limit](const typed::ReasoningThreadItem& item) {
                                       const std::vector<std::string>& content = item.contentOrDefault();
                                       const bool hasContent = std::any_of(content.begin(), content.end(), [](const std::string& value) {
                                           return !value.empty();
                                       });
                                       if ((authoritative && hasContent) || state.reasoningText.empty()) {
+                                          if (authoritative) {
+                                              resetChannelDrop(state.reasoningTextDroppedContentBytes);
+                                          }
                                           state.reasoningText.clear();
                                           for (const std::string& value : content) {
-                                              appendBounded(state.reasoningText, value, limit, state.droppedContentBytes);
+                                              appendBounded(state.reasoningText,
+                                                            value,
+                                                            limit,
+                                                            state.droppedContentBytes,
+                                                            &state.reasoningTextDroppedContentBytes);
                                           }
                                       }
                                       const std::vector<std::string>& summary = item.summaryOrDefault();
@@ -1603,16 +1706,30 @@ namespace ai::openai::codex::backend {
                                           return !value.empty();
                                       });
                                       if ((authoritative && hasSummary) || state.reasoningSummary.empty()) {
+                                          if (authoritative) {
+                                              resetChannelDrop(state.reasoningSummaryDroppedContentBytes);
+                                          }
                                           state.reasoningSummary.clear();
                                           for (const std::string& value : summary) {
-                                              appendBounded(state.reasoningSummary, value, limit, state.droppedContentBytes);
+                                              appendBounded(state.reasoningSummary,
+                                                            value,
+                                                            limit,
+                                                            state.droppedContentBytes,
+                                                            &state.reasoningSummaryDroppedContentBytes);
                                           }
                                       }
                                   },
-                                  [&state, authoritative, limit](const typed::CommandExecutionThreadItem& item) {
+                                  [&state, &resetChannelDrop, authoritative, limit](const typed::CommandExecutionThreadItem& item) {
                                       if (item.aggregatedOutput &&
                                           ((!item.aggregatedOutput->empty() && authoritative) || state.commandOutput.empty())) {
-                                          assignBounded(state.commandOutput, *item.aggregatedOutput, limit, state.droppedContentBytes);
+                                          if (authoritative) {
+                                              resetChannelDrop(state.commandOutputDroppedContentBytes);
+                                          }
+                                          assignBounded(state.commandOutput,
+                                                        *item.aggregatedOutput,
+                                                        limit,
+                                                        state.droppedContentBytes,
+                                                        &state.commandOutputDroppedContentBytes);
                                       }
                                   },
                                   [](const auto&) {
@@ -1626,6 +1743,18 @@ namespace ai::openai::codex::backend {
             saturatingAddSize(bytes, item.reasoningText.size());
             saturatingAddSize(bytes, item.reasoningSummary.size());
             saturatingAddSize(bytes, item.commandOutput.size());
+            return bytes;
+        }
+
+        std::size_t turnPlanContentBytes(const std::optional<TurnPlanState>& plan) noexcept {
+            if (!plan) {
+                return 0;
+            }
+            std::size_t bytes = plan->explanation ? plan->explanation->size() : 0;
+            for (const TurnPlanStepState& step : plan->steps) {
+                saturatingAddSize(bytes, step.step.size());
+                saturatingAddSize(bytes, step.status.value.size());
+            }
             return bytes;
         }
 
@@ -1703,6 +1832,9 @@ namespace ai::openai::codex::backend {
             }
             return true;
         }
+
+        void eraseItem(BackendState& state, TurnState& turn, const std::string& id);
+        void eraseTurn(BackendState& state, ThreadState& thread, const std::string& id);
 
         bool
         upsertTurn(BackendState& state, const typed::Turn& value, std::size_t contentLimit, RetentionInsertions* insertions = nullptr) {
@@ -1783,6 +1915,55 @@ namespace ai::openai::codex::backend {
 
             for (const typed::Turn& turn : value.turns) {
                 upsertTurn(state, turn, contentLimit, insertions);
+            }
+            if (load == EntityLoad::Full) {
+                ThreadState& retainedThread = state.threads.at(value.id.value);
+                std::set<std::string> authoritativeTurnIds;
+                std::vector<typed::TurnId> authoritativeTurnOrder;
+                authoritativeTurnOrder.reserve(value.turns.size());
+                for (const typed::Turn& sourceTurn : value.turns) {
+                    if (authoritativeTurnIds.insert(sourceTurn.id.value).second) {
+                        authoritativeTurnOrder.push_back(sourceTurn.id);
+                    }
+                    const auto retainedTurn = retainedThread.turns.find(sourceTurn.id.value);
+                    if (retainedTurn == retainedThread.turns.end()) {
+                        continue;
+                    }
+                    std::set<std::string> authoritativeItemIds;
+                    std::vector<typed::ItemId> authoritativeItemOrder;
+                    authoritativeItemOrder.reserve(sourceTurn.items.size());
+                    for (const typed::ThreadItem& sourceItem : sourceTurn.items) {
+                        if (const std::optional<typed::ItemId> id = itemId(sourceItem)) {
+                            if (authoritativeItemIds.insert(id->value).second && retainedTurn->second.items.contains(id->value)) {
+                                authoritativeItemOrder.push_back(*id);
+                            }
+                        }
+                    }
+                    std::vector<std::string> removedItems;
+                    removedItems.reserve(retainedTurn->second.items.size());
+                    for (const auto& [id, item] : retainedTurn->second.items) {
+                        (void) item;
+                        if (!authoritativeItemIds.contains(id)) {
+                            removedItems.push_back(id);
+                        }
+                    }
+                    for (const std::string& id : removedItems) {
+                        eraseItem(state, retainedTurn->second, id);
+                    }
+                    retainedTurn->second.itemOrder = std::move(authoritativeItemOrder);
+                }
+                std::vector<std::string> removedTurns;
+                removedTurns.reserve(retainedThread.turns.size());
+                for (const auto& [id, turn] : retainedThread.turns) {
+                    (void) turn;
+                    if (!authoritativeTurnIds.contains(id)) {
+                        removedTurns.push_back(id);
+                    }
+                }
+                for (const std::string& id : removedTurns) {
+                    eraseTurn(state, retainedThread, id);
+                }
+                retainedThread.turnOrder = std::move(authoritativeTurnOrder);
             }
             return true;
         }
@@ -1917,6 +2098,7 @@ namespace ai::openai::codex::backend {
             }
             guardedSubtractSize(state.capacity.retainedTurns, 1);
             guardedSubtractSize(state.capacity.retainedItems, turn->second.items.size());
+            guardedSubtractSize(state.capacity.accumulatedContentBytes, turnPlanContentBytes(turn->second.plan));
             for (const auto& [itemIdValue, item] : turn->second.items) {
                 (void) itemIdValue;
                 guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item));
@@ -1937,6 +2119,7 @@ namespace ai::openai::codex::backend {
             for (const auto& [turnId, turn] : thread->second.turns) {
                 (void) turnId;
                 guardedSubtractSize(state.capacity.retainedItems, turn.items.size());
+                guardedSubtractSize(state.capacity.accumulatedContentBytes, turnPlanContentBytes(turn.plan));
                 for (const auto& [itemIdValue, item] : turn.items) {
                     (void) itemIdValue;
                     guardedSubtractSize(state.capacity.accumulatedContentBytes, itemContentBytes(item));
@@ -1948,7 +2131,7 @@ namespace ai::openai::codex::backend {
             });
         }
 
-        void enforceRetentionCapacity(BackendState& state, const RetentionInsertions& insertions) {
+        bool enforceRetentionCapacity(BackendState& state, const RetentionInsertions& insertions) {
             const BackendCapacityOptions& limits = state.capacity.limits;
             if (state.capacity.retainedThreads <= limits.maxRetainedThreads && state.capacity.retainedTurns <= limits.maxRetainedTurns &&
                 state.capacity.retainedItems <= limits.maxRetainedItems &&
@@ -1959,8 +2142,9 @@ namespace ai::openai::codex::backend {
                 state.capacity.retainedFilesystemWatches <= limits.maxRetainedFilesystemWatches &&
                 state.capacity.retainedFuzzySearchSessions <= limits.maxRetainedFuzzySearchSessions &&
                 state.capacity.retainedActivityRecords <= limits.maxRetainedActivityRecords) {
-                return;
+                return false;
             }
+            bool canonicalStateRewritten = false;
             detail::recordRetentionCapacitySlowPath();
             const bool structuralCapacityExceeded = state.capacity.retainedThreads > limits.maxRetainedThreads ||
                                                     state.capacity.retainedTurns > limits.maxRetainedTurns ||
@@ -1993,6 +2177,7 @@ namespace ai::openai::codex::backend {
                         const auto thread = state.threads.find(id);
                         accountThreadRemoval(state.capacity, thread->second, false);
                         eraseThread(state, id);
+                        canonicalStateRewritten = true;
                         continue;
                     }
                     saturatingAdd(state.capacity.snapshotOmissions);
@@ -2002,6 +2187,7 @@ namespace ai::openai::codex::backend {
                 const auto thread = state.threads.find(id);
                 accountThreadRemoval(state.capacity, thread->second, true);
                 eraseThread(state, id);
+                canonicalStateRewritten = true;
             }
 
             while (state.capacity.retainedTurns > limits.maxRetainedTurns) {
@@ -2019,6 +2205,7 @@ namespace ai::openai::codex::backend {
                             accountTurnRemoval(state.capacity, turn->second, true);
                             const std::string id = turnId.value;
                             eraseTurn(state, thread->second, id);
+                            canonicalStateRewritten = true;
                             evicted = true;
                             break;
                         }
@@ -2038,6 +2225,7 @@ namespace ai::openai::codex::backend {
                         if (turn != thread->second.turns.end()) {
                             accountTurnRemoval(state.capacity, turn->second, false);
                             eraseTurn(state, thread->second, turnId);
+                            canonicalStateRewritten = true;
                             evicted = true;
                         }
                     }
@@ -2070,6 +2258,7 @@ namespace ai::openai::codex::backend {
                                 const std::string id = itemIdValue.value;
                                 eraseItem(state, turn->second, id);
                                 saturatingAdd(state.capacity.evictedItems);
+                                canonicalStateRewritten = true;
                                 evicted = true;
                                 break;
                             }
@@ -2093,6 +2282,7 @@ namespace ai::openai::codex::backend {
                         if (turn != thread->second.turns.end() && turn->second.items.contains(itemIdValue)) {
                             eraseItem(state, turn->second, itemIdValue);
                             saturatingAdd(state.capacity.snapshotOmissions);
+                            canonicalStateRewritten = true;
                             evicted = true;
                         }
                     }
@@ -2106,7 +2296,7 @@ namespace ai::openai::codex::backend {
             std::size_t excess = state.capacity.accumulatedContentBytes > limits.maxAccumulatedContentBytes
                                      ? state.capacity.accumulatedContentBytes - limits.maxAccumulatedContentBytes
                                      : 0;
-            const auto trimPass = [&state, &excess](bool inactiveTerminalOnly) {
+            const auto trimPass = [&state, &excess, &canonicalStateRewritten](bool inactiveTerminalOnly) {
                 for (const typed::ThreadId& threadId : state.threadOrder) {
                     auto thread = state.threads.find(threadId.value);
                     if (thread == state.threads.end()) {
@@ -2118,26 +2308,71 @@ namespace ai::openai::codex::backend {
                             (inactiveTerminalOnly && (turn->second.active || !turn->second.terminal))) {
                             continue;
                         }
+                        if (turn->second.plan && excess != 0) {
+                            TurnPlanState& plan = *turn->second.plan;
+                            const auto accountRemoved = [&state, &excess, &plan, &canonicalStateRewritten](std::size_t removed) {
+                                if (removed == 0) {
+                                    return;
+                                }
+                                excess = removed > excess ? 0 : excess - removed;
+                                guardedSubtractSize(state.capacity.accumulatedContentBytes, removed);
+                                saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
+                                plan.truncated = true;
+                                canonicalStateRewritten = true;
+                            };
+                            if (plan.explanation && !plan.explanation->empty()) {
+                                const std::size_t targetBytes =
+                                    plan.explanation->size() > excess ? plan.explanation->size() - excess : 0;
+                                const std::size_t retainedBytes = boundedUtf8PrefixLength(*plan.explanation, targetBytes);
+                                const std::size_t removed = plan.explanation->size() - retainedBytes;
+                                plan.explanation->resize(retainedBytes);
+                                if (plan.explanation->empty()) {
+                                    plan.explanation.reset();
+                                }
+                                accountRemoved(removed);
+                            }
+                            while (excess != 0 && !plan.steps.empty()) {
+                                TurnPlanStepState& step = plan.steps.back();
+                                const std::size_t stepBytes = step.step.size() + step.status.value.size();
+                                if (stepBytes <= excess || step.step.empty()) {
+                                    plan.steps.pop_back();
+                                    accountRemoved(stepBytes);
+                                    continue;
+                                }
+                                const std::size_t targetBytes = step.step.size() > excess ? step.step.size() - excess : 0;
+                                const std::size_t retainedBytes = boundedUtf8PrefixLength(step.step, targetBytes);
+                                const std::size_t removed = step.step.size() - retainedBytes;
+                                step.step.resize(retainedBytes);
+                                accountRemoved(removed);
+                            }
+                            if (excess == 0) {
+                                return;
+                            }
+                        }
                         for (const typed::ItemId& itemIdValue : turn->second.itemOrder) {
                             auto item = turn->second.items.find(itemIdValue.value);
                             if (item == turn->second.items.end()) {
                                 continue;
                             }
-                            auto trim = [&excess, &item, &state](std::string& content) {
-                                const std::size_t removed = std::min(excess, content.size());
+                            auto trim = [&excess, &item, &state, &canonicalStateRewritten](std::string& content,
+                                                                                         std::uint64_t& channelDropped) {
+                                const std::size_t removed =
+                                    utf8PrefixRemovalLength(content, std::min(excess, content.size()));
                                 if (removed == 0) {
                                     return;
                                 }
                                 content.erase(0, removed);
-                                excess -= removed;
+                                excess = removed >= excess ? 0 : excess - removed;
                                 guardedSubtractSize(state.capacity.accumulatedContentBytes, removed);
                                 saturatingAdd(item->second.droppedContentBytes, saturatingUint64(removed));
+                                saturatingAdd(channelDropped, saturatingUint64(removed));
                                 saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
+                                canonicalStateRewritten = true;
                             };
-                            trim(item->second.agentText);
-                            trim(item->second.reasoningText);
-                            trim(item->second.reasoningSummary);
-                            trim(item->second.commandOutput);
+                            trim(item->second.agentText, item->second.agentTextDroppedContentBytes);
+                            trim(item->second.reasoningText, item->second.reasoningTextDroppedContentBytes);
+                            trim(item->second.reasoningSummary, item->second.reasoningSummaryDroppedContentBytes);
+                            trim(item->second.commandOutput, item->second.commandOutputDroppedContentBytes);
                             if (excess == 0) {
                                 return;
                             }
@@ -2154,6 +2389,7 @@ namespace ai::openai::codex::backend {
                 state.notices.erase(state.notices.begin());
                 guardedSubtractSize(state.capacity.retainedNotices, 1);
                 saturatingAdd(state.capacity.evictedNotices);
+                canonicalStateRewritten = true;
             }
 
             while (state.capacity.retainedProcesses > limits.maxRetainedProcesses) {
@@ -2167,18 +2403,20 @@ namespace ai::openai::codex::backend {
                     break;
                 }
                 eraseProcess(state, *candidate, true);
+                canonicalStateRewritten = true;
             }
 
             std::size_t processOutputExcess = state.capacity.accumulatedProcessOutputBytes > limits.maxAccumulatedProcessOutputBytes
                                                   ? state.capacity.accumulatedProcessOutputBytes - limits.maxAccumulatedProcessOutputBytes
                                                   : 0;
-            const auto trimProcessPass = [&state, &processOutputExcess](bool terminalOnly) {
+            const auto trimProcessPass = [&state, &processOutputExcess, &canonicalStateRewritten](bool terminalOnly) {
                 for (const std::string& processId : state.processOrder) {
                     auto process = state.processes.find(processId);
                     if (process == state.processes.end() || (terminalOnly && process->second.lifecycle != "exited")) {
                         continue;
                     }
-                    const auto trim = [&state, &processOutputExcess, &process](std::string& output, bool stderrOutput) {
+                    const auto trim = [&state, &processOutputExcess, &process, &canonicalStateRewritten](std::string& output,
+                                                                                                        bool stderrOutput) {
                         const std::size_t removed = std::min(output.size(), processOutputExcess);
                         if (removed == 0) {
                             return;
@@ -2193,6 +2431,7 @@ namespace ai::openai::codex::backend {
                         guardedSubtractSize(state.capacity.accumulatedProcessOutputBytes, removed);
                         saturatingAdd(process->second.droppedOutputBytes, saturatingUint64(removed));
                         saturatingAdd(state.capacity.droppedProcessOutputBytes, saturatingUint64(removed));
+                        canonicalStateRewritten = true;
                     };
                     trim(process->second.stdoutData, false);
                     trim(process->second.stderrData, true);
@@ -2222,6 +2461,7 @@ namespace ai::openai::codex::backend {
                 state.fuzzySearchOrder.erase(candidate);
                 guardedSubtractSize(state.capacity.retainedFuzzySearchSessions, 1);
                 saturatingAdd(state.capacity.evictedFuzzySearchSessions);
+                canonicalStateRewritten = true;
             }
 
             while (state.capacity.retainedActivityRecords > limits.maxRetainedActivityRecords) {
@@ -2238,7 +2478,9 @@ namespace ai::openai::codex::backend {
                 state.activityOrder.erase(candidate);
                 guardedSubtractSize(state.capacity.retainedActivityRecords, 1);
                 saturatingAdd(state.capacity.evictedActivityRecords);
+                canonicalStateRewritten = true;
             }
+            return canonicalStateRewritten;
         }
 
         const ServerRequestId& pendingProviderRequestId(const typed::TypedServerRequest& request) {
@@ -2300,7 +2542,11 @@ namespace ai::openai::codex::backend {
                     } else if constexpr (std::is_same_v<Value, typed::FileChangeOutputDeltaNotification>) {
                         if (ItemState* item = findItem(state, value.threadId, value.turnId, value.itemId)) {
                             const std::size_t before = itemContentBytes(*item);
-                            appendBounded(item->commandOutput, value.delta, options.maxAccumulatedItemBytes, item->droppedContentBytes);
+                            appendBounded(item->commandOutput,
+                                          value.delta,
+                                          options.maxAccumulatedItemBytes,
+                                          item->droppedContentBytes,
+                                          &item->commandOutputDroppedContentBytes);
                             replaceAccumulatedContent(state.capacity, before, itemContentBytes(*item));
                             item->stamp = currentStamp(state);
                             item->connectionInvalidated = false;
@@ -2399,18 +2645,36 @@ namespace ai::openai::codex::backend {
                         turn.connectionInvalidated = false;
                     } else if constexpr (std::is_same_v<Value, typed::TurnPlanUpdatedNotification>) {
                         TurnState& turn = ensureTurn(state, value.threadId, value.turnId, &insertions);
-                        Json plan = Json::array();
-                        const std::size_t retainedSteps = std::min<std::size_t>(value.plan.size(), 32);
+                        const std::size_t previousPlanBytes = turnPlanContentBytes(turn.plan);
+                        TurnPlanState plan;
+                        plan.totalSteps = value.plan.size();
+                        const std::size_t retainedSteps = std::min(value.plan.size(), MaxRetainedTurnPlanSteps);
+                        plan.steps.reserve(retainedSteps);
                         for (std::size_t index = 0; index < retainedSteps; ++index) {
-                            plan.push_back(
-                                Json::object({{"step", boundedText(value.plan[index].step)}, {"status", value.plan[index].status.value}}));
+                            std::string step = boundedUtf8Text(value.plan[index].step, MaxRetainedTurnPlanStepBytes);
+                            if (step.size() != value.plan[index].step.size()) {
+                                plan.truncated = true;
+                            }
+                            typed::TurnPlanStepStatus status = value.plan[index].status;
+                            std::string retainedStatus = boundedUtf8Text(status.value, MaxRetainedTurnPlanStatusBytes);
+                            if (retainedStatus.size() != status.value.size()) {
+                                plan.truncated = true;
+                            }
+                            status.value = std::move(retainedStatus);
+                            plan.steps.push_back({std::move(step), std::move(status)});
                         }
-                        turn.extensions["plan"] = Json::object({{"steps", std::move(plan)},
-                                                                {"totalSteps", value.plan.size()},
-                                                                {"truncated", retainedSteps < value.plan.size()}});
+                        plan.truncated = plan.truncated || retainedSteps < value.plan.size();
                         if (value.explanation.hasValue()) {
-                            turn.extensions["plan"]["explanation"] = boundedText(*value.explanation.value);
+                            std::string explanation =
+                                boundedUtf8Text(*value.explanation.value, MaxRetainedTurnPlanExplanationBytes);
+                            if (explanation.size() != value.explanation.value->size()) {
+                                plan.truncated = true;
+                            }
+                            plan.explanation = std::move(explanation);
                         }
+                        turn.plan = std::move(plan);
+                        replaceAccumulatedContent(state.capacity, previousPlanBytes, turnPlanContentBytes(turn.plan));
+                        turn.extensions.erase("plan");
                         turn.stamp = currentStamp(state);
                         turn.connectionInvalidated = false;
                     } else if constexpr (std::is_same_v<Value, typed::AccountLoginCompletedNotification>) {
@@ -3310,13 +3574,13 @@ namespace ai::openai::codex::backend {
                                        upsertThread(state, result.thread, EntityLoad::Full, options.maxAccumulatedItemBytes, &insertions);
                                    },
                                    [this, &state, &insertions](const typed::ThreadMetadataUpdateResponse& result) {
-                                       upsertThread(state, result.thread, EntityLoad::Full, options.maxAccumulatedItemBytes, &insertions);
+                                       upsertThread(state, result.thread, EntityLoad::Summary, options.maxAccumulatedItemBytes, &insertions);
                                    },
                                    [this, &state, &insertions](const typed::ThreadRollbackResponse& result) {
                                        upsertThread(state, result.thread, EntityLoad::Full, options.maxAccumulatedItemBytes, &insertions);
                                    },
                                    [this, &state, &insertions](const typed::ThreadUnarchiveResponse& result) {
-                                       upsertThread(state, result.thread, EntityLoad::Full, options.maxAccumulatedItemBytes, &insertions);
+                                       upsertThread(state, result.thread, EntityLoad::Summary, options.maxAccumulatedItemBytes, &insertions);
                                    },
                                    [this, &state, &insertions](const typed::ThreadListResponse& result) {
                                        for (const typed::Thread& thread : result.data) {
@@ -3832,16 +4096,32 @@ namespace ai::openai::codex::backend {
                     item.connectionInvalidated = false;
                     switch (value.kind) {
                         case ItemContentChanged::Kind::AgentText:
-                            appendBounded(item.agentText, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
+                            appendBounded(item.agentText,
+                                          value.delta,
+                                          options.maxAccumulatedItemBytes,
+                                          item.droppedContentBytes,
+                                          &item.agentTextDroppedContentBytes);
                             break;
                         case ItemContentChanged::Kind::ReasoningText:
-                            appendBounded(item.reasoningText, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
+                            appendBounded(item.reasoningText,
+                                          value.delta,
+                                          options.maxAccumulatedItemBytes,
+                                          item.droppedContentBytes,
+                                          &item.reasoningTextDroppedContentBytes);
                             break;
                         case ItemContentChanged::Kind::ReasoningSummary:
-                            appendBounded(item.reasoningSummary, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
+                            appendBounded(item.reasoningSummary,
+                                          value.delta,
+                                          options.maxAccumulatedItemBytes,
+                                          item.droppedContentBytes,
+                                          &item.reasoningSummaryDroppedContentBytes);
                             break;
                         case ItemContentChanged::Kind::CommandOutput:
-                            appendBounded(item.commandOutput, value.delta, options.maxAccumulatedItemBytes, item.droppedContentBytes);
+                            appendBounded(item.commandOutput,
+                                          value.delta,
+                                          options.maxAccumulatedItemBytes,
+                                          item.droppedContentBytes,
+                                          &item.commandOutputDroppedContentBytes);
                             break;
                     }
                     replaceAccumulatedContent(state.capacity, previousContentBytes, itemContentBytes(item));
@@ -3961,11 +4241,11 @@ namespace ai::openai::codex::backend {
                     return reduction;
                 }},
             event);
-        enforceRetentionCapacity(state, insertions);
+        reduction.canonicalStateRewritten = enforceRetentionCapacity(state, insertions);
         reduction.changed = reduction.changed || state.capacity != capacityBefore;
         const auto appendCapacityChange = [&reduction](CapacityMetric metric, std::uint64_t before, std::uint64_t after) {
             if (after > before) {
-                reduction.capacityChanges.push_back({metric, after - before});
+                reduction.capacityChanges.push_back({metric, after - before, reduction.canonicalStateRewritten});
             }
         };
         if (!std::holds_alternative<CapacityChanged>(event)) {

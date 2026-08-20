@@ -5741,10 +5741,10 @@
     "protocol": {
       "authorityCanonicalSha256": {
         "cppClientBindings": "bad7b4fa514df2c035ab3fb558546ebe97743ab82a8feb83cac36d0031f59bc2",
-        "generatedFixture": "d2e5aa0be7cc3dbf321e573c84e105d3517882ea88fdd54b9fd4260c177cdfd7",
+        "generatedFixture": "fafa57acbd9e178bbde2f26f6fbeb2d2149a577e6f44bf1711cc3f0bcf451f70",
         "ownerReviewedRegistry": "455c892ad7f6c351ed4f2e7125acd3831082dbd23cc8b79784ac4d8438adb405",
         "protocolManifest": "6195387f2f67229067ffa2ae4ac99bf7dfa99d0a8d9c991d15da91a340c12db3",
-        "protocolSchema": "23f6f49b5cab304a19fa835f5ff05c78772a10af45fa64e4b4286df6b74976fe",
+        "protocolSchema": "3beb5fe66fe1e74f06107ec3844a1010f52149ad099fc0a87212e5ea8af40c8d",
         "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
       },
       "authorityPaths": {
@@ -6921,9 +6921,9 @@
             "include/aisuite/ai/openai/codex/typed/Types.h",
             "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
           ],
-          "soversion": 2,
+          "soversion": 4,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.1"
+          "version": "0.3.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexBackend",
@@ -6938,9 +6938,9 @@
             "include/aisuite/ai/openai/codex/backend/Reducer.h",
             "include/aisuite/ai/openai/codex/backend/Snapshot.h"
           ],
-          "soversion": 2,
+          "soversion": 4,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.1"
+          "version": "0.3.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontend",
@@ -6957,9 +6957,9 @@
             "include/aisuite/ai/openai/codex/frontend/Security.h",
             "include/aisuite/ai/openai/codex/frontend/UpdateBatch.h"
           ],
-          "soversion": 2,
+          "soversion": 4,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.1"
+          "version": "0.3.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontendClient",
@@ -7000,9 +7000,9 @@
             "include/aisuite/ai/openai/codex/frontend/client/Types.h",
             "include/aisuite/ai/openai/codex/frontend/client/WindowsSandbox.h"
           ],
-          "soversion": 2,
+          "soversion": 4,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.1.1"
+          "version": "0.3.0"
         }
       ]
     },
@@ -7049,7 +7049,7 @@
       "serverComparisonBorder": "equivalent BackendCore typed inputs/state/occurrences -> old and greenfield server cores -> canonical Frontend Protocol v1 output",
       "startingCorpus": {
         "canonicalSha256": {
-          "generatedProtocolFixture": "d2e5aa0be7cc3dbf321e573c84e105d3517882ea88fdd54b9fd4260c177cdfd7",
+          "generatedProtocolFixture": "fafa57acbd9e178bbde2f26f6fbeb2d2149a577e6f44bf1711cc3f0bcf451f70",
           "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
         },
         "generatedProtocolFixture": "tests/component/codex/fixtures/frontend-protocol-v1.generated.json",

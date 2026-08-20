@@ -92,6 +92,12 @@ namespace {
             for (const auto& [turnId, turn] : thread.turns) {
                 (void) turnId;
                 result.items += turn.items.size();
+                if (turn.plan) {
+                    result.contentBytes += turn.plan->explanation ? turn.plan->explanation->size() : 0;
+                    for (const backend::TurnPlanStepState& step : turn.plan->steps) {
+                        result.contentBytes += step.step.size() + step.status.value.size();
+                    }
+                }
                 for (const auto& [itemId, item] : turn.items) {
                     (void) itemId;
                     result.contentBytes +=
@@ -230,6 +236,10 @@ namespace {
         const auto content = backend::makeItemContentSnapshotBatch(state, contentKeys);
         result.expectTrue(content && content->sequence == backend::SequenceNumber{17} && content->items.size() == 6 &&
                               content->items[0].key == contentKeys[0] && content->items[0].content == "alpha" &&
+                              content->items[0].droppedContentBytes == 16'388 && content->items[0].contentTruncated &&
+                              content->items[0].frontendOmittedContentChannels ==
+                                  static_cast<std::uint8_t>(
+                                      1U << static_cast<unsigned int>(backend::ItemContentSnapshotChannel::ReasoningText)) &&
                               content->items[1].key == contentKeys[1] && content->items[1].content == retainedUtf8Prefix &&
                               content->items[2].content == "summary" && content->items[3].content == "command" &&
                               content->items[4].key == contentKeys[4] && content->items[4].content == "beta" &&
@@ -247,6 +257,57 @@ namespace {
                                   backend::ItemContentSnapshotChannel::AgentText});
         result.expectTrue(!backend::makeItemContentSnapshotBatch(state, missingContent),
                           "a scope mismatch or missing composite item makes the targeted content batch wholly unavailable");
+    }
+
+    void testExpansionHeavyCommandOutputSnapshotAccounting(tests::support::TestResult& result) {
+        constexpr std::size_t SnapshotLimit = 8U * 1024U * 1024U;
+        constexpr std::size_t CommandOutputBytes = 4U * 1024U * 1024U;
+        const std::string expansionHeavyOutput(CommandOutputBytes, static_cast<char>(0x01));
+
+        backend::BackendState state;
+        backend::Reducer reducer;
+        backend::ProviderState provider;
+        provider.lifecycle = backend::ProviderLifecycle::Ready;
+        provider.generation = 1;
+        provider.desiredRunning = true;
+        reducer.apply(state, backend::ProviderLifecycleChanged{provider});
+        backend::BackendCapacityOptions limits;
+        limits.maxSnapshotBytes = SnapshotLimit;
+        reducer.apply(state, backend::CapacityConfigured{limits});
+
+        typed::CommandExecutionThreadItem item;
+        item.metadata = {typed::ItemId{"expansion-heavy-item"},
+                         typed::ThreadId{"expansion-heavy-thread"},
+                         typed::TurnId{"expansion-heavy-turn"},
+                         Json::object()};
+        item.command = "emit expansion-heavy output";
+        item.cwd = typed::PathString{"/synthetic"};
+        item.status = typed::CommandExecutionStatus::inProgress();
+        item.aggregatedOutput = expansionHeavyOutput;
+
+        typed::Turn turn;
+        turn.id = typed::TurnId{"expansion-heavy-turn"};
+        turn.threadId = typed::ThreadId{"expansion-heavy-thread"};
+        turn.status = typed::TurnStatus::inProgress();
+        turn.items = {typed::ThreadItem{std::move(item)}};
+
+        typed::Thread thread;
+        thread.id = typed::ThreadId{"expansion-heavy-thread"};
+        thread.turns = {std::move(turn)};
+        reducer.apply(state, backend::ThreadUpserted{std::move(thread), backend::EntityLoad::Full});
+
+        const backend::ItemState& retained =
+            state.threads.at("expansion-heavy-thread").turns.at("expansion-heavy-turn").items.at("expansion-heavy-item");
+        const backend::Snapshot snapshot = backend::makeSnapshot(state);
+        const backend::ItemSnapshot* projected =
+            snapshot.threads.size() == 1 && snapshot.threads.front().turns.size() == 1 &&
+                    snapshot.threads.front().turns.front().items.size() == 1
+                ? &snapshot.threads.front().turns.front().items.front()
+                : nullptr;
+        result.expectTrue(retained.commandOutput == expansionHeavyOutput && projected != nullptr &&
+                              projected->commandOutput == expansionHeavyOutput && !projected->contentTruncated &&
+                              !snapshot.capacity.mandatoryCoreExceedsLimit && backend::snapshotSizeBytes(snapshot) <= SnapshotLimit,
+                          "an exact 4 MiB JSON-expanding command output remains complete inside the default 8 MiB snapshot budget");
     }
 
     void testReducerCapacityAndFreshness(tests::support::TestResult& result) {
@@ -275,7 +336,8 @@ namespace {
                               state.capacity.snapshotOmissions == 1 && retentionCountersMatch(state),
                           "oldest-first thread capacity retains protected active state and omits the optional insertion");
         result.expectTrue(
-            std::ranges::find(retention.capacityChanges, backend::CapacityChanged{backend::CapacityMetric::SnapshotOmissions, 1}) !=
+            std::ranges::find(retention.capacityChanges,
+                              backend::CapacityChanged{backend::CapacityMetric::SnapshotOmissions, 1, true}) !=
                 retention.capacityChanges.end(),
             "automatic retention accounting produces an explicit reducer-derived capacity event");
         const backend::ThreadState& protectedThread = state.threads.at("protected");
@@ -299,7 +361,8 @@ namespace {
             evictionState.threads.size() == 1 && evictionState.threads.contains("newest") && evictionState.capacity.evictedThreads == 1 &&
                 evictionState.threadOrder.size() == 1 && evictionState.threadOrder.front().value == "newest" &&
                 retentionCountersMatch(evictionState) &&
-                std::ranges::find(eviction.capacityChanges, backend::CapacityChanged{backend::CapacityMetric::EvictedThreads, 1}) !=
+                std::ranges::find(eviction.capacityChanges,
+                                  backend::CapacityChanged{backend::CapacityMetric::EvictedThreads, 1, true}) !=
                     eviction.capacityChanges.end(),
             "thread capacity evicts the oldest inactive thread without diverging its map and explicit order vector");
 
@@ -1850,6 +1913,7 @@ int main(int argc, char* argv[]) {
         core::SNodeC::init(argc, argv);
         testRecoveryPolicyEligibility(result);
         testTargetedItemSnapshotBatch(result);
+        testExpansionHeavyCommandOutputSnapshotAccounting(result);
         testReducerCapacityAndFreshness(result);
         testIncrementalRetentionAndFreshness(result);
         testZeroHandleCapacities(result);
