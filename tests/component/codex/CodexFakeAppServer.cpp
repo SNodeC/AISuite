@@ -930,6 +930,18 @@ int main(int argc, char* argv[]) {
         return 20;
     }
 
+    if (mode == "environment") {
+        try {
+            const Json request = Json::parse(initialize);
+            const bool experimentalApi = request.at("params").at("capabilities").at("experimentalApi").get<bool>();
+            if (!writeAll(STDERR_FILENO, std::string("experimental-api=") + (experimentalApi ? "true\n" : "false\n"))) {
+                return 94;
+            }
+        } catch (const Json::exception&) {
+            return 95;
+        }
+    }
+
     if (mode == "close-stdout") {
         ::close(STDOUT_FILENO);
         static_cast<void>(input.waitForEof());

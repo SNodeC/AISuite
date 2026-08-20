@@ -48,6 +48,15 @@ namespace ai::openai::codex::stdio {
                           std::move(initializeParams)) {
     }
 
+    Client::Client(std::string executable,
+                   std::vector<std::string> arguments,
+                   typed::InitializeParams initializeParams,
+                   std::vector<std::pair<std::string, std::string>> environmentOverrides)
+        : AppServerClient(
+              std::make_unique<detail::StdioTransport>(std::move(executable), std::move(arguments), std::move(environmentOverrides)),
+              std::move(initializeParams)) {
+    }
+
     Client::~Client() = default;
 
 } // namespace ai::openai::codex::stdio

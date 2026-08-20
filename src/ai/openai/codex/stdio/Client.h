@@ -28,6 +28,10 @@ namespace ai::openai::codex::stdio {
                ClientInfo clientInfo,
                std::vector<std::pair<std::string, std::string>> environmentOverrides);
         Client(std::string executable, std::vector<std::string> arguments, typed::InitializeParams initializeParams);
+        Client(std::string executable,
+               std::vector<std::string> arguments,
+               typed::InitializeParams initializeParams,
+               std::vector<std::pair<std::string, std::string>> environmentOverrides);
 
         ~Client() override;
     };
