@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -99,6 +100,18 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             return backend::ItemContentSnapshotChannel::AgentText;
         }
+
+        backend::ItemContentSnapshotKey contentSnapshotKey(const backend::ItemContentChanged& content) {
+            return {content.threadId, content.turnId, content.itemId, contentSnapshotChannel(content.kind)};
+        }
+
+        struct ItemContentSnapshotKeyLess {
+            bool operator()(const backend::ItemContentSnapshotKey& left,
+                            const backend::ItemContentSnapshotKey& right) const noexcept {
+                return std::tie(left.threadId.value, left.turnId.value, left.itemId.value, left.channel) <
+                       std::tie(right.threadId.value, right.turnId.value, right.itemId.value, right.channel);
+            }
+        };
 
         bool sameItemContentKey(const backend::ItemContentChanged& left,
                                 const backend::ItemContentChanged& right) noexcept {
@@ -399,6 +412,7 @@ namespace ai::openai::codex::frontend::internal::server {
             retiredBackendSessions.clear();
             externalIdentities.clear();
             observedBackendController.reset();
+            itemContentCoveredThrough.clear();
             deferredObserverEvents.clear();
             resynchronizationPendingDuringAdmission = false;
             deferredControllerCompletion.reset();
@@ -857,6 +871,7 @@ namespace ai::openai::codex::frontend::internal::server {
                         return ProjectedFlushResult::Staged;
                     }
                     std::optional<ProjectedBackendBatch> projectedBatch;
+                    std::optional<backend::SequenceNumber> contentCoverageThrough;
                     const std::optional<std::vector<backend::SequencedBackendEvent>> contentEvents =
                         coalescedItemContentEvents(projectedEvents);
                     std::vector<backend::ItemContentSnapshotKey> contentKeys;
@@ -864,35 +879,38 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (contentEvents) {
                         for (const backend::SequencedBackendEvent& sequenced : *contentEvents) {
                             const auto& content = std::get<backend::ItemContentChanged>(sequenced.event);
-                            contentKeys.push_back(
-                                {content.threadId, content.turnId, content.itemId, contentSnapshotChannel(content.kind)});
+                            contentKeys.push_back(contentSnapshotKey(content));
                         }
                         std::optional<backend::ItemContentSnapshotBatch> contentItems = runtime.itemContentSnapshots(contentKeys);
                         if (contentItems && !contentEvents->empty()) {
                             const backend::SequenceNumber eventSequence = contentEvents->back().sequence;
-                            if (contentItems->sequence == eventSequence) {
+                            const bool snapshotAhead = itemContentSnapshotIsAhead(eventSequence, contentItems->sequence);
+                            if (contentItems->sequence == eventSequence || snapshotAhead) {
+                                // A live exact-item view may already include a
+                                // later observer drain. Publish that channel as
+                                // one authoritative occurrence and remember its
+                                // per-key coverage; never advance the unrelated
+                                // global observer fence to avoid a full rebase.
                                 model::ModelResult<ProjectedBackendBatch> direct =
-                                    projection.projectItemContentOccurrences(*contentEvents, contentItems->items);
+                                    projection.projectItemContentOccurrences(*contentEvents, contentItems->items, snapshotAhead);
                                 if (direct && !direct.value().snapshotRequired) {
                                     projectedBatch = std::move(direct).value();
+                                    if (snapshotAhead) {
+                                        contentCoverageThrough = contentItems->sequence;
+                                    }
+                                } else if (snapshotAhead) {
+                                    const backend::Snapshot current = runtime.snapshot();
+                                    projectedEvents.clear();
+                                    if (current.sequence < contentItems->sequence || !applyResynchronization(current, *target)) {
+                                        return ProjectedFlushResult::Failed;
+                                    }
+                                    if (current.sequence.value() > observerProcessedThrough.value()) {
+                                        observerProcessedThrough = current.sequence;
+                                    }
+                                    drainDeferredControllerCompletion();
+                                    drainDeferredSessionCloses();
+                                    return ProjectedFlushResult::SnapshotPublished;
                                 }
-                            } else if (itemContentSnapshotIsAhead(eventSequence, contentItems->sequence)) {
-                                // The item snapshot already covers a later
-                                // observer drain. Publishing it as an earlier
-                                // replacement would make the next append base
-                                // stale, so rebase once and skip the covered
-                                // queued suffix instead.
-                                const backend::Snapshot current = runtime.snapshot();
-                                projectedEvents.clear();
-                                if (current.sequence < contentItems->sequence || !applyResynchronization(current, *target)) {
-                                    return ProjectedFlushResult::Failed;
-                                }
-                                if (current.sequence.value() > observerProcessedThrough.value()) {
-                                    observerProcessedThrough = current.sequence;
-                                }
-                                drainDeferredControllerCompletion();
-                                drainDeferredSessionCloses();
-                                return ProjectedFlushResult::SnapshotPublished;
                             }
                         }
                     }
@@ -929,13 +947,24 @@ namespace ai::openai::codex::frontend::internal::server {
                     for (ProjectedBackendOccurrence& occurrence : batch.occurrences) {
                         groups.push_back({std::move(occurrence.key), std::move(occurrence.occurrence), occurrence.urgency});
                     }
-                    return target->stageGroups(std::move(groups)).accepted() ? ProjectedFlushResult::Staged : ProjectedFlushResult::Failed;
+                    if (!target->stageGroups(std::move(groups)).accepted()) {
+                        return ProjectedFlushResult::Failed;
+                    }
+                    if (contentCoverageThrough && contentEvents) {
+                        retainItemContentCoverage(*contentEvents, *contentCoverageThrough);
+                    }
+                    return ProjectedFlushResult::Staged;
                 };
                 for (const backend::SequencedBackendEvent& event : events) {
                     if (event.sequence.value() <= observerProcessedThrough.value()) {
                         continue;
                     }
                     processedThrough = event.sequence;
+                    // An ahead exact-item occurrence already represented only
+                    // this composite item/channel through its watermark.
+                    if (itemContentEventCovered(event)) {
+                        continue;
+                    }
                     if (const auto* changed = std::get_if<backend::SessionChanged>(&event.event)) {
                         const ProjectedFlushResult flushed = flushProjectedEvents();
                         if (flushed == ProjectedFlushResult::Failed) {
@@ -1032,6 +1061,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (processedThrough && processedThrough->value() > observerProcessedThrough.value()) {
                     observerProcessedThrough = *processedThrough;
                 }
+                pruneItemContentCoverage();
                 drainDeferredControllerCompletion();
                 drainDeferredSessionCloses();
             } catch (...) {
@@ -1143,7 +1173,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (!bindingCurrent(current) || current.get() != &target) {
                     return false;
                 }
-                return target.publishSnapshot(std::move(projected)).accepted;
+                if (!target.publishSnapshot(std::move(projected)).accepted) {
+                    return false;
+                }
+                itemContentCoveredThrough.clear();
+                return true;
             } catch (...) {
                 return false;
             }
@@ -1158,7 +1192,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 if (!bindingCurrent(lockCore()) || !projected) {
                     return false;
                 }
-                return target.publishSnapshot(std::move(projected).value()).accepted;
+                if (!target.publishSnapshot(std::move(projected).value()).accepted) {
+                    return false;
+                }
+                itemContentCoveredThrough.clear();
+                return true;
             } catch (...) {
                 return false;
             }
@@ -1193,6 +1231,42 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             externalIdentities.emplace(id, *identity);
             return identity;
+        }
+
+        [[nodiscard]] bool itemContentEventCovered(const backend::SequencedBackendEvent& sequenced) const {
+            const auto* content = std::get_if<backend::ItemContentChanged>(&sequenced.event);
+            if (content == nullptr) {
+                return false;
+            }
+            const auto covered = itemContentCoveredThrough.find(contentSnapshotKey(*content));
+            return covered != itemContentCoveredThrough.end() && sequenced.sequence <= covered->second;
+        }
+
+        void retainItemContentCoverage(std::span<const backend::SequencedBackendEvent> events,
+                                       backend::SequenceNumber coveredThrough) {
+            for (const backend::SequencedBackendEvent& sequenced : events) {
+                const auto* content = std::get_if<backend::ItemContentChanged>(&sequenced.event);
+                if (content == nullptr) {
+                    continue;
+                }
+                const backend::ItemContentSnapshotKey key = contentSnapshotKey(*content);
+                const auto existing = itemContentCoveredThrough.find(key);
+                if (existing == itemContentCoveredThrough.end()) {
+                    itemContentCoveredThrough.emplace(std::move(key), coveredThrough);
+                } else if (coveredThrough > existing->second) {
+                    existing->second = coveredThrough;
+                }
+            }
+        }
+
+        void pruneItemContentCoverage() noexcept {
+            for (auto covered = itemContentCoveredThrough.begin(); covered != itemContentCoveredThrough.end();) {
+                if (covered->second <= observerProcessedThrough) {
+                    covered = itemContentCoveredThrough.erase(covered);
+                } else {
+                    ++covered;
+                }
+            }
         }
 
         [[nodiscard]] bool reconcileTopology(const backend::Snapshot& snapshot) noexcept {
@@ -1278,6 +1352,9 @@ namespace ai::openai::codex::frontend::internal::server {
         std::map<backend::SessionId, model::SessionIdentity> externalIdentities;
         std::optional<backend::SessionId> observedBackendController;
         backend::SequenceNumber observerProcessedThrough;
+        // Bounded by the BackendCore observer backlog and cleared by every
+        // authoritative Snapshot/resynchronization.
+        std::map<backend::ItemContentSnapshotKey, backend::SequenceNumber, ItemContentSnapshotKeyLess> itemContentCoveredThrough;
         std::size_t sessionAdmissionDepth = 0;
         bool resynchronizationPendingDuringAdmission = false;
         std::vector<backend::SequencedBackendEvent> deferredObserverEvents;

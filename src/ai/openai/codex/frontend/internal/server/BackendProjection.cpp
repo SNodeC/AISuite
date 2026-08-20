@@ -2668,7 +2668,8 @@ namespace ai::openai::codex::frontend::internal::server {
 
     model::ModelResult<ProjectedBackendBatch>
     BackendProjection::projectItemContentOccurrences(std::span<const backend::SequencedBackendEvent> events,
-                                                     std::span<const backend::ItemContentSnapshot> items) const noexcept {
+                                                     std::span<const backend::ItemContentSnapshot> items,
+                                                     bool allowTerminalSnapshots) const noexcept {
         try {
             if (events.size() != items.size()) {
                 return model::ModelError{
@@ -2693,7 +2694,10 @@ namespace ai::openai::codex::frontend::internal::server {
                 const bool activeItem = item.connectionInvalidated || item.status == "started" || item.status == "unknown";
                 const backend::ItemContentSnapshotKey expectedKey{
                     event->threadId, event->turnId, event->itemId, itemContentSnapshotChannel(event->kind)};
-                if (item.key != expectedKey || !item.knownType || !activeItem) {
+                // An ahead exact-item read may already include the queued
+                // item/completed event. The bridge opts into that terminal
+                // replacement only while it also records covered sequences.
+                if (item.key != expectedKey || !item.knownType || (!activeItem && !allowTerminalSnapshots)) {
                     return model::ModelError{
                         model::ModelErrorCode::InvalidShape,
                         "/events/item",

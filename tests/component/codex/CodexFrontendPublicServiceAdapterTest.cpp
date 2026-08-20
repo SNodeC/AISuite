@@ -932,7 +932,7 @@ namespace {
                     backend::SequenceNumber{17}, backend::SequenceNumber{17}) &&
                 server::BackendCoreBridgeTestAccess::itemContentSnapshotIsAhead(
                     backend::SequenceNumber{17}, backend::SequenceNumber{18}),
-            "item-content fast projection is used only at the exact event sequence and a future snapshot requires rebasing");
+            "item-content projection distinguishes exact snapshots from future snapshots that require per-key coverage");
     }
     void testInlineBackendObserverAdmission(tests::support::TestResult& result) {
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();

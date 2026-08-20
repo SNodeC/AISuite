@@ -307,6 +307,7 @@ namespace {
         std::size_t commandContentUpdates = 0;
         std::string agentContent;
         std::string commandOutput;
+        bool agentItemPresent = false;
         std::optional<std::string> pendingRequestId;
         bool requestResolved = false;
         bool terminalTurn = false;
@@ -406,7 +407,10 @@ namespace {
             WaitingAcquire,
             WaitingThreadCommands,
             WaitingTurn,
+            WaitingAgentStarted,
             WaitingAgentBurst,
+            WaitingPostAgentBurst,
+            WaitingTerminalAgentBurst,
             WaitingApproval,
             WaitingApprovalResolution,
             WaitingTerminal,
@@ -518,6 +522,9 @@ namespace {
                     value.commandOutput = event.data.value("content", "");
                     value.commandOutputSequence = event.sequence.value();
                 }
+            } else if ((event.type == "item.updated" || event.type == "item.upserted") && event.data.contains("item") &&
+                       event.data["item"].is_object() && event.data["item"].value("id", "") == "agent-acceptance") {
+                value.agentItemPresent = true;
             } else if (event.type == "request.pending" && event.data.contains("request")) {
                 value.pendingRequestId = event.data["request"].value("id", "");
             } else if (event.type == "request.resolved") {
@@ -632,6 +639,16 @@ namespace {
                             result.expectTrue(
                                 sawTypedTurnInput,
                                 "turn.start reaches fake App Server as typed text input without raw Codex JSON from frontend");
+                            phase = Phase::WaitingAgentStarted;
+                            injectAgentStart();
+                        }
+                        break;
+                    case Phase::WaitingAgentStarted:
+                        if (record(ClientKind::ControllerA).agentItemPresent && record(ClientKind::ObserverB).agentItemPresent) {
+                            agentBurstSnapshotBaselineA = record(ClientKind::ControllerA).snapshotCount;
+                            agentBurstSnapshotBaselineB = record(ClientKind::ObserverB).snapshotCount;
+                            agentBurstUpdateBaselineA = record(ClientKind::ControllerA).agentContentUpdates;
+                            agentBurstUpdateBaselineB = record(ClientKind::ObserverB).agentContentUpdates;
                             phase = Phase::WaitingAgentBurst;
                             injectAgentBurst();
                         }
@@ -639,12 +656,54 @@ namespace {
                     case Phase::WaitingAgentBurst:
                         if (record(ClientKind::ControllerA).agentContent == expectedAgentText &&
                             record(ClientKind::ObserverB).agentContent == expectedAgentText) {
+                            result.expectTrue(record(ClientKind::ControllerA).snapshotCount == agentBurstSnapshotBaselineA &&
+                                                  record(ClientKind::ObserverB).snapshotCount == agentBurstSnapshotBaselineB &&
+                                                  !record(ClientKind::ControllerA).disconnected &&
+                                                  !record(ClientKind::ObserverB).disconnected,
+                                              "streaming observer backlog remains incremental without a live Snapshot rebase");
                             result.expectTrue(record(ClientKind::ControllerA).agentContentUpdates < 20 &&
                                                   record(ClientKind::ObserverB).agentContentUpdates < 20,
-                                              "1,000 raw token deltas reconstruct exactly with substantially fewer frontend updates");
+                                              "1,500 raw token deltas reconstruct exactly with substantially fewer frontend updates");
+                            result.expectTrue(record(ClientKind::ControllerA).agentContentUpdates > agentBurstUpdateBaselineA &&
+                                                  record(ClientKind::ObserverB).agentContentUpdates > agentBurstUpdateBaselineB,
+                                              "both frontend clients receive the backlogged agent content through occurrence batches");
                             result.expectTrue(record(ClientKind::ControllerA).maximumBatchEvents <= frontend::DefaultBatchMaxEvents &&
                                                   record(ClientKind::ObserverB).maximumBatchEvents <= frontend::DefaultBatchMaxEvents,
                                               "Unix frontend event batches obey the stable event-count bound");
+                            agentBurstUpdateBaselineA = record(ClientKind::ControllerA).agentContentUpdates;
+                            agentBurstUpdateBaselineB = record(ClientKind::ObserverB).agentContentUpdates;
+                            expectedAgentText += "tail";
+                            phase = Phase::WaitingPostAgentBurst;
+                            transport->inject({{"method", "item/agentMessage/delta"},
+                                               {"params",
+                                                {{"threadId", "thread-acceptance"},
+                                                 {"turnId", "turn-acceptance"},
+                                                 {"itemId", "agent-acceptance"},
+                                                 {"delta", "tail"}}}});
+                        }
+                        break;
+                    case Phase::WaitingPostAgentBurst:
+                        if (record(ClientKind::ControllerA).agentContent == expectedAgentText &&
+                            record(ClientKind::ObserverB).agentContent == expectedAgentText) {
+                            result.expectTrue(record(ClientKind::ControllerA).snapshotCount == agentBurstSnapshotBaselineA &&
+                                                  record(ClientKind::ObserverB).snapshotCount == agentBurstSnapshotBaselineB &&
+                                                  record(ClientKind::ControllerA).agentContentUpdates > agentBurstUpdateBaselineA &&
+                                                  record(ClientKind::ObserverB).agentContentUpdates > agentBurstUpdateBaselineB,
+                                              "ordinary item-content occurrences resume immediately beyond the coverage watermark");
+                            agentBurstUpdateBaselineA = record(ClientKind::ControllerA).agentContentUpdates;
+                            agentBurstUpdateBaselineB = record(ClientKind::ObserverB).agentContentUpdates;
+                            phase = Phase::WaitingTerminalAgentBurst;
+                            injectTerminalAgentBurst();
+                        }
+                        break;
+                    case Phase::WaitingTerminalAgentBurst:
+                        if (record(ClientKind::ControllerA).agentContent == expectedAgentText &&
+                            record(ClientKind::ObserverB).agentContent == expectedAgentText) {
+                            result.expectTrue(record(ClientKind::ControllerA).snapshotCount == agentBurstSnapshotBaselineA &&
+                                                  record(ClientKind::ObserverB).snapshotCount == agentBurstSnapshotBaselineB &&
+                                                  record(ClientKind::ControllerA).agentContentUpdates > agentBurstUpdateBaselineA &&
+                                                  record(ClientKind::ObserverB).agentContentUpdates > agentBurstUpdateBaselineB,
+                                              "a terminal item snapshot covers queued content without a full Snapshot rebase");
                             phase = Phase::WaitingApproval;
                             injectApprovalRequest();
                         }
@@ -822,16 +881,19 @@ namespace {
                    }) == 1;
         }
 
-        void injectAgentBurst() {
+        void injectAgentStart() {
             transport->inject({{"method", "item/started"},
                                {"params",
                                 {{"threadId", "thread-acceptance"},
                                  {"turnId", "turn-acceptance"},
                                  {"item", agentItem("agent-acceptance")},
                                  {"startedAtMs", 1}}}});
+        }
+
+        void injectAgentBurst() {
             expectedAgentText.clear();
-            expectedAgentText.reserve(2000);
-            for (std::size_t index = 0; index < 1000; ++index) {
+            expectedAgentText.reserve(3004);
+            for (std::size_t index = 0; index < 1500; ++index) {
                 const std::string delta = std::to_string(index % 10);
                 expectedAgentText += delta;
                 transport->inject({{"method", "item/agentMessage/delta"},
@@ -841,6 +903,25 @@ namespace {
                                      {"itemId", "agent-acceptance"},
                                      {"delta", delta}}}});
             }
+        }
+
+        void injectTerminalAgentBurst() {
+            for (std::size_t index = 0; index < 600; ++index) {
+                const std::string delta = std::to_string(index % 10);
+                expectedAgentText += delta;
+                transport->inject({{"method", "item/agentMessage/delta"},
+                                   {"params",
+                                    {{"threadId", "thread-acceptance"},
+                                     {"turnId", "turn-acceptance"},
+                                     {"itemId", "agent-acceptance"},
+                                     {"delta", delta}}}});
+            }
+            transport->inject({{"method", "item/completed"},
+                               {"params",
+                                {{"threadId", "thread-acceptance"},
+                                 {"turnId", "turn-acceptance"},
+                                 {"item", agentItem("agent-acceptance", expectedAgentText)},
+                                 {"completedAtMs", 3}}}});
         }
 
         void injectApprovalRequest() {
@@ -856,12 +937,6 @@ namespace {
         }
 
         void injectCommandOutputAndCompletion() {
-            transport->inject({{"method", "item/completed"},
-                               {"params",
-                                {{"threadId", "thread-acceptance"},
-                                 {"turnId", "turn-acceptance"},
-                                 {"item", agentItem("agent-acceptance", expectedAgentText)},
-                                 {"completedAtMs", 3}}}});
             transport->inject({{"method", "item/started"},
                                {"params",
                                 {{"threadId", "thread-acceptance"},
@@ -962,6 +1037,10 @@ namespace {
         std::uint64_t resumeAfterB = 0;
         std::uint64_t oldResumeSequence = 0;
         std::size_t evictionInjected = 0;
+        std::size_t agentBurstSnapshotBaselineA = 0;
+        std::size_t agentBurstSnapshotBaselineB = 0;
+        std::size_t agentBurstUpdateBaselineA = 0;
+        std::size_t agentBurstUpdateBaselineB = 0;
         std::string expectedAgentText;
         std::string expectedCommandOutput;
         bool sawTypedTurnInput = false;
