@@ -112,6 +112,100 @@ namespace {
                               boundedCloses.front().reason == "frontend outbound backpressure limit exceeded",
                           "a synchronization queue boundary preserves Welcome, reports a typed terminal error, and then closes");
 
+        Backend receiveOverflowBackend;
+        std::vector<std::function<void()>> receiveOverflowScheduled;
+        server::ServerCoreOptions receiveOverflowOptions;
+        receiveOverflowOptions.authenticator = authenticate;
+        receiveOverflowOptions.maxOutboundMessagesPerConnection = 8;
+        receiveOverflowOptions.scheduler = [&receiveOverflowScheduled](std::function<void()> callback) {
+            receiveOverflowScheduled.push_back(std::move(callback));
+        };
+        server::ServerCore receiveOverflow(receiveOverflowBackend, std::move(receiveOverflowOptions));
+        receiveOverflow.start();
+        std::vector<frontend::ServerMessage> receiveOverflowMessages;
+        std::vector<server::ConnectionClose> receiveOverflowCloses;
+        const auto receiveOverflowConnection =
+            receiveOverflow.openConnection({},
+                                               {[&receiveOverflowMessages](server::SerializedServerMessage outbound) {
+                                                    receiveOverflowMessages.push_back(std::move(outbound.message));
+                                                    return true;
+                                                },
+                                                [&receiveOverflowCloses](const server::ConnectionClose& close) {
+                                                    receiveOverflowCloses.push_back(close);
+                                                }});
+        const bool receiveOverflowSynchronized =
+            receiveOverflowConnection &&
+            receiveOverflow.receive(*receiveOverflowConnection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        while (receiveOverflowConnection && receiveOverflow.queuedMessages(*receiveOverflowConnection) < 8) {
+            const server::SnapshotPublishResult published = receiveOverflow.publishSnapshot(receiveOverflowBackend.state);
+            if (!published.accepted || published.recipientCount != 1) {
+                break;
+            }
+        }
+        const server::ReceiveResult receiveOverflowResult =
+            receiveOverflow.receiveError(*receiveOverflowConnection,
+                                         frontend::CodecError{frontend::ErrorCode::MalformedJson,
+                                                              "malformed frame",
+                                                              true,
+                                                              {},
+                                                              std::nullopt,
+                                                              std::nullopt});
+        drainScheduled(receiveOverflowScheduled);
+        const auto* receiveOverflowError = !receiveOverflowMessages.empty()
+                                               ? std::get_if<frontend::ProtocolErrorMessage>(&receiveOverflowMessages.back())
+                                               : nullptr;
+        result.expectTrue(receiveOverflowSynchronized && receiveOverflowResult.status == server::ReceiveStatus::Closing &&
+                              receiveOverflow.connectionCount() == 0 && receiveOverflowError &&
+                              receiveOverflowError->code == frontend::ErrorCode::CapacityExceeded &&
+                              receiveOverflowError->message == "frontend outbound backpressure limit exceeded" &&
+                              receiveOverflowCloses.size() == 1 &&
+                              receiveOverflowCloses.front().protocolCode == frontend::ErrorCode::CapacityExceeded,
+                          "a receive-side queue overflow reports Closing and drains its replacement terminal error");
+
+        Backend snapshotOverflowBackend;
+        std::vector<std::function<void()>> snapshotOverflowScheduled;
+        server::ServerCoreOptions snapshotOverflowOptions;
+        snapshotOverflowOptions.authenticator = authenticate;
+        snapshotOverflowOptions.maxOutboundMessagesPerConnection = 8;
+        snapshotOverflowOptions.scheduler = [&snapshotOverflowScheduled](std::function<void()> callback) {
+            snapshotOverflowScheduled.push_back(std::move(callback));
+        };
+        server::ServerCore snapshotOverflow(snapshotOverflowBackend, std::move(snapshotOverflowOptions));
+        snapshotOverflow.start();
+        std::vector<frontend::ServerMessage> snapshotOverflowMessages;
+        std::vector<server::ConnectionClose> snapshotOverflowCloses;
+        const auto snapshotOverflowConnection =
+            snapshotOverflow.openConnection({},
+                                                {[&snapshotOverflowMessages](server::SerializedServerMessage outbound) {
+                                                     snapshotOverflowMessages.push_back(std::move(outbound.message));
+                                                     return true;
+                                                 },
+                                                 [&snapshotOverflowCloses](const server::ConnectionClose& close) {
+                                                     snapshotOverflowCloses.push_back(close);
+                                                 }});
+        const bool snapshotOverflowSynchronized =
+            snapshotOverflowConnection &&
+            snapshotOverflow.receive(*snapshotOverflowConnection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        drainScheduled(snapshotOverflowScheduled);
+        snapshotOverflowMessages.clear();
+        for (std::size_t index = 0; index < 8; ++index) {
+            static_cast<void>(snapshotOverflow.publishSnapshot(snapshotOverflowBackend.state));
+        }
+        const server::SnapshotPublishResult overflowingSnapshot =
+            snapshotOverflow.publishSnapshot(snapshotOverflowBackend.state);
+        drainScheduled(snapshotOverflowScheduled);
+        const auto* snapshotOverflowError = !snapshotOverflowMessages.empty()
+                                                ? std::get_if<frontend::ProtocolErrorMessage>(&snapshotOverflowMessages.back())
+                                                : nullptr;
+        result.expectTrue(snapshotOverflowSynchronized && overflowingSnapshot.accepted &&
+                              overflowingSnapshot.recipientCount == 0 && snapshotOverflow.connectionCount() == 0 &&
+                              snapshotOverflowError && snapshotOverflowError->code == frontend::ErrorCode::CapacityExceeded &&
+                              snapshotOverflowError->message == "frontend outbound backpressure limit exceeded" &&
+                              snapshotOverflowCloses.size() == 1 &&
+                              snapshotOverflowCloses.front().protocolCode == frontend::ErrorCode::CapacityExceeded &&
+                              snapshotOverflowCloses.front().reason == "frontend outbound backpressure limit exceeded",
+                          "a live Snapshot overflow preserves the first capacity failure through wire delivery and close");
+
         Backend transportBackend;
         std::vector<std::function<void()>> scheduled;
         server::ServerCoreOptions transportOptions;
