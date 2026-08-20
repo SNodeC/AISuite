@@ -1579,8 +1579,12 @@ int main(int argc, char* argv[]) {
             timedOut = true;
             core::SNodeC::stop();
         },
-        utils::Timeval({15, 0}));
-    const int eventLoopResult = core::SNodeC::start(utils::Timeval({17, 0}));
+        // The scenario deliberately decodes and projects an 18 MiB provider
+        // result before exercising two further backend lifecycles. Hosted CI
+        // runs it beside another test, so retain a safety watchdog without
+        // treating ordinary scheduler contention as a lifecycle failure.
+        utils::Timeval({30, 0}));
+    const int eventLoopResult = core::SNodeC::start(utils::Timeval({32, 0}));
     result.expectTrue(!timedOut,
                       "cross-layer FrontendService-to-SDK regression completes before the watchdog (last stage: " + runner.waitingStage() +
                           ")");
