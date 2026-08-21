@@ -643,7 +643,7 @@ namespace {
                     expect(static_cast<bool>(result) && result.value.has_value(), method + " decodes its exact successful result type");
                     expect(result.value && resultFieldsMatch(*result.value),
                            method + " exposes field-level typed values for its exact successful result contract");
-                    expect(result.raw == expectedResult, method + " retains the exact raw successful result");
+                    expect(result.raw.is_null(), method + " does not duplicate the successfully decoded result envelope");
                     if constexpr (!std::is_same_v<Result, typed::Unit>) {
                         expect(result.value && result.value->raw == expectedResult,
                                method + " retains the exact raw JSON on its typed result aggregate");
@@ -749,8 +749,8 @@ namespace {
                                 return result.value->raw == expectedResult;
                             }
                         }();
-                        expect(static_cast<bool>(result) && result.value && result.raw == expectedResult && typedRawRetained,
-                               label + " decodes and retains its exact raw result");
+                        expect(static_cast<bool>(result) && result.value && result.raw.is_null() && typedRawRetained,
+                               label + " decodes its typed result without duplicating its retained compatibility JSON");
                         encodingOrder.push_back(label);
                         if (++encodingCallbacks == encodingCases.size()) {
                             core::EventReceiver::atNextTick([this]() {
@@ -829,9 +829,9 @@ namespace {
                  submit = std::move(submit)]() mutable {
                     return submit(params, [this, label, method, expectedResult, variant](const typed::OperationResult<Result>& result) {
                         expect(!insideSubmission, label + " completion is asynchronous");
-                        expect(static_cast<bool>(result) && result.value && result.raw == expectedResult &&
+                        expect(static_cast<bool>(result) && result.value && result.raw.is_null() &&
                                    result.value->raw == expectedResult && threadFieldsMatch(result.value->thread),
-                               label + " decodes and retains its exact launch response");
+                               label + " decodes its exact launch response without duplicating its retained compatibility JSON");
                         if (result.value) {
                             const Result& response = *result.value;
                             if (variant == LaunchResponseVariant::Omitted) {

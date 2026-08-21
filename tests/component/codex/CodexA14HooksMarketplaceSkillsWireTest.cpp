@@ -374,8 +374,8 @@ namespace {
                 [params = std::move(params), submit = std::move(submit)](std::function<void(bool, const codex::Json&)> completion) mutable {
                     return submit(params, [completion = std::move(completion)](const typed::OperationResult<Result>& operation) {
                         completion(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value.has_value() &&
-                                       operation.value->raw == operation.raw,
-                                   operation.raw);
+                                       operation.raw.is_null(),
+                                   operation.value ? operation.value->raw : operation.raw);
                     });
                 },
             };
@@ -392,8 +392,8 @@ namespace {
                 [params = std::move(params), submit = std::move(submit)](std::function<void(bool, const codex::Json&)> completion) mutable {
                     return submit(params, [completion = std::move(completion)](const typed::OperationResult<typed::Unit>& operation) {
                         completion(operation.kind == typed::OperationResult<typed::Unit>::Kind::Success && operation.value.has_value() &&
-                                       operation.raw == codex::Json::object(),
-                                   operation.raw);
+                                       operation.raw.is_null(),
+                                   codex::Json::object());
                     });
                 },
             };
@@ -594,8 +594,8 @@ namespace {
             const Submission submission =
                 client->skills().list(std::move(params), [this](const typed::OperationResult<typed::SkillsListResponse>& operation) {
                     expect(!insideSubmission, "reentrant skills/list completion remains asynchronous");
-                    expect(operation && operation.raw == skillsListResult(),
-                           "reentrant skills/list shares the same result decoder and RawProtocol");
+                    expect(operation && operation.raw.is_null() && operation.value && operation.value->raw == skillsListResult(),
+                           "reentrant skills/list shares the same result decoder without duplicating compatibility JSON");
                     ++reentrantCallbacks;
                     maybeCompleteSuccess();
                 });

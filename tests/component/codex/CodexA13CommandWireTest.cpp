@@ -326,7 +326,7 @@ namespace {
                             },
                             [this](const typed::OperationResult<typed::Unit>& operation) {
                                 expect(operation.kind == typed::OperationResult<typed::Unit>::Kind::Success && operation.value &&
-                                           operation.raw == codex::Json::object(),
+                                           operation.raw.is_null(),
                                        "reentrant command write completes through the same "
                                        "RawProtocol");
                                 eventOrder.push_back("reentrant-write-result");
@@ -446,8 +446,8 @@ namespace {
                 }
                 if (phase == Phase::Success || phase == Phase::Generation) {
                     expect(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value &&
-                               operation.raw == expectedResult && typedRawMatches(operation, expectedResult),
-                           method + " decodes its authoritative result and retains exact raw");
+                               operation.raw.is_null() && typedRawMatches(operation, expectedResult),
+                           method + " decodes its authoritative result without duplicating retained compatibility JSON");
                     if constexpr (std::is_same_v<Result, typed::CommandExecResponse>) {
                         expect(operation.value && operation.value->exitCode == 17 &&
                                    operation.value->stdoutData == "synthetic-buffered-stdout" &&

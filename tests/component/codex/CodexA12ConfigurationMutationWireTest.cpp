@@ -388,8 +388,8 @@ namespace {
                 }
                 if (phase == Phase::Success || phase == Phase::Generation) {
                     expect(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value &&
-                               operation.raw == expectedResult && typedRawMatches(operation, expectedResult),
-                           method + " decodes its authoritative result and retains exact raw JSON");
+                               operation.raw.is_null() && typedRawMatches(operation, expectedResult),
+                           method + " decodes its authoritative result without duplicating retained compatibility JSON");
                     auto& order = phase == Phase::Success ? successOrder : generationOrder;
                     auto& count = phase == Phase::Success ? successCallbacks : generationCallbacks;
                     order.push_back(method);

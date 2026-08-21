@@ -328,8 +328,8 @@ namespace {
                 [params = std::move(params), submit = std::move(submit)](std::function<void(bool, const codex::Json&)> completion) mutable {
                     return submit(params, [completion = std::move(completion)](const typed::OperationResult<Result>& operation) {
                         completion(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value.has_value() &&
-                                       operation.value->raw == operation.raw,
-                                   operation.raw);
+                                       operation.raw.is_null(),
+                                   operation.value ? operation.value->raw : operation.raw);
                     });
                 },
             };
@@ -346,8 +346,8 @@ namespace {
                 [params = std::move(params), submit = std::move(submit)](std::function<void(bool, const codex::Json&)> completion) mutable {
                     return submit(params, [completion = std::move(completion)](const typed::OperationResult<typed::Unit>& operation) {
                         completion(operation.kind == typed::OperationResult<typed::Unit>::Kind::Success && operation.value.has_value() &&
-                                       operation.raw == codex::Json::object(),
-                                   operation.raw);
+                                       operation.raw.is_null(),
+                                   codex::Json::object());
                     });
                 },
             };
@@ -540,8 +540,8 @@ namespace {
             const Submission submission = client->plugins().readSkill(
                 std::move(params), [this](const typed::OperationResult<typed::PluginSkillReadResponse>& operation) {
                     expect(!insideSubmission, "reentrant plugin/skill/read completion remains asynchronous");
-                    expect(operation && operation.raw == readSkillResult(),
-                           "reentrant plugin/skill/read shares the same decoder and RawProtocol");
+                    expect(operation && operation.raw.is_null() && operation.value && operation.value->raw == readSkillResult(),
+                           "reentrant plugin/skill/read shares the same decoder without duplicating compatibility JSON");
                     ++reentrantCallbacks;
                     probeDuplicate();
                 });

@@ -468,7 +468,7 @@ namespace {
                                operation.value->data[0].description.isNull() && !operation.value->data[1].allowed &&
                                operation.value->data[1].description.value == std::optional<std::string>{"synthetic profile description"} &&
                                operation.value->nextCursor.value == std::optional<std::string>{"synthetic-next"} &&
-                               operation.raw.value("futureResponseField", false),
+                               operation.raw.is_null() && operation.value->raw.value("futureResponseField", false),
                            "permissionProfile/list decodes ordered data, nullability, and raw extensions");
                     core::EventReceiver::atNextTick([this]() {
                         beginInitialRequests();
