@@ -138,7 +138,7 @@ entity Current. In particular, an item update confirms only that item; a turn
 update confirms the turn without promoting its parent thread. Missing parents
 created to locate a child are explicitly marked backend placeholders rather
 than copies of stale metadata. Provider connection invalidation passes through
-`ProviderConnectionInvalidated` and the reducer: retained conversation cache
+`ProviderConnectionInvalidated` and the reducer: retained conversation state
 becomes Stale, active turns and items become `connectionInvalidated` without a
 fabricated terminal state, pending server requests are cleared, and
 provider-scoped handles become invalid. Sessions, controller, revision, and

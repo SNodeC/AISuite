@@ -397,16 +397,6 @@ namespace ai::openai::codex::backend {
         std::map<std::string, ProviderResultSummaryState> latestResults;
     };
 
-    template <typename T>
-    struct ReplacementCache {
-        T value;
-        std::optional<std::string> requestedCursor;
-        std::optional<std::string> nextCursor;
-        std::size_t originalEntries = 0;
-        bool truncated = false;
-        SourceStamp stamp;
-    };
-
     struct AccountLoginFlowState {
         std::string lifecycle = "idle";
         std::string method;
@@ -445,12 +435,6 @@ namespace ai::openai::codex::backend {
     };
 
     struct AccountDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::CancelLoginAccountResponse>> loginCancellation;
-        std::optional<ReplacementCache<typed::LoginAccountResponse>> loginStart;
-        std::optional<ReplacementCache<typed::GetAccountRateLimitsResponse>> rateLimitRead;
-        std::optional<ReplacementCache<typed::GetAccountResponse>> accountRead;
-        std::optional<ReplacementCache<typed::GetAccountTokenUsageResponse>> usage;
-        std::optional<ReplacementCache<typed::GetWorkspaceMessagesResponse>> workspaceMessages;
         std::optional<AccountLoginFlowState> login;
         std::optional<AccountAuthenticationState> authentication;
         std::optional<AccountRateLimitState> rateLimits;
@@ -479,46 +463,69 @@ namespace ai::openai::codex::backend {
     };
 
     struct IntegrationsDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::AppsListResponse>> appList;
-        std::optional<ReplacementCache<typed::ExternalAgentConfigDetectResponse>> externalAgentDetection;
-        std::optional<ReplacementCache<typed::ExternalAgentConfigImportResponse>> externalAgentImport;
-        std::optional<ReplacementCache<typed::ExternalAgentConfigImportHistoriesReadResponse>> externalAgentImportHistories;
-        std::optional<ReplacementCache<typed::HooksListResponse>> hooks;
-        std::optional<ReplacementCache<typed::MarketplaceAddResponse>> marketplaceAdd;
-        std::optional<ReplacementCache<typed::MarketplaceRemoveResponse>> marketplaceRemove;
-        std::optional<ReplacementCache<typed::MarketplaceUpgradeResponse>> marketplaceUpgrade;
         std::optional<AppCatalogState> apps;
+        struct MarketplaceMutationState {
+            std::string operation;
+            std::optional<std::string> marketplaceName;
+            std::optional<std::string> installedRoot;
+            std::size_t selectedCount = 0;
+            std::size_t upgradedRootCount = 0;
+            std::size_t errorCount = 0;
+            bool alreadyAdded = false;
+            bool truncated = false;
+            SourceStamp stamp;
+
+            bool operator==(const MarketplaceMutationState&) const = default;
+        };
+        std::optional<MarketplaceMutationState> marketplaceAdd;
+        std::optional<MarketplaceMutationState> marketplaceRemove;
+        std::optional<MarketplaceMutationState> marketplaceUpgrade;
     };
 
-    struct ModelsDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::ModelListResponse>> list;
-        std::optional<ReplacementCache<typed::ModelProviderCapabilitiesReadResponse>> providerCapabilities;
-    };
+    struct ModelsDomainState : ProviderDomainState {};
 
     struct ConfigurationDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::ConfigReadResponse>> configuration;
-        std::optional<ReplacementCache<typed::ConfigRequirementsReadResponse>> requirements;
-        std::optional<ReplacementCache<typed::ExperimentalFeatureListResponse>> experimentalFeatures;
-        std::optional<ReplacementCache<typed::ConfigWriteResponse>> lastWrite;
-        std::optional<ReplacementCache<typed::ExperimentalFeatureEnablementSetResponse>> experimentalFeatureEnablement;
+        struct WriteState {
+            std::string filePath;
+            std::string status;
+            std::string version;
+            bool overridden = false;
+            bool truncated = false;
+            SourceStamp stamp;
+
+            bool operator==(const WriteState&) const = default;
+        };
+        struct FeatureEnablementState {
+            std::vector<std::pair<std::string, bool>> entries;
+            std::size_t totalEntries = 0;
+            bool truncated = false;
+            SourceStamp stamp;
+
+            bool operator==(const FeatureEnablementState&) const = default;
+        };
+        std::optional<WriteState> lastWrite;
+        std::optional<FeatureEnablementState> experimentalFeatureEnablement;
     };
 
     struct ConversationDomainState : ProviderDomainState {
-        std::optional<typed::ThreadId> latestGoalThreadId;
-        std::optional<ReplacementCache<typed::ThreadGoalGetResponse>> latestGoal;
-        std::optional<typed::ThreadId> latestGoalClearThreadId;
-        std::optional<ReplacementCache<typed::ThreadGoalClearResponse>> latestGoalClear;
-        std::optional<typed::ThreadId> latestGoalSetThreadId;
-        std::optional<ReplacementCache<typed::ThreadGoalSetResponse>> latestGoalSet;
-        std::optional<typed::ThreadId> latestUnsubscribeThreadId;
-        std::optional<ReplacementCache<typed::ThreadUnsubscribeResponse>> latestUnsubscribe;
-        std::optional<ReplacementCache<typed::ThreadLoadedListResponse>> loadedThreads;
+        struct GoalMutationState {
+            std::string operation;
+            std::string threadId;
+            std::optional<std::string> objective;
+            std::optional<std::string> status;
+            std::optional<bool> cleared;
+            bool hasGoal = false;
+            SourceStamp stamp;
+
+            bool operator==(const GoalMutationState&) const = default;
+        };
+        std::optional<GoalMutationState> latestGoal;
+        std::optional<GoalMutationState> latestGoalClear;
+        std::optional<GoalMutationState> latestGoalSet;
+        std::optional<GoalMutationState> latestUnsubscribe;
     };
 
-    struct ReviewsDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::PermissionProfileListResponse>> permissionProfiles;
-        std::optional<ReplacementCache<typed::ReviewStartResponse>> latestReview;
-    };
+    struct ReviewsDomainState : ProviderDomainState {};
 
     struct SkillsExtraRootsState {
         std::vector<typed::AbsolutePath> roots;
@@ -530,17 +537,21 @@ namespace ai::openai::codex::backend {
     };
 
     struct PluginsAndSkillsDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::PluginInstallResponse>> pluginInstall;
-        std::optional<ReplacementCache<typed::PluginInstalledResponse>> installedPlugins;
-        std::optional<ReplacementCache<typed::PluginListResponse>> plugins;
-        std::optional<ReplacementCache<typed::PluginReadResponse>> pluginDetail;
-        std::optional<ReplacementCache<typed::PluginShareListResponse>> pluginShares;
-        std::optional<ReplacementCache<typed::PluginShareCheckoutResponse>> pluginShareCheckout;
-        std::optional<ReplacementCache<typed::PluginShareSaveResponse>> pluginShareSave;
-        std::optional<ReplacementCache<typed::PluginShareUpdateTargetsResponse>> pluginShareUpdateTargets;
-        std::optional<ReplacementCache<typed::PluginSkillReadResponse>> pluginSkill;
-        std::optional<ReplacementCache<typed::SkillsConfigWriteResponse>> skillsConfigWrite;
-        std::optional<ReplacementCache<typed::SkillsListResponse>> skills;
+        struct MutationState {
+            std::string operation;
+            std::optional<std::string> subjectId;
+            std::optional<std::string> status;
+            std::size_t itemCount = 0;
+            bool truncated = false;
+            SourceStamp stamp;
+
+            bool operator==(const MutationState&) const = default;
+        };
+        std::optional<MutationState> pluginInstall;
+        std::optional<MutationState> pluginShareCheckout;
+        std::optional<MutationState> pluginShareSave;
+        std::optional<MutationState> pluginShareUpdateTargets;
+        std::optional<MutationState> skillsConfigWrite;
         std::optional<SkillsExtraRootsState> extraRoots;
     };
 
@@ -576,8 +587,6 @@ namespace ai::openai::codex::backend {
     };
 
     struct McpDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::McpServerOauthLoginResponse>> oauthStart;
-        std::optional<ReplacementCache<typed::ListMcpServerStatusResponse>> statusListResponse;
         std::optional<McpOauthState> oauth;
         std::optional<McpStartupState> startup;
         std::optional<McpStatusListState> statusList;
@@ -605,7 +614,6 @@ namespace ai::openai::codex::backend {
     };
 
     struct PlatformDomainState : ProviderDomainState {
-        std::optional<ReplacementCache<typed::WindowsSandboxReadinessResponse>> windowsReadiness;
         std::optional<RemoteControlState> remoteControl;
         std::optional<WindowsSandboxState> windowsSandbox;
     };

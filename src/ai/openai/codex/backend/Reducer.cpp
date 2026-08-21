@@ -238,45 +238,25 @@ namespace ai::openai::codex::backend {
             if (summary != domain.latestResults.end()) {
                 summary->second.stamp.freshness = Freshness::Stale;
             }
-            const auto staleReplacement = [](auto& replacement) {
-                if (replacement) {
-                    replacement->stamp.freshness = Freshness::Stale;
+            const auto staleState = [](auto& value) {
+                if (value) {
+                    value->stamp.freshness = Freshness::Stale;
                 }
             };
             if (method == "thread/list") {
                 state.threadList.stamp.freshness = Freshness::Stale;
             } else if (method == "thread/goal/get") {
-                staleReplacement(state.conversations.latestGoal);
+                staleState(state.conversations.latestGoal);
             } else if (method == "account/rateLimits/read") {
-                staleReplacement(state.accounts.rateLimitRead);
+                staleState(state.accounts.rateLimits);
             } else if (method == "account/read") {
-                staleReplacement(state.accounts.accountRead);
-            } else if (method == "account/usage/read") {
-                staleReplacement(state.accounts.usage);
-            } else if (method == "account/workspaceMessages/read") {
-                staleReplacement(state.accounts.workspaceMessages);
-            } else if (method == "config/read") {
-                staleReplacement(state.configuration.configuration);
-            } else if (method == "experimentalFeature/list") {
-                staleReplacement(state.configuration.experimentalFeatures);
+                staleState(state.accounts.authentication);
             } else if (method == "app/list") {
-                staleReplacement(state.integrations.appList);
-            } else if (method == "externalAgentConfig/import/readHistories") {
-                staleReplacement(state.integrations.externalAgentImportHistories);
-            } else if (method == "plugin/installed") {
-                staleReplacement(state.pluginsAndSkills.installedPlugins);
-            } else if (method == "plugin/list") {
-                staleReplacement(state.pluginsAndSkills.plugins);
-            } else if (method == "plugin/read") {
-                staleReplacement(state.pluginsAndSkills.pluginDetail);
-            } else if (method == "plugin/share/list") {
-                staleReplacement(state.pluginsAndSkills.pluginShares);
-            } else if (method == "skills/list") {
-                staleReplacement(state.pluginsAndSkills.skills);
+                staleState(state.integrations.apps);
             } else if (method == "mcpServerStatus/list") {
-                staleReplacement(state.mcp.statusListResponse);
+                staleState(state.mcp.statusList);
             } else if (method == "windowsSandbox/readiness") {
-                staleReplacement(state.platform.windowsReadiness);
+                staleState(state.platform.windowsSandbox);
             }
         }
 
@@ -299,7 +279,7 @@ namespace ai::openai::codex::backend {
         }
 
         void markLatestGoalStale(BackendState& state, const typed::ThreadId& threadId) noexcept {
-            if (state.conversations.latestGoalThreadId == threadId) {
+            if (state.conversations.latestGoal && state.conversations.latestGoal->threadId == threadId.value) {
                 markOperationStale(state, "thread/goal/get");
             }
         }
@@ -499,410 +479,6 @@ namespace ai::openai::codex::backend {
             }
         }
 
-        template <typename Value>
-        void boundReplacementValue(Value& value, const ReducerOptions& options);
-
-        template <typename Collection>
-        void boundReplacementCollection(Collection& collection, std::size_t limit, const ReducerOptions& options) {
-            if (collection.size() > limit) {
-                collection.resize(limit);
-            }
-            for (auto& entry : collection) {
-                boundReplacementValue(entry, options);
-            }
-        }
-
-        template <typename Value>
-        void boundReplacementValue(Value& value, const ReducerOptions& options) {
-            discardRetainedWireArtifacts(value);
-            const auto boundString = [&options](std::string& text) {
-                if (text.size() > options.maxNoticeDetailsBytes) {
-                    text.resize(options.maxNoticeDetailsBytes);
-                }
-            };
-            const auto boundStringMember = [&boundString](auto& member) {
-                using Member = std::remove_cvref_t<decltype(member)>;
-                if constexpr (std::is_same_v<Member, std::string>) {
-                    boundString(member);
-                } else if constexpr (std::is_same_v<Member, std::optional<std::string>>) {
-                    if (member) {
-                        boundString(*member);
-                    }
-                } else if constexpr (std::is_same_v<Member, std::optional<typed::AbsolutePath>>) {
-                    if (member) {
-                        boundString(member->value);
-                    }
-                }
-            };
-            if constexpr (std::is_same_v<Value, std::string>) {
-                boundString(value);
-            }
-#define AISUITE_BOUND_REPLACEMENT_STRING(Member)                                                                                           \
-    if constexpr (requires { value.Member; }) {                                                                                            \
-        boundStringMember(value.Member);                                                                                                   \
-    }
-            AISUITE_BOUND_REPLACEMENT_STRING(name)
-            AISUITE_BOUND_REPLACEMENT_STRING(id)
-            AISUITE_BOUND_REPLACEMENT_STRING(description)
-            AISUITE_BOUND_REPLACEMENT_STRING(messageBody)
-            AISUITE_BOUND_REPLACEMENT_STRING(announcement)
-            AISUITE_BOUND_REPLACEMENT_STRING(displayName)
-            AISUITE_BOUND_REPLACEMENT_STRING(cwd)
-            AISUITE_BOUND_REPLACEMENT_STRING(importId)
-            AISUITE_BOUND_REPLACEMENT_STRING(authorizationUrl)
-            AISUITE_BOUND_REPLACEMENT_STRING(authUrl)
-            AISUITE_BOUND_REPLACEMENT_STRING(userCode)
-            AISUITE_BOUND_REPLACEMENT_STRING(verificationUrl)
-            AISUITE_BOUND_REPLACEMENT_STRING(marketplaceName)
-            AISUITE_BOUND_REPLACEMENT_STRING(pluginId)
-            AISUITE_BOUND_REPLACEMENT_STRING(pluginName)
-            AISUITE_BOUND_REPLACEMENT_STRING(remotePluginId)
-            AISUITE_BOUND_REPLACEMENT_STRING(principalId)
-            AISUITE_BOUND_REPLACEMENT_STRING(shareUrl)
-            AISUITE_BOUND_REPLACEMENT_STRING(source)
-            AISUITE_BOUND_REPLACEMENT_STRING(version)
-            AISUITE_BOUND_REPLACEMENT_STRING(message)
-            AISUITE_BOUND_REPLACEMENT_STRING(summary)
-            AISUITE_BOUND_REPLACEMENT_STRING(objective)
-            AISUITE_BOUND_REPLACEMENT_STRING(key)
-            AISUITE_BOUND_REPLACEMENT_STRING(text)
-            AISUITE_BOUND_REPLACEMENT_STRING(value)
-#undef AISUITE_BOUND_REPLACEMENT_STRING
-            if constexpr (requires { value.contents.hasValue(); }) {
-                if (value.contents.hasValue()) {
-                    boundString(*value.contents.value);
-                }
-            }
-            if constexpr (requires { value.description.value; }) {
-                boundStringMember(value.description.value);
-            }
-            if constexpr (requires { value.title.value; }) {
-                boundStringMember(value.title.value);
-            }
-            if constexpr (requires { value.defaultPermissions.value; }) {
-                boundStringMember(value.defaultPermissions.value);
-            }
-            if constexpr (requires { value.shortDescription.hasValue(); }) {
-                if (value.shortDescription.hasValue()) {
-                    boundString(*value.shortDescription.value);
-                }
-            }
-            if constexpr (requires { value.statusMessage.hasValue(); }) {
-                if (value.statusMessage.hasValue()) {
-                    boundString(*value.statusMessage.value);
-                }
-            }
-#define AISUITE_BOUND_REPLACEMENT_COLLECTION(Member)                                                                                       \
-    if constexpr (requires {                                                                                                               \
-                      value.Member.size();                                                                                                 \
-                      value.Member.resize(std::size_t{});                                                                                  \
-                  }) {                                                                                                                     \
-        boundReplacementCollection(value.Member, MaxRetainedAppCatalogEntries, options);                                                   \
-    }
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(plugins)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(skills)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(errors)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(warnings)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(failures)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(successes)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(apps)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(appTemplates)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(hooks)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(mcpServers)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(entries)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(itemTypeResults)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(principals)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(selectedMarketplaces)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(upgradedRoots)
-            AISUITE_BOUND_REPLACEMENT_COLLECTION(appsNeedingAuth)
-#undef AISUITE_BOUND_REPLACEMENT_COLLECTION
-            if constexpr (requires { value.config.has_value(); }) {
-                if (value.config) {
-                    value.config = Json::object({{"omitted", true}, {"reason", "bounded canonical configuration cache"}});
-                }
-            }
-            if constexpr (requires { value.filePath.value; }) {
-                boundStringMember(value.filePath.value);
-            }
-            if constexpr (requires { value.installedRoot.value; }) {
-                boundStringMember(value.installedRoot.value);
-            }
-            if constexpr (requires { value.marketplacePath.value; }) {
-                boundStringMember(value.marketplacePath.value);
-            }
-            if constexpr (requires { value.pluginPath.value; }) {
-                boundStringMember(value.pluginPath.value);
-            }
-            if constexpr (requires { value.authPolicy.value; }) {
-                boundStringMember(value.authPolicy.value);
-            }
-            if constexpr (requires { value.discoverability.value; }) {
-                boundStringMember(value.discoverability.value);
-            }
-            if constexpr (requires { value.status.value; }) {
-                boundStringMember(value.status.value);
-            }
-            if constexpr (requires { value.id.value; }) {
-                boundStringMember(value.id.value);
-            }
-            if constexpr (requires { value.resetType.value; }) {
-                boundStringMember(value.resetType.value);
-            }
-            if constexpr (requires { value.remoteVersion.value; }) {
-                boundStringMember(value.remoteVersion.value);
-            }
-            if constexpr (requires { value.enforceResidency.hasValue(); }) {
-                if (value.enforceResidency.hasValue()) {
-                    boundReplacementValue(*value.enforceResidency.value, options);
-                }
-            }
-            if constexpr (requires { value.model.hasValue(); }) {
-                if (value.model.hasValue()) {
-                    boundReplacementValue(*value.model.value, options);
-                }
-            }
-            if constexpr (requires { value.modelReasoningEffort.hasValue(); }) {
-                if (value.modelReasoningEffort.hasValue()) {
-                    boundReplacementValue(*value.modelReasoningEffort.value, options);
-                }
-            }
-            if constexpr (requires { value.serviceTier.hasValue(); }) {
-                if (value.serviceTier.hasValue()) {
-                    boundReplacementValue(*value.serviceTier.value, options);
-                }
-            }
-        }
-
-        template <typename Map>
-        void boundReplacementMap(Map& map, std::size_t limit) {
-            if (map.size() > limit) {
-                auto firstOmitted = map.begin();
-                std::advance(firstOmitted, static_cast<std::ptrdiff_t>(limit));
-                map.erase(firstOmitted, map.end());
-            }
-            for (auto& [key, entry] : map) {
-                (void) key;
-                discardRetainedWireArtifacts(entry);
-            }
-        }
-
-        template <typename Result>
-        ReplacementCache<Result> retainedReplacement(Result result,
-                                                     const BackendState& state,
-                                                     const ReducerOptions& options,
-                                                     std::optional<std::string> requestedCursor = std::nullopt) {
-            ReplacementCache<Result> cache;
-            cache.requestedCursor = std::move(requestedCursor);
-            cache.stamp = currentStamp(state);
-            discardRetainedWireArtifacts(result);
-            if constexpr (requires { result.data; }) {
-                cache.originalEntries = result.data.size();
-                cache.truncated = result.data.size() > MaxRetainedAppCatalogEntries;
-                boundReplacementCollection(result.data, MaxRetainedAppCatalogEntries, options);
-            } else if constexpr (requires { result.messages; }) {
-                cache.originalEntries = result.messages.size();
-                cache.truncated = result.messages.size() > MaxRetainedAppCatalogEntries;
-                boundReplacementCollection(result.messages, MaxRetainedAppCatalogEntries, options);
-            } else if constexpr (requires { result.marketplaces; }) {
-                cache.originalEntries = result.marketplaces.size();
-                cache.truncated = result.marketplaces.size() > MaxRetainedAppCatalogEntries;
-                boundReplacementCollection(result.marketplaces, MaxRetainedAppCatalogEntries, options);
-            }
-            if constexpr (requires { result.nextCursor.hasValue(); }) {
-                if (result.nextCursor.hasValue()) {
-                    cache.nextCursor = boundedText(*result.nextCursor.value, options.maxNoticeDetailsBytes);
-                }
-            }
-            if constexpr (requires { result.contents.hasValue(); }) {
-                if (result.contents.hasValue() && result.contents.value->size() > options.maxNoticeDetailsBytes) {
-                    result.contents.value->resize(options.maxNoticeDetailsBytes);
-                    cache.truncated = true;
-                }
-            }
-            if constexpr (requires { result.items; }) {
-                cache.originalEntries = result.items.size();
-                cache.truncated = cache.truncated || result.items.size() > MaxRetainedAppCatalogEntries;
-                boundReplacementCollection(result.items, MaxRetainedAppCatalogEntries, options);
-            }
-            if constexpr (requires { result.dailyUsageBuckets.hasValue(); }) {
-                if (result.dailyUsageBuckets.hasValue()) {
-                    cache.originalEntries = result.dailyUsageBuckets.value->size();
-                    cache.truncated = cache.truncated || result.dailyUsageBuckets.value->size() > MaxRetainedAppCatalogEntries;
-                    boundReplacementCollection(*result.dailyUsageBuckets.value, MaxRetainedAppCatalogEntries, options);
-                }
-            }
-            if constexpr (requires { result.marketplaceLoadErrors; }) {
-                if (result.marketplaceLoadErrors) {
-                    cache.truncated = cache.truncated || result.marketplaceLoadErrors->size() > MaxRetainedAppCatalogEntries;
-                    boundReplacementCollection(*result.marketplaceLoadErrors, MaxRetainedAppCatalogEntries, options);
-                }
-            }
-            if constexpr (requires { result.featuredPluginIds; }) {
-                if (result.featuredPluginIds) {
-                    cache.truncated = cache.truncated || result.featuredPluginIds->size() > MaxRetainedAppCatalogEntries;
-                    boundReplacementCollection(*result.featuredPluginIds, MaxRetainedAppCatalogEntries, options);
-                }
-            }
-            if constexpr (requires { result.config.unknownProperties; }) {
-                if (!result.config.unknownProperties.empty()) {
-                    result.config.unknownProperties.clear();
-                    cache.truncated = true;
-                }
-                discardRetainedWireArtifacts(result.config);
-            }
-            if constexpr (requires { result.layers.hasValue(); }) {
-                if (result.layers.hasValue()) {
-                    cache.truncated = cache.truncated || result.layers.value->size() > MaxRetainedAppCatalogEntries;
-                    boundReplacementCollection(*result.layers.value, MaxRetainedAppCatalogEntries, options);
-                }
-            }
-            if constexpr (requires { result.origins; }) {
-                cache.truncated = cache.truncated || result.origins.size() > MaxRetainedAppCatalogEntries;
-                boundReplacementMap(result.origins, MaxRetainedAppCatalogEntries);
-            }
-            if constexpr (requires { result.rateLimitsByLimitId.hasValue(); }) {
-                if (result.rateLimitsByLimitId.hasValue()) {
-                    cache.truncated = cache.truncated || result.rateLimitsByLimitId.value->size() > MaxRetainedAppCatalogEntries;
-                    boundReplacementMap(*result.rateLimitsByLimitId.value, MaxRetainedAppCatalogEntries);
-                }
-            }
-            if constexpr (std::is_same_v<Result, typed::ConfigWriteResponse>) {
-                boundReplacementValue(result, options);
-                if (result.overriddenMetadata.hasValue()) {
-                    typed::OverriddenMetadata& overridden = *result.overriddenMetadata.value;
-                    overridden.effectiveValue =
-                        Json::object({{"omitted", true}, {"reason", "bounded canonical configuration write cache"}});
-                    boundReplacementValue(overridden, options);
-                    boundReplacementValue(overridden.overridingLayer, options);
-                    cache.truncated = true;
-                }
-            } else if constexpr (std::is_same_v<Result, typed::ConfigRequirementsReadResponse>) {
-                if (result.requirements.hasValue()) {
-                    typed::ConfigRequirements& requirements = *result.requirements.value;
-                    discardRetainedWireArtifacts(requirements);
-                    const auto boundOptionalCollection = [&options, &cache](auto& collection) {
-                        if (collection.hasValue()) {
-                            cache.truncated = cache.truncated || collection.value->size() > MaxRetainedAppCatalogEntries;
-                            boundReplacementCollection(*collection.value, MaxRetainedAppCatalogEntries, options);
-                        }
-                    };
-                    boundOptionalCollection(requirements.allowedApprovalPolicies);
-                    boundOptionalCollection(requirements.allowedSandboxModes);
-                    boundOptionalCollection(requirements.allowedWebSearchModes);
-                    boundOptionalCollection(requirements.allowedWindowsSandboxImplementations);
-                    const auto boundBooleanMap = [&cache](auto& optionalMap) {
-                        if (!optionalMap.hasValue()) {
-                            return;
-                        }
-                        using Map = std::remove_cvref_t<decltype(*optionalMap.value)>;
-                        using Key = typename Map::key_type;
-                        cache.truncated = cache.truncated || optionalMap.value->size() > MaxRetainedAppCatalogEntries;
-                        Map bounded;
-                        std::size_t count = 0;
-                        for (const auto& [key, enabled] : *optionalMap.value) {
-                            if (count++ == MaxRetainedAppCatalogEntries) {
-                                break;
-                            }
-                            bounded.emplace(Key{boundedIdentifier(key.value)}, enabled);
-                        }
-                        *optionalMap.value = std::move(bounded);
-                    };
-                    boundBooleanMap(requirements.allowedPermissionProfiles);
-                    boundBooleanMap(requirements.featureRequirements);
-                    boundReplacementValue(requirements, options);
-                    if (requirements.computerUse.hasValue()) {
-                        boundReplacementValue(*requirements.computerUse.value, options);
-                    }
-                    if (requirements.models.hasValue()) {
-                        discardRetainedWireArtifacts(*requirements.models.value);
-                        if (requirements.models.value->newThread.hasValue()) {
-                            boundReplacementValue(*requirements.models.value->newThread.value, options);
-                        }
-                    }
-                }
-            } else if constexpr (std::is_same_v<Result, typed::ExperimentalFeatureEnablementSetResponse>) {
-                cache.originalEntries = result.enablement.size();
-                cache.truncated = result.enablement.size() > MaxRetainedAppCatalogEntries;
-                std::map<typed::ExperimentalFeatureId, bool> bounded;
-                std::size_t count = 0;
-                for (const auto& [feature, enabled] : result.enablement) {
-                    if (count++ == MaxRetainedAppCatalogEntries) {
-                        break;
-                    }
-                    bounded.insert_or_assign(typed::ExperimentalFeatureId{boundedIdentifier(feature.value)}, enabled);
-                }
-                result.enablement = std::move(bounded);
-            } else if constexpr (std::is_same_v<Result, typed::MarketplaceAddResponse> ||
-                                 std::is_same_v<Result, typed::MarketplaceRemoveResponse> ||
-                                 std::is_same_v<Result, typed::MarketplaceUpgradeResponse> ||
-                                 std::is_same_v<Result, typed::PluginInstallResponse> ||
-                                 std::is_same_v<Result, typed::PluginShareCheckoutResponse> ||
-                                 std::is_same_v<Result, typed::PluginShareSaveResponse> ||
-                                 std::is_same_v<Result, typed::PluginShareUpdateTargetsResponse>) {
-                if constexpr (requires { result.errors.size(); }) {
-                    cache.originalEntries = result.errors.size();
-                    cache.truncated = result.errors.size() > MaxRetainedAppCatalogEntries;
-                } else if constexpr (requires { result.principals.size(); }) {
-                    cache.originalEntries = result.principals.size();
-                    cache.truncated = result.principals.size() > MaxRetainedAppCatalogEntries;
-                } else if constexpr (requires { result.appsNeedingAuth.size(); }) {
-                    cache.originalEntries = result.appsNeedingAuth.size();
-                    cache.truncated = result.appsNeedingAuth.size() > MaxRetainedAppCatalogEntries;
-                }
-                boundReplacementValue(result, options);
-            } else if constexpr (std::is_same_v<Result, typed::ThreadGoalGetResponse>) {
-                if (result.goal.hasValue()) {
-                    boundReplacementValue(*result.goal.value, options);
-                }
-            } else if constexpr (std::is_same_v<Result, typed::ThreadGoalSetResponse>) {
-                boundReplacementValue(result.goal, options);
-            }
-            if constexpr (std::is_same_v<Result, typed::LoginAccountResponse>) {
-                std::visit(
-                    [&options](auto& response) {
-                        boundReplacementValue(response, options);
-                    },
-                    result);
-            } else if constexpr (std::is_same_v<Result, typed::GetAccountResponse>) {
-                if (result.account.hasValue()) {
-                    std::visit(
-                        [&options](auto& account) {
-                            boundReplacementValue(account, options);
-                        },
-                        *result.account.value);
-                }
-            }
-            if constexpr (requires { result.rateLimits; }) {
-                boundReplacementValue(result.rateLimits, options);
-                if (result.rateLimits.credits.hasValue()) {
-                    boundReplacementValue(*result.rateLimits.credits.value, options);
-                }
-            }
-            if constexpr (requires { result.rateLimitResetCredits.hasValue(); }) {
-                if (result.rateLimitResetCredits.hasValue()) {
-                    auto& creditsSummary = *result.rateLimitResetCredits.value;
-                    discardRetainedWireArtifacts(creditsSummary);
-                    if (creditsSummary.credits.hasValue()) {
-                        cache.originalEntries = creditsSummary.credits.value->size();
-                        cache.truncated = cache.truncated || creditsSummary.credits.value->size() > MaxRetainedAppCatalogEntries;
-                        boundReplacementCollection(*creditsSummary.credits.value, MaxRetainedAppCatalogEntries, options);
-                    }
-                }
-            }
-            if constexpr (requires { result.plugin; }) {
-                boundReplacementValue(result.plugin, options);
-            }
-            if constexpr (requires { result.turn.items; }) {
-                discardRetainedWireArtifacts(result.turn);
-                if (!result.turn.items.empty()) {
-                    result.turn.items.clear();
-                    cache.truncated = true;
-                }
-            }
-            cache.value = std::move(result);
-            return cache;
-        }
-
         void updateAccountRateLimits(BackendState& state, const typed::RateLimitSnapshot& source, const ReducerOptions& options) {
             AccountRateLimitState retained;
             if (source.planType.hasValue()) {
@@ -949,6 +525,116 @@ namespace ai::openai::codex::backend {
             }
             catalog.stamp = currentStamp(state);
             state.integrations.apps = std::move(catalog);
+        }
+
+        ConfigurationDomainState::WriteState configurationWriteState(const typed::ConfigWriteResponse& result,
+                                                                      const BackendState& state,
+                                                                      const ReducerOptions& options) {
+            return {boundedText(result.filePath.value, options.maxNoticeDetailsBytes),
+                    boundedText(result.status.value, options.maxNoticeDetailsBytes),
+                    boundedText(result.version, options.maxNoticeDetailsBytes),
+                    result.overriddenMetadata.hasValue(),
+                    result.overriddenMetadata.hasValue(),
+                    currentStamp(state)};
+        }
+
+        ConfigurationDomainState::FeatureEnablementState featureEnablementState(
+            const typed::ExperimentalFeatureEnablementSetResponse& result,
+            const BackendState& state) {
+            ConfigurationDomainState::FeatureEnablementState retained;
+            retained.totalEntries = result.enablement.size();
+            retained.truncated = result.enablement.size() > MaxRetainedAppCatalogEntries;
+            retained.entries.reserve(std::min(result.enablement.size(), MaxRetainedAppCatalogEntries));
+            for (const auto& [feature, enabled] : result.enablement) {
+                if (retained.entries.size() == MaxRetainedAppCatalogEntries) {
+                    break;
+                }
+                retained.entries.emplace_back(boundedIdentifier(feature.value), enabled);
+            }
+            retained.stamp = currentStamp(state);
+            return retained;
+        }
+
+        ConversationDomainState::GoalMutationState goalMutationState(std::string operation,
+                                                                     std::optional<std::string> objective,
+                                                                     std::optional<std::string> status,
+                                                                     std::optional<bool> cleared,
+                                                                     bool hasGoal,
+                                                                     const BackendState& state,
+                                                                     const ReducerOptions& options) {
+            if (objective) {
+                *objective = boundedText(*objective, options.maxNoticeDetailsBytes);
+            }
+            if (status) {
+                *status = boundedText(*status, options.maxNoticeDetailsBytes);
+            }
+            return {std::move(operation), {}, std::move(objective), std::move(status), cleared, hasGoal, currentStamp(state)};
+        }
+
+        IntegrationsDomainState::MarketplaceMutationState marketplaceAddState(const typed::MarketplaceAddResponse& result,
+                                                                               const BackendState& state,
+                                                                               const ReducerOptions& options) {
+            return {"add",
+                    boundedText(result.marketplaceName, options.maxNoticeDetailsBytes),
+                    boundedText(result.installedRoot.value, options.maxNoticeDetailsBytes),
+                    0,
+                    0,
+                    0,
+                    result.alreadyAdded,
+                    false,
+                    currentStamp(state)};
+        }
+
+        IntegrationsDomainState::MarketplaceMutationState marketplaceRemoveState(const typed::MarketplaceRemoveResponse& result,
+                                                                                  const BackendState& state,
+                                                                                  const ReducerOptions& options) {
+            std::optional<std::string> installedRoot;
+            if (result.installedRoot.hasValue()) {
+                installedRoot = boundedText(result.installedRoot.value->value, options.maxNoticeDetailsBytes);
+            }
+            return {"remove",
+                    boundedText(result.marketplaceName, options.maxNoticeDetailsBytes),
+                    std::move(installedRoot),
+                    0,
+                    0,
+                    0,
+                    false,
+                    false,
+                    currentStamp(state)};
+        }
+
+        IntegrationsDomainState::MarketplaceMutationState marketplaceUpgradeState(const typed::MarketplaceUpgradeResponse& result,
+                                                                                   const BackendState& state) {
+            const auto retainedCount = [](std::size_t count) {
+                return std::min(count, MaxRetainedAppCatalogEntries);
+            };
+            return {"upgrade",
+                    std::nullopt,
+                    std::nullopt,
+                    retainedCount(result.selectedMarketplaces.size()),
+                    retainedCount(result.upgradedRoots.size()),
+                    retainedCount(result.errors.size()),
+                    false,
+                    result.selectedMarketplaces.size() > MaxRetainedAppCatalogEntries ||
+                        result.upgradedRoots.size() > MaxRetainedAppCatalogEntries ||
+                        result.errors.size() > MaxRetainedAppCatalogEntries,
+                    currentStamp(state)};
+        }
+
+        PluginsAndSkillsDomainState::MutationState pluginMutationState(std::string operation,
+                                                                       std::optional<std::string> subjectId,
+                                                                       std::optional<std::string> status,
+                                                                       std::size_t itemCount,
+                                                                       bool truncated,
+                                                                       const BackendState& state,
+                                                                       const ReducerOptions& options) {
+            if (subjectId) {
+                *subjectId = boundedText(*subjectId, options.maxNoticeDetailsBytes);
+            }
+            if (status) {
+                *status = boundedText(*status, options.maxNoticeDetailsBytes);
+            }
+            return {std::move(operation), std::move(subjectId), std::move(status), itemCount, truncated, currentStamp(state)};
         }
 
         void boundFuzzyResult(typed::FuzzyFileSearchResult& result, std::size_t stringLimit) {
@@ -3203,53 +2889,6 @@ namespace ai::openai::codex::backend {
                     markDomainStale(state.pluginsAndSkills);
                     markDomainStale(state.mcp);
                     markDomainStale(state.platform);
-                    const auto markReplacementStale = [](auto& replacement) {
-                        if (replacement) {
-                            replacement->stamp.freshness = Freshness::Stale;
-                        }
-                    };
-                    markReplacementStale(state.accounts.loginCancellation);
-                    markReplacementStale(state.accounts.loginStart);
-                    markReplacementStale(state.accounts.rateLimitRead);
-                    markReplacementStale(state.accounts.accountRead);
-                    markReplacementStale(state.accounts.usage);
-                    markReplacementStale(state.accounts.workspaceMessages);
-                    markReplacementStale(state.models.list);
-                    markReplacementStale(state.models.providerCapabilities);
-                    markReplacementStale(state.configuration.configuration);
-                    markReplacementStale(state.configuration.requirements);
-                    markReplacementStale(state.configuration.experimentalFeatures);
-                    markReplacementStale(state.configuration.lastWrite);
-                    markReplacementStale(state.configuration.experimentalFeatureEnablement);
-                    markReplacementStale(state.conversations.latestGoal);
-                    markReplacementStale(state.conversations.latestGoalClear);
-                    markReplacementStale(state.conversations.latestGoalSet);
-                    markReplacementStale(state.conversations.latestUnsubscribe);
-                    markReplacementStale(state.conversations.loadedThreads);
-                    markReplacementStale(state.reviews.permissionProfiles);
-                    markReplacementStale(state.reviews.latestReview);
-                    markReplacementStale(state.integrations.appList);
-                    markReplacementStale(state.integrations.externalAgentDetection);
-                    markReplacementStale(state.integrations.externalAgentImport);
-                    markReplacementStale(state.integrations.externalAgentImportHistories);
-                    markReplacementStale(state.integrations.hooks);
-                    markReplacementStale(state.integrations.marketplaceAdd);
-                    markReplacementStale(state.integrations.marketplaceRemove);
-                    markReplacementStale(state.integrations.marketplaceUpgrade);
-                    markReplacementStale(state.pluginsAndSkills.pluginInstall);
-                    markReplacementStale(state.pluginsAndSkills.installedPlugins);
-                    markReplacementStale(state.pluginsAndSkills.plugins);
-                    markReplacementStale(state.pluginsAndSkills.pluginDetail);
-                    markReplacementStale(state.pluginsAndSkills.pluginShares);
-                    markReplacementStale(state.pluginsAndSkills.pluginShareCheckout);
-                    markReplacementStale(state.pluginsAndSkills.pluginShareSave);
-                    markReplacementStale(state.pluginsAndSkills.pluginShareUpdateTargets);
-                    markReplacementStale(state.pluginsAndSkills.pluginSkill);
-                    markReplacementStale(state.pluginsAndSkills.skills);
-                    markReplacementStale(state.pluginsAndSkills.skillsConfigWrite);
-                    markReplacementStale(state.mcp.oauthStart);
-                    markReplacementStale(state.mcp.statusListResponse);
-                    markReplacementStale(state.platform.windowsReadiness);
                     const auto markStampStale = [](auto& value) {
                         if (value) {
                             value->stamp.freshness = Freshness::Stale;
@@ -3258,6 +2897,20 @@ namespace ai::openai::codex::backend {
                     markStampStale(state.accounts.login);
                     markStampStale(state.accounts.authentication);
                     markStampStale(state.accounts.rateLimits);
+                    markStampStale(state.configuration.lastWrite);
+                    markStampStale(state.configuration.experimentalFeatureEnablement);
+                    markStampStale(state.conversations.latestGoal);
+                    markStampStale(state.conversations.latestGoalClear);
+                    markStampStale(state.conversations.latestGoalSet);
+                    markStampStale(state.conversations.latestUnsubscribe);
+                    markStampStale(state.integrations.marketplaceAdd);
+                    markStampStale(state.integrations.marketplaceRemove);
+                    markStampStale(state.integrations.marketplaceUpgrade);
+                    markStampStale(state.pluginsAndSkills.pluginInstall);
+                    markStampStale(state.pluginsAndSkills.pluginShareCheckout);
+                    markStampStale(state.pluginsAndSkills.pluginShareSave);
+                    markStampStale(state.pluginsAndSkills.pluginShareUpdateTargets);
+                    markStampStale(state.pluginsAndSkills.skillsConfigWrite);
                     if (state.accounts.resetCreditOutcome) {
                         state.accounts.resetCreditStamp.freshness = Freshness::Stale;
                     }
@@ -3389,7 +3042,6 @@ namespace ai::openai::codex::backend {
 
                     std::visit(
                         Overloaded{[this, &state](const typed::CancelLoginAccountResponse& result) {
-                                       state.accounts.loginCancellation = retainedReplacement(result, state, options);
                                        AccountLoginFlowState login = state.accounts.login.value_or(AccountLoginFlowState{});
                                        login.lifecycle = "cancelled";
                                        login.cancellationStatus = result.status.value;
@@ -3397,7 +3049,6 @@ namespace ai::openai::codex::backend {
                                        state.accounts.login = std::move(login);
                                    },
                                    [this, &state](const typed::LoginAccountResponse& result) {
-                                       state.accounts.loginStart = retainedReplacement(result, state, options);
                                        AccountLoginFlowState login;
                                        login.lifecycle = "started";
                                        login.method =
@@ -3417,11 +3068,9 @@ namespace ai::openai::codex::backend {
                                        state.accounts.resetCreditStamp = currentStamp(state);
                                    },
                                    [this, &state](const typed::GetAccountRateLimitsResponse& result) {
-                                       state.accounts.rateLimitRead = retainedReplacement(result, state, options);
                                        updateAccountRateLimits(state, result.rateLimits, options);
                                    },
                                    [this, &state](const typed::GetAccountResponse& result) {
-                                       state.accounts.accountRead = retainedReplacement(result, state, options);
                                        AccountAuthenticationState authentication;
                                        authentication.authenticated = result.account.hasValue();
                                        if (result.account.hasValue()) {
@@ -3440,118 +3089,101 @@ namespace ai::openai::codex::backend {
                                        state.accounts.authentication = std::move(authentication);
                                        state.accounts.loggedOut = false;
                                    },
-                                   [this, &state](const typed::GetAccountTokenUsageResponse& result) {
-                                       state.accounts.usage = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::GetWorkspaceMessagesResponse& result) {
-                                       state.accounts.workspaceMessages = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ConfigReadResponse& result) {
-                                       state.configuration.configuration = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ConfigRequirementsReadResponse& result) {
-                                       state.configuration.requirements = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ExperimentalFeatureListResponse& result) {
-                                       state.configuration.experimentalFeatures = retainedReplacement(result, state, options);
-                                   },
                                    [this, &state](const typed::ConfigWriteResponse& result) {
-                                       state.configuration.lastWrite = retainedReplacement(result, state, options);
+                                       state.configuration.lastWrite = configurationWriteState(result, state, options);
                                    },
-                                   [this, &state](const typed::ExperimentalFeatureEnablementSetResponse& result) {
-                                       state.configuration.experimentalFeatureEnablement = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ModelListResponse& result) {
-                                       state.models.list = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ModelProviderCapabilitiesReadResponse& result) {
-                                       state.models.providerCapabilities = retainedReplacement(result, state, options);
+                                   [&state](const typed::ExperimentalFeatureEnablementSetResponse& result) {
+                                       state.configuration.experimentalFeatureEnablement = featureEnablementState(result, state);
                                    },
                                    [this, &state](const typed::ThreadGoalGetResponse& result) {
-                                       state.conversations.latestGoal = retainedReplacement(result, state, options);
+                                       state.conversations.latestGoal = result.goal.hasValue()
+                                                                                 ? goalMutationState("get",
+                                                                                                     result.goal.value->objective,
+                                                                                                     result.goal.value->status.value,
+                                                                                                     std::nullopt,
+                                                                                                     true,
+                                                                                                     state,
+                                                                                                     options)
+                                                                                 : goalMutationState("get",
+                                                                                                     std::nullopt,
+                                                                                                     std::nullopt,
+                                                                                                     std::nullopt,
+                                                                                                     false,
+                                                                                                     state,
+                                                                                                     options);
                                    },
                                    [this, &state](const typed::ThreadGoalClearResponse& result) {
-                                       state.conversations.latestGoalClear = retainedReplacement(result, state, options);
+                                       state.conversations.latestGoalClear =
+                                           goalMutationState("clear", std::nullopt, std::nullopt, result.cleared, false, state, options);
                                    },
                                    [this, &state](const typed::ThreadGoalSetResponse& result) {
-                                       state.conversations.latestGoalSet = retainedReplacement(result, state, options);
+                                       state.conversations.latestGoalSet = goalMutationState("set",
+                                                                                            result.goal.objective,
+                                                                                            result.goal.status.value,
+                                                                                            std::nullopt,
+                                                                                            true,
+                                                                                            state,
+                                                                                            options);
                                    },
                                    [this, &state](const typed::ThreadUnsubscribeResponse& result) {
-                                       state.conversations.latestUnsubscribe = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ThreadLoadedListResponse& result) {
-                                       state.conversations.loadedThreads = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::PermissionProfileListResponse& result) {
-                                       state.reviews.permissionProfiles = retainedReplacement(result, state, options);
+                                       state.conversations.latestUnsubscribe = goalMutationState(
+                                           "unsubscribe", std::nullopt, result.status.value, std::nullopt, false, state, options);
                                    },
                                    [this, &state, &insertions](const typed::ReviewStartResponse& result) {
-                                       state.reviews.latestReview = retainedReplacement(result, state, options);
                                        upsertTurn(state, result.turn, options.maxAccumulatedItemBytes, &insertions);
                                    },
                                    [this, &state](const typed::AppsListResponse& result) {
-                                       state.integrations.appList = retainedReplacement(result, state, options);
                                        updateAppCatalog(state, result.data, options);
                                    },
-                                   [this, &state](const typed::ExternalAgentConfigDetectResponse& result) {
-                                       state.integrations.externalAgentDetection = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ExternalAgentConfigImportResponse& result) {
-                                       state.integrations.externalAgentImport = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::ExternalAgentConfigImportHistoriesReadResponse& result) {
-                                       state.integrations.externalAgentImportHistories = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::HooksListResponse& result) {
-                                       state.integrations.hooks = retainedReplacement(result, state, options);
-                                   },
                                    [this, &state](const typed::MarketplaceAddResponse& result) {
-                                       state.integrations.marketplaceAdd = retainedReplacement(result, state, options);
+                                       state.integrations.marketplaceAdd = marketplaceAddState(result, state, options);
                                    },
                                    [this, &state](const typed::MarketplaceRemoveResponse& result) {
-                                       state.integrations.marketplaceRemove = retainedReplacement(result, state, options);
+                                       state.integrations.marketplaceRemove = marketplaceRemoveState(result, state, options);
                                    },
-                                   [this, &state](const typed::MarketplaceUpgradeResponse& result) {
-                                       state.integrations.marketplaceUpgrade = retainedReplacement(result, state, options);
+                                   [&state](const typed::MarketplaceUpgradeResponse& result) {
+                                       state.integrations.marketplaceUpgrade = marketplaceUpgradeState(result, state);
                                    },
                                    [this, &state](const typed::PluginInstallResponse& result) {
-                                       state.pluginsAndSkills.pluginInstall = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::PluginInstalledResponse& result) {
-                                       state.pluginsAndSkills.installedPlugins = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::PluginListResponse& result) {
-                                       state.pluginsAndSkills.plugins = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::PluginReadResponse& result) {
-                                       state.pluginsAndSkills.pluginDetail = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::PluginShareListResponse& result) {
-                                       state.pluginsAndSkills.pluginShares = retainedReplacement(result, state, options);
+                                       state.pluginsAndSkills.pluginInstall = pluginMutationState(
+                                           "install",
+                                           std::nullopt,
+                                           result.authPolicy.value,
+                                           std::min(result.appsNeedingAuth.size(), MaxRetainedAppCatalogEntries),
+                                           result.appsNeedingAuth.size() > MaxRetainedAppCatalogEntries,
+                                           state,
+                                           options);
                                    },
                                    [this, &state](const typed::PluginShareCheckoutResponse& result) {
-                                       state.pluginsAndSkills.pluginShareCheckout = retainedReplacement(result, state, options);
+                                       state.pluginsAndSkills.pluginShareCheckout = pluginMutationState(
+                                           "share_checkout", result.remotePluginId, result.pluginName, 0, false, state, options);
                                    },
                                    [this, &state](const typed::PluginShareSaveResponse& result) {
-                                       state.pluginsAndSkills.pluginShareSave = retainedReplacement(result, state, options);
+                                       state.pluginsAndSkills.pluginShareSave =
+                                           pluginMutationState("share_save", result.remotePluginId, "saved", 0, false, state, options);
                                    },
                                    [this, &state](const typed::PluginShareUpdateTargetsResponse& result) {
-                                       state.pluginsAndSkills.pluginShareUpdateTargets = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::PluginSkillReadResponse& result) {
-                                       state.pluginsAndSkills.pluginSkill = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::SkillsListResponse& result) {
-                                       state.pluginsAndSkills.skills = retainedReplacement(result, state, options);
+                                       state.pluginsAndSkills.pluginShareUpdateTargets = pluginMutationState(
+                                           "share_update_targets",
+                                           std::nullopt,
+                                           result.discoverability.value,
+                                           std::min(result.principals.size(), MaxRetainedAppCatalogEntries),
+                                           result.principals.size() > MaxRetainedAppCatalogEntries,
+                                           state,
+                                           options);
                                    },
                                    [this, &state](const typed::SkillsConfigWriteResponse& result) {
-                                       state.pluginsAndSkills.skillsConfigWrite = retainedReplacement(result, state, options);
-                                   },
-                                   [this, &state](const typed::McpServerOauthLoginResponse& result) {
-                                       state.mcp.oauthStart = retainedReplacement(result, state, options);
+                                       state.pluginsAndSkills.skillsConfigWrite = pluginMutationState("skills_config_write",
+                                                                                                      std::nullopt,
+                                                                                                      result.effectiveEnabled
+                                                                                                          ? "enabled"
+                                                                                                          : "disabled",
+                                                                                                      0,
+                                                                                                      false,
+                                                                                                      state,
+                                                                                                      options);
                                    },
                                    [this, &state](const typed::ListMcpServerStatusResponse& result) {
-                                       state.mcp.statusListResponse = retainedReplacement(result, state, options);
                                        McpStatusListState status;
                                        status.serverCount = result.data.size();
                                        status.nextCursor = result.nextCursor.hasValue()
@@ -3563,7 +3195,6 @@ namespace ai::openai::codex::backend {
                                        state.mcp.statusList = std::move(status);
                                    },
                                    [this, &state](const typed::WindowsSandboxReadinessResponse& result) {
-                                       state.platform.windowsReadiness = retainedReplacement(result, state, options);
                                        WindowsSandboxState windows = state.platform.windowsSandbox.value_or(WindowsSandboxState{});
                                        windows.lifecycle = "ready";
                                        windows.readiness = boundedText(result.status.value, MaxCanonicalIdentifierBytes);
@@ -3618,10 +3249,6 @@ namespace ai::openai::codex::backend {
                                        markOperationStale(state, "account/rateLimits/read");
                                        markOperationStale(state, "account/usage/read");
                                        markOperationStale(state, "account/workspaceMessages/read");
-                                       state.accounts.accountRead.reset();
-                                       state.accounts.rateLimitRead.reset();
-                                       state.accounts.usage.reset();
-                                       state.accounts.workspaceMessages.reset();
                                        AccountAuthenticationState authentication;
                                        authentication.stamp = currentStamp(state);
                                        state.accounts.authentication = std::move(authentication);
@@ -3645,9 +3272,6 @@ namespace ai::openai::codex::backend {
                                        markDomainStale(state.mcp);
                                        if (state.mcp.statusList) {
                                            state.mcp.statusList->stamp.freshness = Freshness::Stale;
-                                       }
-                                       if (state.mcp.statusListResponse) {
-                                           state.mcp.statusListResponse->stamp.freshness = Freshness::Stale;
                                        }
                                    },
                                    [&state](const ExperimentalFeatureEnablementSet&) {
@@ -3675,16 +3299,28 @@ namespace ai::openai::codex::backend {
                                        eraseThread(state, command.params.threadId.value);
                                        markOperationStale(state, "thread/list");
                                    },
-                                   [&state](const ThreadGoalClear& command) {
-                                       state.conversations.latestGoalClearThreadId = command.params.threadId;
+                                   [&state, &value](const ThreadGoalClear& command) {
+                                       if (value.method == "thread/goal/clear" &&
+                                           std::holds_alternative<typed::ThreadGoalClearResponse>(value.value) &&
+                                           state.conversations.latestGoalClear) {
+                                           state.conversations.latestGoalClear->threadId = command.params.threadId.value;
+                                       }
                                        markLatestGoalStale(state, command.params.threadId);
                                        markThreadStale(state, command.params.threadId);
                                    },
-                                   [&state](const ThreadGoalGet& command) {
-                                       state.conversations.latestGoalThreadId = command.params.threadId;
+                                   [&state, &value](const ThreadGoalGet& command) {
+                                       if (value.method == "thread/goal/get" &&
+                                           std::holds_alternative<typed::ThreadGoalGetResponse>(value.value) &&
+                                           state.conversations.latestGoal) {
+                                           state.conversations.latestGoal->threadId = command.params.threadId.value;
+                                       }
                                    },
-                                   [&state](const ThreadGoalSet& command) {
-                                       state.conversations.latestGoalSetThreadId = command.params.threadId;
+                                   [&state, &value](const ThreadGoalSet& command) {
+                                       if (value.method == "thread/goal/set" &&
+                                           std::holds_alternative<typed::ThreadGoalSetResponse>(value.value) &&
+                                           state.conversations.latestGoalSet) {
+                                           state.conversations.latestGoalSet->threadId = command.params.threadId.value;
+                                       }
                                        markLatestGoalStale(state, command.params.threadId);
                                        markThreadStale(state, command.params.threadId);
                                    },
@@ -3697,8 +3333,12 @@ namespace ai::openai::codex::backend {
                                        thread.thread.title = command.params.name;
                                        thread.stamp = currentStamp(state);
                                    },
-                                   [&state](const ThreadUnsubscribe& command) {
-                                       state.conversations.latestUnsubscribeThreadId = command.params.threadId;
+                                   [&state, &value](const ThreadUnsubscribe& command) {
+                                       if (value.method == "thread/unsubscribe" &&
+                                           std::holds_alternative<typed::ThreadUnsubscribeResponse>(value.value) &&
+                                           state.conversations.latestUnsubscribe) {
+                                           state.conversations.latestUnsubscribe->threadId = command.params.threadId.value;
+                                       }
                                        markThreadStale(state, command.params.threadId);
                                    },
                                    [&state](const ThreadApproveGuardianDeniedAction& command) {

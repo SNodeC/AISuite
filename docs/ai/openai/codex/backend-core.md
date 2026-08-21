@@ -150,14 +150,12 @@ The state contains:
 - metadata-only provider-operation records and per-domain result summaries,
   containing method, result alternative, bounded subject/page metadata, and a
   source stamp rather than duplicate complete results;
-- 42 named trusted replacement caches containing bounded typed copies for account
-  login/read/rate/usage/messages, model list/capabilities, configuration/
-  requirements/features/write/enablement, thread goal get/clear/set and
-  unsubscribe/loaded threads, permission profiles/reviews, apps/external
-  agents/hooks/marketplace, plugin install/catalog/detail/share/skill and
-  skills list/configuration, MCP OAuth/status, and Windows readiness; wire-only
-  raw data and diagnostics are discarded, while extra roots and large stream/
-  search payloads use dedicated bounded state;
+- normalized bounded semantic state for account/login/rate information, app
+  catalog, MCP status, Windows readiness, extra roots, and other reusable
+  provider data;
+- 14 compact mutation records for the configuration, goal, marketplace, and
+  plugin/skill fields exposed by safe snapshots, without retaining complete
+  typed response graphs or their wire-only raw data and diagnostics;
 - bounded typed-notification markers grouped into account, model,
   configuration, conversation, filesystem, review, integration,
   plugin/skill, MCP, and platform domains;
@@ -185,9 +183,9 @@ Maps provide ID-based upsert semantics while explicit order vectors preserve
 the server's deterministic first-seen order. An operation result and a later
 notification for the same thread, turn, or item update the same entity; they do
 not create duplicate state. The metadata ledgers do not serve as authoritative
-typed caches and do not promote an entire domain's freshness. Each named cache
-or domain entity carries the stamp of the result or event that actually
-confirmed it.
+typed caches and do not promote an entire domain's freshness. Each normalized
+domain entity or compact mutation record carries the stamp of the result or
+event that actually confirmed it.
 
 The default reducer retains 64 diagnostics and 64 Codex extensions.
 Individual diagnostic messages are capped at 16 KiB. Canonical extension

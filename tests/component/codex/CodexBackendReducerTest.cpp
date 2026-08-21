@@ -35,49 +35,28 @@ namespace {
     using ai::openai::codex::ServerRequestToken;
 
     static_assert(requires(backend::BackendState state) {
-        state.accounts.loginCancellation;
-        state.accounts.loginStart;
-        state.accounts.rateLimitRead;
-        state.accounts.accountRead;
-        state.accounts.usage;
-        state.accounts.workspaceMessages;
-        state.configuration.configuration;
-        state.configuration.requirements;
-        state.configuration.experimentalFeatures;
+        state.accounts.login;
+        state.accounts.authentication;
+        state.accounts.rateLimits;
         state.configuration.lastWrite;
         state.configuration.experimentalFeatureEnablement;
-        state.models.list;
-        state.models.providerCapabilities;
         state.conversations.latestGoal;
         state.conversations.latestGoalClear;
         state.conversations.latestGoalSet;
         state.conversations.latestUnsubscribe;
-        state.conversations.loadedThreads;
-        state.reviews.permissionProfiles;
-        state.reviews.latestReview;
-        state.integrations.appList;
-        state.integrations.externalAgentDetection;
-        state.integrations.externalAgentImport;
-        state.integrations.externalAgentImportHistories;
-        state.integrations.hooks;
+        state.integrations.apps;
         state.integrations.marketplaceAdd;
         state.integrations.marketplaceRemove;
         state.integrations.marketplaceUpgrade;
         state.pluginsAndSkills.pluginInstall;
-        state.pluginsAndSkills.installedPlugins;
-        state.pluginsAndSkills.plugins;
-        state.pluginsAndSkills.pluginDetail;
-        state.pluginsAndSkills.pluginShares;
         state.pluginsAndSkills.pluginShareCheckout;
         state.pluginsAndSkills.pluginShareSave;
         state.pluginsAndSkills.pluginShareUpdateTargets;
-        state.pluginsAndSkills.pluginSkill;
-        state.pluginsAndSkills.skills;
         state.pluginsAndSkills.skillsConfigWrite;
         state.pluginsAndSkills.extraRoots;
-        state.mcp.oauthStart;
-        state.mcp.statusListResponse;
-        state.platform.windowsReadiness;
+        state.mcp.oauth;
+        state.mcp.statusList;
+        state.platform.windowsSandbox;
     });
 
     typed::ItemMetadata metadata(const std::string& threadId, const std::string& turnId, const std::string& itemId) {
@@ -1816,24 +1795,21 @@ namespace {
                                                           backend::BackendCommand{backend::AppsList{typed::AppsListParams{}}},
                                                           backend::ProviderOperationValue{std::move(appListResult)},
                                                           std::nullopt});
-        const auto& retainedApps = *operationState.integrations.appList;
+        const auto& retainedApps = *operationState.integrations.apps;
         const backend::Snapshot operationSnapshot = backend::makeSnapshot(operationState);
         result.expectTrue(
-            retainedApps.originalEntries == 300 && retainedApps.truncated && retainedApps.value.data.size() == 256 &&
-                retainedApps.value.raw.empty() && retainedApps.value.data.front().raw.empty() &&
+            retainedApps.totalEntries == 300 && retainedApps.truncated && retainedApps.entries.size() == 256 &&
                 operationState.providerOperations.at("app/list").resultAlternative ==
                     backend::ProviderOperationValue{typed::AppsListResponse{}}.index() &&
                 operationState.integrations.latestResults.at("app/list").itemCount == 300 && operationSnapshot.integrations.apps &&
                 operationSnapshot.integrations.apps->truncated,
-            "stateful operation completion retains one bounded typed replacement plus semantic snapshot state, not raw result graphs");
+            "stateful operation completion retains bounded semantic state and metadata, not a duplicate typed result graph");
 
         const auto completeOperation = [&reducer, &operationState](
                                            std::string method, backend::BackendCommand command, backend::ProviderOperationValue value) {
             return reducer.apply(
                 operationState, backend::ProviderOperationCompleted{std::move(method), std::move(command), std::move(value), std::nullopt});
         };
-        operationState.configuration.configuration = backend::ReplacementCache<typed::ConfigReadResponse>{
-            typed::ConfigReadResponse{}, {}, {}, 0, false, {7, backend::Freshness::Current}};
         const std::size_t canonicalReplacementStringLimit = backend::ReducerOptions{}.maxNoticeDetailsBytes;
         typed::ConfigWriteResponse configWrite;
         configWrite.filePath = typed::AbsolutePath{std::string(canonicalReplacementStringLimit * 2, 'c')};
@@ -1918,68 +1894,58 @@ namespace {
                           backend::BackendCommand{backend::SkillsExtraRootsSet{std::move(extraRoots)}},
                           backend::ProviderOperationValue{typed::Unit{}});
 
-        typed::GetAccountRateLimitsResponse rateLimitResult;
-        typed::RateLimitResetCreditsSummary creditSummary;
-        std::vector<typed::RateLimitResetCredit> credits(300);
-        for (std::size_t index = 0; index < credits.size(); ++index) {
-            credits[index].id = typed::RateLimitResetCreditId{std::string(2048, 'i') + std::to_string(index)};
-            credits[index].description = std::string(2048, 'd');
-            credits[index].title = std::string(2048, 't');
-            credits[index].raw = Json{{"secret", std::string(2048, 'x')}};
-        }
-        creditSummary.credits = std::move(credits);
-        creditSummary.raw = Json{{"secret", true}};
-        rateLimitResult.rateLimitResetCredits = std::move(creditSummary);
-        completeOperation("account/rateLimits/read",
-                          backend::BackendCommand{backend::AccountRateLimitsRead{}},
-                          backend::ProviderOperationValue{std::move(rateLimitResult)});
+        backend::BackendState mismatchedGoalState;
+        mismatchedGoalState.provider.generation = 7;
+        typed::ThreadGoalGetResponse mismatchedGoalResult;
+        typed::ThreadGoal mismatchedGoal;
+        mismatchedGoal.threadId = typed::ThreadId{"untrusted-result-thread"};
+        mismatchedGoal.objective = "must not project without command correlation";
+        mismatchedGoal.status = typed::ThreadGoalStatus::active();
+        mismatchedGoalResult.goal = std::move(mismatchedGoal);
+        reducer.apply(mismatchedGoalState,
+                      backend::ProviderOperationCompleted{"thread/goal/get",
+                                                          backend::BackendCommand{backend::AccountLogout{}},
+                                                          backend::ProviderOperationValue{std::move(mismatchedGoalResult)},
+                                                          std::nullopt});
+        result.expectTrue(mismatchedGoalState.conversations.latestGoal &&
+                              mismatchedGoalState.conversations.latestGoal->threadId.empty() &&
+                              !backend::makeSnapshot(mismatchedGoalState).conversations.latestGoal,
+                          "goal projection fails closed when a provider result is not correlated with a matching command");
 
-        typed::ConfigRequirementsReadResponse requirementsResult;
-        typed::ConfigRequirements requirements;
-        requirements.defaultPermissions = std::string(2048, 'd');
-        std::map<typed::PermissionProfileName, bool> permissionProfiles;
-        std::map<typed::ExperimentalFeatureId, bool> featureRequirements;
-        for (std::size_t index = 0; index < 300; ++index) {
-            permissionProfiles.emplace(typed::PermissionProfileName{std::string(2048, 'p') + std::to_string(index)}, true);
-            featureRequirements.emplace(typed::ExperimentalFeatureId{std::string(2048, 'f') + std::to_string(index)}, false);
-        }
-        requirements.allowedPermissionProfiles = std::move(permissionProfiles);
-        requirements.featureRequirements = std::move(featureRequirements);
-        typed::NewThreadModelDefaults defaults;
-        defaults.model = typed::ModelId{std::string(2048, 'm')};
-        typed::ModelsRequirements modelRequirements;
-        modelRequirements.newThread = std::move(defaults);
-        modelRequirements.raw = Json{{"secret", true}};
-        requirements.models = std::move(modelRequirements);
-        requirements.raw = Json{{"secret", true}};
-        requirementsResult.requirements = std::move(requirements);
-        completeOperation("configRequirements/read",
-                          backend::BackendCommand{backend::ConfigRequirementsRead{}},
-                          backend::ProviderOperationValue{std::move(requirementsResult)});
-
-        typed::PluginListResponse pluginList;
-        pluginList.featuredPluginIds = std::vector<std::string>(300, std::string(canonicalReplacementStringLimit + 1, 'f'));
-        std::vector<typed::MarketplaceLoadErrorInfo> loadErrors(300);
-        for (typed::MarketplaceLoadErrorInfo& error : loadErrors) {
-            error.marketplacePath = typed::AbsolutePath{std::string(2048, 'p')};
-            error.message = std::string(canonicalReplacementStringLimit + 1, 'e');
-            error.raw = Json{{"secret", true}};
-        }
-        pluginList.marketplaceLoadErrors = std::move(loadErrors);
-        completeOperation("plugin/list",
-                          backend::BackendCommand{backend::PluginList{typed::PluginListParams{}}},
-                          backend::ProviderOperationValue{std::move(pluginList)});
+        backend::BackendState reverseMismatchedGoalState;
+        reverseMismatchedGoalState.provider.generation = 7;
+        typed::ThreadGoalGetResponse correlatedGoalResult;
+        typed::ThreadGoal correlatedGoal;
+        correlatedGoal.threadId = typed::ThreadId{"correlated-thread"};
+        correlatedGoal.objective = "correlated objective";
+        correlatedGoal.status = typed::ThreadGoalStatus::active();
+        correlatedGoalResult.goal = std::move(correlatedGoal);
+        reducer.apply(reverseMismatchedGoalState,
+                      backend::ProviderOperationCompleted{
+                          "thread/goal/get",
+                          backend::BackendCommand{backend::ThreadGoalGet{typed::ThreadGoalGetParams{typed::ThreadId{"correlated-thread"}}}},
+                          backend::ProviderOperationValue{std::move(correlatedGoalResult)},
+                          std::nullopt});
+        reducer.apply(reverseMismatchedGoalState,
+                      backend::ProviderOperationCompleted{
+                          "thread/goal/get",
+                          backend::BackendCommand{backend::ThreadGoalGet{typed::ThreadGoalGetParams{typed::ThreadId{"wrong-thread"}}}},
+                          backend::ProviderOperationValue{typed::Unit{}},
+                          std::nullopt});
+        const backend::Snapshot reverseMismatchSnapshot = backend::makeSnapshot(reverseMismatchedGoalState);
+        result.expectTrue(reverseMismatchSnapshot.conversations.latestGoal &&
+                              reverseMismatchSnapshot.conversations.latestGoal->threadId == "correlated-thread" &&
+                              reverseMismatchSnapshot.conversations.latestGoal->objective == "correlated objective",
+                          "a goal command paired with a non-goal result cannot relabel previously correlated goal state");
 
         const typed::ThreadId goalThread{"goal-thread"};
-        typed::ThreadGoalGetResponse oldGoalRead;
-        typed::ThreadGoal oldGoal;
-        oldGoal.threadId = goalThread;
-        oldGoal.objective = "old objective";
-        oldGoal.status = typed::ThreadGoalStatus::active();
-        oldGoalRead.goal = oldGoal;
-        operationState.conversations.latestGoalThreadId = goalThread;
-        operationState.conversations.latestGoal = backend::ReplacementCache<typed::ThreadGoalGetResponse>{
-            std::move(oldGoalRead), {}, {}, 0, false, {7, backend::Freshness::Current}};
+        completeOperation("thread/goal/get",
+                          backend::BackendCommand{backend::ThreadGoalGet{typed::ThreadGoalGetParams{goalThread}}},
+                          backend::ProviderOperationValue{typed::ThreadGoalGetResponse{} });
+        const bool nullGoalRetainedForCorrelation = operationState.conversations.latestGoal &&
+                                                    !operationState.conversations.latestGoal->hasGoal &&
+                                                    operationState.conversations.latestGoal->threadId == goalThread.value &&
+                                                    !backend::makeSnapshot(operationState).conversations.latestGoal;
         typed::ThreadGoal setGoal;
         setGoal.threadId = goalThread;
         setGoal.objective = std::string(64U * 1024U, 'g');
@@ -2003,34 +1969,27 @@ namespace {
                           backend::ProviderOperationValue{unsubscribe});
 
         const backend::Snapshot typedDomainSnapshot = backend::makeSnapshot(operationState);
-        const bool exactTypedCaches =
-            operationState.configuration.lastWrite && operationState.configuration.lastWrite->value.raw.empty() &&
-            operationState.configuration.lastWrite->value.filePath.value.size() == canonicalReplacementStringLimit &&
-            operationState.configuration.configuration->stamp.freshness == backend::Freshness::Stale &&
+        const bool compactMutationState =
+            operationState.configuration.lastWrite &&
+            operationState.configuration.lastWrite->filePath.size() == canonicalReplacementStringLimit &&
+            operationState.configuration.lastWrite->overridden && operationState.configuration.lastWrite->truncated &&
             operationState.configuration.experimentalFeatureEnablement &&
-            operationState.configuration.experimentalFeatureEnablement->value.enablement.size() == 256 &&
+            operationState.configuration.experimentalFeatureEnablement->entries.size() == 256 &&
+            operationState.configuration.experimentalFeatureEnablement->totalEntries == 300 &&
+            operationState.configuration.experimentalFeatureEnablement->truncated &&
             operationState.integrations.marketplaceAdd && operationState.integrations.marketplaceRemove &&
             operationState.integrations.marketplaceUpgrade &&
-            operationState.integrations.marketplaceUpgrade->value.selectedMarketplaces.size() == 256 &&
-            operationState.integrations.marketplaceUpgrade->value.upgradedRoots.size() == 256 &&
+            operationState.integrations.marketplaceUpgrade->selectedCount == 256 &&
+            operationState.integrations.marketplaceUpgrade->upgradedRootCount == 256 &&
+            operationState.integrations.marketplaceUpgrade->errorCount == 256 &&
+            operationState.integrations.marketplaceUpgrade->truncated &&
             operationState.pluginsAndSkills.pluginInstall && operationState.pluginsAndSkills.pluginShareCheckout &&
             operationState.pluginsAndSkills.pluginShareSave && operationState.pluginsAndSkills.pluginShareUpdateTargets &&
-            operationState.pluginsAndSkills.pluginShareUpdateTargets->value.principals.size() == 256 &&
+            operationState.pluginsAndSkills.pluginShareUpdateTargets->itemCount == 256 &&
+            operationState.pluginsAndSkills.pluginShareUpdateTargets->truncated &&
             operationState.pluginsAndSkills.skillsConfigWrite && operationState.pluginsAndSkills.extraRoots &&
             operationState.pluginsAndSkills.extraRoots->roots.size() == 256 &&
-            operationState.pluginsAndSkills.extraRoots->totalRoots == 300 && operationState.accounts.rateLimitRead &&
-            operationState.accounts.rateLimitRead->value.rateLimitResetCredits.value->credits.value->size() == 256 &&
-            operationState.accounts.rateLimitRead->value.rateLimitResetCredits.value->raw.empty() &&
-            operationState.accounts.rateLimitRead->value.rateLimitResetCredits.value->credits.value->front().raw.empty() &&
-            operationState.configuration.requirements &&
-            operationState.configuration.requirements->value.requirements.value->allowedPermissionProfiles.value->size() == 256 &&
-            operationState.configuration.requirements->value.requirements.value->featureRequirements.value->size() == 256 &&
-            operationState.configuration.requirements->value.requirements.value->raw.empty() && operationState.pluginsAndSkills.plugins &&
-            operationState.pluginsAndSkills.plugins->value.featuredPluginIds->size() == 256 &&
-            operationState.pluginsAndSkills.plugins->value.featuredPluginIds->front().size() == canonicalReplacementStringLimit &&
-            operationState.pluginsAndSkills.plugins->value.marketplaceLoadErrors->size() == 256 &&
-            operationState.pluginsAndSkills.plugins->value.marketplaceLoadErrors->front().raw.empty() &&
-            operationState.pluginsAndSkills.plugins->value.marketplaceLoadErrors->front().message.size() == canonicalReplacementStringLimit;
+            operationState.pluginsAndSkills.extraRoots->totalRoots == 300;
         const bool safeTypedSummaries =
             typedDomainSnapshot.configuration.lastWrite && typedDomainSnapshot.configuration.lastWrite->overridden &&
             typedDomainSnapshot.configuration.lastWrite->filePath.size() == backend::MaxSnapshotExtensionMethodBytes &&
@@ -2041,16 +2000,20 @@ namespace {
             typedDomainSnapshot.pluginsAndSkills.pluginShareSave->subjectId == "remote-plugin" &&
             typedDomainSnapshot.pluginsAndSkills.extraRoots && typedDomainSnapshot.pluginsAndSkills.extraRoots->truncated;
         const bool goalSemantics =
-            operationState.conversations.latestGoalSetThreadId == goalThread &&
-            operationState.conversations.latestGoalClearThreadId == goalThread &&
-            operationState.conversations.latestUnsubscribeThreadId == goalThread && typedDomainSnapshot.conversations.latestGoalSet &&
+            nullGoalRetainedForCorrelation && operationState.conversations.latestGoalSet &&
+            operationState.conversations.latestGoalSet->threadId == goalThread.value &&
+            operationState.conversations.latestGoalClear &&
+            operationState.conversations.latestGoalClear->threadId == goalThread.value &&
+            operationState.conversations.latestUnsubscribe &&
+            operationState.conversations.latestUnsubscribe->threadId == goalThread.value &&
+            typedDomainSnapshot.conversations.latestGoalSet &&
             typedDomainSnapshot.conversations.latestGoalSet->objective->size() == canonicalReplacementStringLimit &&
             typedDomainSnapshot.conversations.latestGoalClear && typedDomainSnapshot.conversations.latestGoalClear->cleared == true &&
             typedDomainSnapshot.conversations.latestUnsubscribe &&
             typedDomainSnapshot.conversations.latestUnsubscribe->status == "unsubscribed" &&
             operationState.conversations.latestGoal->stamp.freshness == backend::Freshness::Stale;
-        result.expectTrue(exactTypedCaches && safeTypedSummaries && goalSemantics,
-                          "approved typed mutation results retain bounded exact caches, command associations, and safe semantic snapshots");
+        result.expectTrue(compactMutationState && safeTypedSummaries && goalSemantics,
+                          "approved typed mutations retain bounded semantic records, command associations, and safe snapshots");
 
         backend::BackendState derivedBoundState = operationState;
         derivedBoundState.capacity.limits.maxSnapshotBytes = 4096;
@@ -2075,7 +2038,7 @@ namespace {
                               operationState.conversations.latestGoalSet->stamp.freshness == backend::Freshness::Stale &&
                               operationState.conversations.latestGoalClear->stamp.freshness == backend::Freshness::Stale &&
                               operationState.conversations.latestUnsubscribe->stamp.freshness == backend::Freshness::Stale,
-                          "provider invalidation marks every approved typed mutation cache stale without dropping its bounded value");
+                          "provider invalidation marks every compact mutation record stale without dropping its bounded semantics");
 
         backend::BackendState itemState;
         itemState.provider.generation = 2;
