@@ -839,7 +839,10 @@ def main() -> int:
         ],
     )
 
-    model_sources = [pathlib.Path("src/ai/openai/codex/frontend/internal/model")]
+    model_sources = [
+        pathlib.Path("src/ai/openai/codex/frontend/internal/model"),
+        pathlib.Path("src/ai/openai/codex/frontend/detail/PersistentText.h"),
+    ]
     client_sources = source_files(
         source_dir, [pathlib.Path("src/ai/openai/codex/frontend/internal/client")]
     )
@@ -966,6 +969,7 @@ def main() -> int:
             "ai/openai/codex/frontend/GeneratedProtocol.h",
             "ai/openai/codex/frontend/Messages.h",
             "ai/openai/codex/frontend/Protocol.h",
+            "ai/openai/codex/frontend/detail/PersistentText.h",
         ],
         ["ai/openai/codex/frontend/internal/model/"],
     )

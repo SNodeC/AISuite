@@ -365,9 +365,12 @@ namespace {
                                                       liveSnapshotMessageCountAtClose = liveSnapshotMessages.size();
                                                       liveSnapshotCloses.push_back(close);
                                                   }});
+        frontend::Hello liveSnapshotHello;
+        liveSnapshotHello.capabilities = std::vector{frontend::FrontendCapability::CompleteThreadItems};
         const bool liveSnapshotReady =
             liveSnapshotConnection &&
-            liveSnapshotCore.receive(*liveSnapshotConnection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+            liveSnapshotCore.receive(*liveSnapshotConnection,
+                                     frontend::ClientMessage{std::move(liveSnapshotHello)}).accepted();
         liveSnapshotMessages.clear();
         model::CanonicalSnapshot unencodableSnapshot;
         model::ItemData unencodableItem{model::ItemIdentity{"oversized-live-item"}};
