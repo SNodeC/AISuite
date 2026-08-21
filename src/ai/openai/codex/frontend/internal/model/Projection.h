@@ -99,6 +99,9 @@ namespace ai::openai::codex::frontend::internal::model {
         [[nodiscard]] ProjectionOutcome<CanonicalSnapshot>
         projectSnapshot(const CanonicalSnapshot& snapshot, const ProjectionContext& context) const noexcept;
 
+        [[nodiscard]] bool
+        snapshotCanPassThrough(const CanonicalSnapshot& snapshot, const ProjectionContext& context) const noexcept;
+
         [[nodiscard]] ProjectionOutcome<std::optional<CanonicalOccurrence>>
         projectOccurrence(const CanonicalOccurrence& occurrence, const ProjectionContext& context) const noexcept;
 

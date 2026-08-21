@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/internal/server/ServerCore.h"
 
 #include "ai/openai/codex/frontend/internal/model/Projection.h"
+#include "ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h"
 
 #include <algorithm>
 #include <chrono>
@@ -2330,15 +2331,22 @@ namespace ai::openai::codex::frontend::internal::server {
                 return false;
             }
 
-            const model::ProjectionOutcome<model::CanonicalSnapshot> projected =
-                projection.projectSnapshot(canonical, recipient.projection);
-            if (!projected) {
-                return false;
+            const model::CanonicalSnapshot* snapshot = &canonical;
+            std::optional<model::CanonicalSnapshot> projectedSnapshot;
+            if (projection.snapshotCanPassThrough(canonical, recipient.projection)) {
+                model::detail::recordPassThroughProjection();
+            } else {
+                model::ProjectionOutcome<model::CanonicalSnapshot> projected =
+                    projection.projectSnapshot(canonical, recipient.projection);
+                if (!projected) {
+                    return false;
+                }
+                projectedSnapshot.emplace(std::move(projected).value());
+                snapshot = &*projectedSnapshot;
             }
-            const model::CanonicalSnapshot& snapshot = projected.value();
 
             const model::ModelResult<Snapshot> encoded =
-                model::encodeProjectedSnapshot(snapshot, recipient.negotiatedCapabilities, recipient.itemContentWireMode);
+                model::encodeProjectedSnapshot(*snapshot, recipient.negotiatedCapabilities, recipient.itemContentWireMode);
             return encoded && (deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
                                                          : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
         } catch (...) {

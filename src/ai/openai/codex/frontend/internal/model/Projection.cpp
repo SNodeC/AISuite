@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/internal/model/Projection.h"
 
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h"
 
 #include <algorithm>
 #include <array>
@@ -34,6 +35,13 @@ namespace ai::openai::codex::frontend::internal::model {
         bool hasCapability(const ProjectionContext& context, FrontendCapability capability) noexcept {
             return std::find(context.selectedCapabilities.begin(), context.selectedCapabilities.end(), capability) !=
                    context.selectedCapabilities.end();
+        }
+
+        bool emptyProjectionMetadata(const ProjectionMetadata& metadata) noexcept {
+            return !metadata.projectionStamp.has_value() && !metadata.sourceStamp.has_value() && metadata.omittedPaths.empty() &&
+                   metadata.redactedPaths.empty() && metadata.truncatedPaths.empty() && metadata.unavailablePaths.empty() &&
+                   metadata.stalePaths.empty() && metadata.unknownPaths.empty() && metadata.absentPaths.empty() &&
+                   metadata.nullPaths.empty();
         }
 
         void normalize(std::vector<std::string>& paths) {
@@ -588,11 +596,9 @@ namespace ai::openai::codex::frontend::internal::model {
             if (!hasScope(context, FrontendScope::Observe)) {
                 return ProjectionError{ProjectionErrorCode::InvalidValue, "/", "observe scope is required for state projection"};
             }
+            detail::recordFilteredProjection();
             CanonicalSnapshot projected = snapshot;
             filterSnapshot(projected, *this, context);
-            if (!encodeSnapshot(projected)) {
-                return ProjectionError{ProjectionErrorCode::UnsafeResult, "/", "typed projected snapshot is not encodable"};
-            }
             return projected;
         } catch (const ProjectionError& error) {
             return error;
@@ -601,6 +607,12 @@ namespace ai::openai::codex::frontend::internal::model {
         } catch (...) {
             return ProjectionError{ProjectionErrorCode::InvalidValue, "/", "snapshot projection failed"};
         }
+    }
+
+    bool ProjectionAuthority::snapshotCanPassThrough(const CanonicalSnapshot& snapshot,
+                                                      const ProjectionContext& context) const noexcept {
+        return hasAllScopes(context, LocalTrustedScopes) && emptyProjectionMetadata(snapshot.projection) &&
+               !context.continuityFingerprint.has_value();
     }
 
     ProjectionOutcome<std::optional<CanonicalOccurrence>>

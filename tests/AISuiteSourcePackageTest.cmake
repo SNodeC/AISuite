@@ -91,6 +91,7 @@ foreach(required
     src/ai/openai/codex/frontend/internal/model/Occurrence.h
     src/ai/openai/codex/frontend/internal/model/Projection.cpp
     src/ai/openai/codex/frontend/internal/model/Projection.h
+    src/ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h
     src/ai/openai/codex/frontend/internal/server/BackendProjection.cpp
     src/ai/openai/codex/frontend/internal/server/BackendProjection.h
     src/ai/openai/codex/frontend/internal/server/ServerCore.cpp
