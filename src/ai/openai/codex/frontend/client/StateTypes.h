@@ -330,6 +330,14 @@ namespace ai::openai::codex::frontend::client {
         return {};
     }
 
+    struct ItemContentDescriptor {
+        bool present = false;
+        std::uint64_t retainedUtf8Bytes = 0;
+        std::uint64_t contentRevision = 0;
+
+        bool operator==(const ItemContentDescriptor&) const = default;
+    };
+
     struct ItemState {
         typed::ItemId id;
         std::optional<typed::ThreadId> threadId;

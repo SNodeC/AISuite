@@ -61,6 +61,14 @@ namespace ai::openai::codex::frontend::client {
         [[nodiscard]] const ItemState* item(const typed::ThreadId& threadId,
                                             const typed::TurnId& turnId,
                                             const typed::ItemId& id) const;
+        [[nodiscard]] std::optional<ItemContentDescriptor>
+        itemContentDescriptor(const typed::ItemId& id, ItemContentChannel channel) const noexcept;
+        [[nodiscard]] std::optional<ItemContentDescriptor>
+        itemContentDescriptor(std::string_view id, ItemContentChannel channel) const noexcept;
+        [[nodiscard]] std::optional<ItemContentDescriptor> itemContentDescriptor(const typed::ThreadId& threadId,
+                                                                                  const typed::TurnId& turnId,
+                                                                                  const typed::ItemId& id,
+                                                                                  ItemContentChannel channel) const noexcept;
         [[nodiscard]] bool hasPendingRequestProjection() const noexcept;
         [[nodiscard]] std::span<const PendingRequestState> pendingRequests() const noexcept;
         [[nodiscard]] const PendingRequestState* pendingRequest(const PendingRequestId& id) const noexcept;

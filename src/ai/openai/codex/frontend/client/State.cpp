@@ -110,6 +110,14 @@ namespace ai::openai::codex::frontend::client {
             bool operator==(const ScopedItemLookupView&) const = default;
         };
 
+        struct ExactItemLookupView {
+            std::optional<std::string_view> threadId;
+            std::optional<std::string_view> turnId;
+            std::string_view itemId;
+
+            bool operator==(const ExactItemLookupView&) const = default;
+        };
+
         struct ScopedTurnLookupView {
             std::string_view threadId;
             std::string_view turnId;
@@ -145,15 +153,32 @@ namespace ai::openai::codex::frontend::client {
             }
         };
 
+        struct ExactItemLookupHash {
+            [[nodiscard]] std::size_t operator()(const ExactItemLookupView& value) const noexcept {
+                constexpr std::size_t HashMixConstant = 0x9e3779b97f4a7c15ULL;
+                std::size_t result = value.threadId ? std::hash<std::string_view>{}(*value.threadId) : 0;
+                const auto combine = [&result](std::size_t valueHash) {
+                    result ^= valueHash + HashMixConstant + (result << 6U) + (result >> 2U);
+                };
+                combine(value.threadId ? 1U : 0U);
+                combine(value.turnId ? std::hash<std::string_view>{}(*value.turnId) : 0U);
+                combine(value.turnId ? 1U : 0U);
+                combine(std::hash<std::string_view>{}(value.itemId));
+                return result;
+            }
+        };
+
         using StringLookupIndex = std::unordered_map<std::string_view, std::size_t>;
         using ScopedTurnLookupIndex = std::unordered_map<ScopedTurnLookupView, std::size_t, ScopedTurnLookupHash>;
         using ScopedItemLookupIndex = std::unordered_map<ScopedItemLookupView, std::size_t, ScopedItemLookupHash>;
+        using ExactItemLookupIndex = std::unordered_map<ExactItemLookupView, std::size_t, ExactItemLookupHash>;
     } // namespace detail
 
     namespace detail {
         struct StateItemOverlay {
             std::shared_ptr<const ItemState> base;
             std::array<std::optional<frontend::detail::PersistentText>, 4> contents;
+            std::array<std::uint64_t, 4> contentRevisions{};
             bool contentTruncatedKnown = false;
             bool contentTruncated = false;
             bool droppedContentBytesKnown = false;
@@ -170,8 +195,10 @@ namespace ai::openai::codex::frontend::client {
             // index-to-pointer map and the one changed ItemState.
             std::vector<ItemState> items;
             std::vector<std::size_t> encodedItemBytes;
+            std::vector<std::array<std::uint64_t, 4>> contentRevisions;
             StringLookupIndex firstItemById;
             ScopedItemLookupIndex itemByScope;
+            ExactItemLookupIndex itemByExactParents;
             std::shared_ptr<const StateItemPayload> root;
             std::unordered_map<std::size_t, std::shared_ptr<StateItemOverlay>> replacements;
             mutable std::mutex materializationMutex;
@@ -282,6 +309,35 @@ namespace ai::openai::codex::frontend::client {
             return itemRoot().items[index];
         }
 
+        [[nodiscard]] std::optional<ItemContentDescriptor>
+        itemContentDescriptorAt(std::size_t index, ItemContentChannel channel) const noexcept {
+            const StateItemPayload& root = itemRoot();
+            const std::size_t channelIndex = static_cast<std::size_t>(channel);
+            if (index >= root.items.size() || index >= root.contentRevisions.size() || channelIndex >= 4) {
+                return std::nullopt;
+            }
+
+            const ItemState& base = root.items[index];
+            const std::array<const std::optional<std::string>*, 4> fields{
+                &base.agentText, &base.reasoningText, &base.reasoningSummary, &base.commandOutput};
+            bool present = fields[channelIndex]->has_value();
+            std::size_t retainedBytes = present ? (*fields[channelIndex])->size() : 0;
+            std::uint64_t contentRevision = root.contentRevisions[index][channelIndex];
+            if (const auto found = itemPayload->replacements.find(index); found != itemPayload->replacements.end()) {
+                const StateItemOverlay& overlay = *found->second;
+                if (overlay.contents[channelIndex]) {
+                    present = true;
+                    retainedBytes = overlay.contents[channelIndex]->size();
+                }
+                contentRevision = overlay.contentRevisions[channelIndex];
+            }
+            if (retainedBytes > std::numeric_limits<std::uint64_t>::max()) {
+                return std::nullopt;
+            }
+            return ItemContentDescriptor{
+                present, static_cast<std::uint64_t>(retainedBytes), contentRevision};
+        }
+
         [[nodiscard]] const std::vector<ItemState>& allItems() const {
             const StateItemPayload& root = itemRoot();
             if (itemPayload->replacements.empty()) {
@@ -311,6 +367,10 @@ namespace ai::openai::codex::frontend::client {
 
         [[nodiscard]] ScopedItemLookupIndex& mutableRootItemByScope() noexcept {
             return itemPayload->itemByScope;
+        }
+
+        [[nodiscard]] ExactItemLookupIndex& mutableRootItemByExactParents() noexcept {
+            return itemPayload->itemByExactParents;
         }
     };
 
@@ -349,14 +409,23 @@ namespace ai::openai::codex::frontend::client {
         void buildItemLookupIndexes(detail::StateStorage& state) {
             auto& firstItemById = state.mutableRootFirstItemById();
             auto& itemByScope = state.mutableRootItemByScope();
+            auto& itemByExactParents = state.mutableRootItemByExactParents();
             const auto& items = state.mutableRootItems();
             firstItemById.clear();
             itemByScope.clear();
+            itemByExactParents.clear();
             firstItemById.reserve(items.size());
             itemByScope.reserve(items.size());
+            itemByExactParents.reserve(items.size());
             for (std::size_t index = 0; index < items.size(); ++index) {
                 const ItemState& item = items[index];
                 firstItemById.try_emplace(item.id.value, index);
+                itemByExactParents.emplace(
+                    detail::ExactItemLookupView{
+                        item.threadId ? std::optional<std::string_view>{item.threadId->value} : std::nullopt,
+                        item.turnId ? std::optional<std::string_view>{item.turnId->value} : std::nullopt,
+                        item.id.value},
+                    index);
                 if (item.threadId && item.turnId) {
                     itemByScope.emplace(
                         detail::ScopedItemLookupView{item.threadId->value, item.turnId->value, item.id.value}, index);
@@ -2558,14 +2627,26 @@ namespace ai::openai::codex::frontend::client {
             return item.agentText;
         }
 
+        std::optional<std::size_t> exactItemIndex(const detail::StateItemPayload& payload,
+                                                  std::optional<std::string_view> threadId,
+                                                  std::optional<std::string_view> turnId,
+                                                  std::string_view itemId) noexcept {
+            const auto found = payload.itemByExactParents.find(
+                detail::ExactItemLookupView{threadId, turnId, itemId});
+            return found == payload.itemByExactParents.end() ? std::nullopt
+                                                              : std::optional<std::size_t>{found->second};
+        }
+
         std::optional<ItemContentChannel> itemContentChannel(const std::optional<std::string>& channel) noexcept {
-            if (channel == std::optional<std::string>{"agentText"})
+            if (!channel)
+                return std::nullopt;
+            if (*channel == "agentText")
                 return ItemContentChannel::AgentText;
-            if (channel == std::optional<std::string>{"reasoningText"})
+            if (*channel == "reasoningText")
                 return ItemContentChannel::ReasoningText;
-            if (channel == std::optional<std::string>{"reasoningSummary"})
+            if (*channel == "reasoningSummary")
                 return ItemContentChannel::ReasoningSummary;
-            if (channel == std::optional<std::string>{"commandOutput"})
+            if (*channel == "commandOutput")
                 return ItemContentChannel::CommandOutput;
             return std::nullopt;
         }
@@ -2604,6 +2685,7 @@ namespace ai::openai::codex::frontend::client {
         appendedItemOverlay(const detail::StateItemPayload& payload,
                             std::size_t index,
                             ItemContentChannel channel,
+                            std::uint64_t contentRevision,
                             const frontend::internal::model::ItemContentUpdatedOccurrence& update) {
             if (!update.appendHint || index >= payload.root->items.size()) {
                 return {};
@@ -2622,9 +2704,14 @@ namespace ai::openai::codex::frontend::client {
                     return {};
                 }
                 next->encodedBytes = payload.root->encodedItemBytes[index];
+                if (index >= payload.root->contentRevisions.size()) {
+                    return {};
+                }
+                next->contentRevisions = payload.root->contentRevisions[index];
             } else {
                 next->base = prior->second->base;
                 next->contents = prior->second->contents;
+                next->contentRevisions = prior->second->contentRevisions;
                 next->contentTruncatedKnown = prior->second->contentTruncatedKnown;
                 next->contentTruncated = prior->second->contentTruncated;
                 next->droppedContentBytesKnown = prior->second->droppedContentBytesKnown;
@@ -2661,6 +2748,7 @@ namespace ai::openai::codex::frontend::client {
                 return {};
             }
             next->contents[channelIndex] = std::move(*appended);
+            next->contentRevisions[channelIndex] = contentRevision;
 
             const bool oldTruncated = next->contentTruncatedKnown ? next->contentTruncated : next->base->contentTruncated;
             if (update.contentTruncatedKnown) {
@@ -2744,6 +2832,12 @@ namespace ai::openai::codex::frontend::client {
                 auto& encodedItemBytes = state.itemPayload->encodedItemBytes;
                 encodedItemBytes.clear();
                 encodedItemBytes.reserve(state.itemPayload->items.size());
+                auto& contentRevisions = state.itemPayload->contentRevisions;
+                if (contentRevisions.size() != state.itemPayload->items.size()) {
+                    std::array<std::uint64_t, 4> initialRevisions{};
+                    initialRevisions.fill(state.revision);
+                    contentRevisions.assign(state.itemPayload->items.size(), initialRevisions);
+                }
                 for (const ItemState& value : state.itemPayload->items) {
                     const std::size_t bytes = encodedEntityBytes(encodeItemState(value));
                     if (next.count == std::numeric_limits<std::size_t>::max() ||
@@ -3265,6 +3359,24 @@ namespace ai::openai::codex::frontend::client {
         const auto& index = impl->itemRoot().itemByScope;
         const auto found = index.find(detail::ScopedItemLookupView{threadId.value, turnId.value, id.value});
         return found == index.end() ? nullptr : &impl->itemAt(found->second);
+    }
+    std::optional<ItemContentDescriptor>
+    State::itemContentDescriptor(const typed::ItemId& id, ItemContentChannel channel) const noexcept {
+        return itemContentDescriptor(id.value, channel);
+    }
+    std::optional<ItemContentDescriptor>
+    State::itemContentDescriptor(std::string_view id, ItemContentChannel channel) const noexcept {
+        const auto& index = impl->itemRoot().firstItemById;
+        const auto found = index.find(id);
+        return found == index.end() ? std::nullopt : impl->itemContentDescriptorAt(found->second, channel);
+    }
+    std::optional<ItemContentDescriptor> State::itemContentDescriptor(const typed::ThreadId& threadId,
+                                                                       const typed::TurnId& turnId,
+                                                                       const typed::ItemId& id,
+                                                                       ItemContentChannel channel) const noexcept {
+        const auto& index = impl->itemRoot().itemByScope;
+        const auto found = index.find(detail::ScopedItemLookupView{threadId.value, turnId.value, id.value});
+        return found == index.end() ? std::nullopt : impl->itemContentDescriptorAt(found->second, channel);
     }
     const PendingRequestState* State::pendingRequest(const PendingRequestId& id) const noexcept {
         const auto& common = impl->common();
@@ -3846,6 +3958,105 @@ namespace ai::openai::codex::frontend::client {
             }
             return true;
         }
+
+        void reconcileItemContentRevisions(detail::StateStorage& current,
+                                           const detail::StateStorage& previous,
+                                           std::span<const canonical_client::Change> changes) {
+            if (std::any_of(changes.begin(), changes.end(), [](const canonical_client::Change& change) {
+                    return std::holds_alternative<canonical_client::StateReplacedChange>(change);
+                })) {
+                return;
+            }
+
+            detail::StateItemPayload& currentItems = *current.itemPayload;
+            const detail::StateItemPayload& previousItems = previous.itemRoot();
+            if (currentItems.contentRevisions.size() != currentItems.items.size()) {
+                return;
+            }
+
+            for (std::size_t index = 0; index < currentItems.items.size(); ++index) {
+                const ItemState& item = currentItems.items[index];
+                const auto previousIndex = exactItemIndex(
+                    previousItems,
+                    item.threadId ? std::optional<std::string_view>{item.threadId->value} : std::nullopt,
+                    item.turnId ? std::optional<std::string_view>{item.turnId->value} : std::nullopt,
+                    item.id.value);
+                if (!previousIndex || *previousIndex >= previousItems.items.size() ||
+                    *previousIndex >= previousItems.contentRevisions.size()) {
+                    continue;
+                }
+                currentItems.contentRevisions[index] = previousItems.contentRevisions[*previousIndex];
+                const auto priorOverlay = previous.itemPayload->replacements.find(*previousIndex);
+                if (priorOverlay != previous.itemPayload->replacements.end()) {
+                    currentItems.contentRevisions[index] = priorOverlay->second->contentRevisions;
+                }
+            }
+
+            const auto markItemChanged = [&](std::optional<std::string_view> threadId,
+                                             std::optional<std::string_view> turnId,
+                                             std::string_view itemId,
+                                             std::optional<ItemContentChannel> channel) {
+                const auto index = exactItemIndex(currentItems, threadId, turnId, itemId);
+                if (!index || *index >= currentItems.contentRevisions.size()) {
+                    return;
+                }
+                if (channel) {
+                    currentItems.contentRevisions[*index][static_cast<std::size_t>(*channel)] = current.revision;
+                } else {
+                    currentItems.contentRevisions[*index].fill(current.revision);
+                }
+            };
+
+            const auto markUpsertedItem = [&](const canonical::ItemData& item) {
+                const std::optional<std::string_view> threadId =
+                    item.threadId ? std::optional<std::string_view>{item.threadId->value()} : std::nullopt;
+                const std::optional<std::string_view> turnId =
+                    item.turnId ? std::optional<std::string_view>{item.turnId->value()} : std::nullopt;
+                const auto currentIndex = exactItemIndex(currentItems, threadId, turnId, item.id.value());
+                const auto previousIndex = exactItemIndex(previousItems, threadId, turnId, item.id.value());
+                if (!currentIndex || *currentIndex >= currentItems.items.size() ||
+                    *currentIndex >= currentItems.contentRevisions.size()) {
+                    return;
+                }
+                if (!previousIndex || *previousIndex >= previousItems.items.size()) {
+                    currentItems.contentRevisions[*currentIndex].fill(current.revision);
+                    return;
+                }
+                const ItemState& before = previous.itemAt(*previousIndex);
+                const ItemState& after = currentItems.items[*currentIndex];
+                for (std::size_t channelIndex = 0; channelIndex < 4; ++channelIndex) {
+                    const auto channel = static_cast<ItemContentChannel>(channelIndex);
+                    if (itemContent(before, channel) != itemContent(after, channel)) {
+                        currentItems.contentRevisions[*currentIndex][channelIndex] = current.revision;
+                    }
+                }
+            };
+
+            for (const canonical_client::Change& change : changes) {
+                if (const auto* content = std::get_if<canonical::ItemContentUpdatedOccurrence>(&change)) {
+                    const std::optional<std::string_view> threadId =
+                        content->threadId ? std::optional<std::string_view>{content->threadId->value()} : std::nullopt;
+                    const std::optional<std::string_view> turnId =
+                        content->turnId ? std::optional<std::string_view>{content->turnId->value()} : std::nullopt;
+                    markItemChanged(threadId,
+                                    turnId,
+                                    content->itemId.value(),
+                                    // An absent/future channel must invalidate every
+                                    // channel instead of preserving a stale descriptor.
+                                    itemContentChannel(content->channel));
+                } else if (const auto* upsert = std::get_if<canonical::ItemUpsertedOccurrence>(&change)) {
+                    markUpsertedItem(canonical::itemData(upsert->item));
+                } else if (const auto* turn = std::get_if<canonical::TurnUpsertedOccurrence>(&change)) {
+                    for (const canonical::ThreadItem& value : turn->items) {
+                        markUpsertedItem(canonical::itemData(value));
+                    }
+                } else if (const auto* thread = std::get_if<canonical::ThreadUpsertedOccurrence>(&change)) {
+                    for (const canonical::ThreadItem& value : thread->items) {
+                        markUpsertedItem(canonical::itemData(value));
+                    }
+                }
+            }
+        }
     } // namespace
 
     std::optional<std::shared_ptr<const detail::StateStorage>>
@@ -3855,9 +4066,23 @@ namespace ai::openai::codex::frontend::client {
                                          std::size_t maximumRetainedDiagnostics,
                                          std::string& error,
                                          CanonicalStateBuildFailure* failure) noexcept {
-        if (previous == nullptr || preparation.changes.empty() || preparation.publication.snapshot == nullptr) {
-            return build(
+        const auto rebuild = [&]() {
+            auto rebuilt = build(
                 preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+            if (rebuilt && previous != nullptr) {
+                try {
+                    reconcileItemContentRevisions(
+                        *std::const_pointer_cast<StateStorage>(*rebuilt), *previous, preparation.changes);
+                } catch (...) {
+                    // Descriptor revisions are a presentation optimization.
+                    // Allocation failure conservatively leaves the rebuilt
+                    // channels at the new publication revision.
+                }
+            }
+            return rebuilt;
+        };
+        if (previous == nullptr || preparation.changes.empty() || preparation.publication.snapshot == nullptr) {
+            return rebuild();
         }
 
         try {
@@ -3866,8 +4091,7 @@ namespace ai::openai::codex::frontend::client {
             for (const canonical_client::Change& change : preparation.changes) {
                 const auto* content = std::get_if<canonical::ItemContentUpdatedOccurrence>(&change);
                 if (content == nullptr) {
-                    return build(
-                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                    return rebuild();
                 }
                 contentChanges.push_back(content);
             }
@@ -3885,38 +4109,27 @@ namespace ai::openai::codex::frontend::client {
 
             for (const canonical::ItemContentUpdatedOccurrence* update : contentChanges) {
                 if (!update->appendHint || !update->appendHint->sourceVerified) {
-                    return build(
-                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                    return rebuild();
                 }
-                std::optional<std::size_t> publicIndex;
                 const StateItemPayload& root = previous->itemRoot();
-                if (update->threadId && update->turnId) {
-                    const auto found = root.itemByScope.find(detail::ScopedItemLookupView{
-                        update->threadId->value(), update->turnId->value(), update->itemId.value()});
-                    if (found != root.itemByScope.end()) {
-                        publicIndex = found->second;
-                    }
-                } else {
-                    const auto found = root.firstItemById.find(update->itemId.value());
-                    if (found != root.firstItemById.end()) {
-                        publicIndex = found->second;
-                    }
-                }
+                const std::optional<std::size_t> publicIndex = exactItemIndex(
+                    root,
+                    update->threadId ? std::optional<std::string_view>{update->threadId->value()} : std::nullopt,
+                    update->turnId ? std::optional<std::string_view>{update->turnId->value()} : std::nullopt,
+                    update->itemId.value());
                 if (!publicIndex || *publicIndex >= root.items.size()) {
-                    return build(
-                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                    return rebuild();
                 }
                 const std::optional<ItemContentChannel> channel = itemContentChannel(update->channel);
                 if (!channel) {
-                    return build(
-                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                    return rebuild();
                 }
                 const auto priorOverlay = result->itemPayload->replacements.find(*publicIndex);
                 const std::size_t oldBytes = priorOverlay == result->itemPayload->replacements.end()
                                                  ? root.encodedItemBytes.at(*publicIndex)
                                                  : priorOverlay->second->encodedBytes;
                 std::shared_ptr<StateItemOverlay> replacement =
-                    appendedItemOverlay(*result->itemPayload, *publicIndex, *channel, *update);
+                    appendedItemOverlay(*result->itemPayload, *publicIndex, *channel, result->revision, *update);
                 if (!replacement ||
                     !adjustArrayContribution(result->sizeLedger.items, oldBytes, replacement->encodedBytes)) {
                     if (failure != nullptr) {
@@ -3924,8 +4137,7 @@ namespace ai::openai::codex::frontend::client {
                                                : CanonicalStateBuildFailure::StateDivergence;
                     }
                     if (!replacement) {
-                        return build(
-                            preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                        return rebuild();
                     }
                     error = "incremental public State item accounting failed";
                     return std::nullopt;
@@ -3953,7 +4165,7 @@ namespace ai::openai::codex::frontend::client {
             // A failed optimization must not weaken publication semantics;
             // the complete canonical builder remains the transactional
             // fallback for allocation failure or an unexpected shape.
-            return build(preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+            return rebuild();
         }
     }
 

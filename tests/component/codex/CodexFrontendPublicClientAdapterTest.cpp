@@ -82,6 +82,25 @@ namespace {
         return client::detail::ClientTestAccess::adoptStateStorage(adopter, std::move(*storage));
     }
 
+    std::optional<client::State> buildPreparedCanonicalState(client::Client& adopter,
+                                                             const core::PublishedState& publication,
+                                                             const core::PublishedState& previousPublication,
+                                                             std::span<const core::Change> changes,
+                                                             const client::State& previousState,
+                                                             std::string& error) {
+        const core::StatePublicationPreparation preparation{publication, previousPublication, changes};
+        auto storage = client::detail::CanonicalStateBuilder::build(
+            preparation,
+            client::detail::ClientTestAccess::stateStorage(previousState),
+            std::numeric_limits<std::size_t>::max(),
+            64,
+            error);
+        if (!storage.has_value()) {
+            return std::nullopt;
+        }
+        return client::detail::ClientTestAccess::adoptStateStorage(adopter, std::move(*storage));
+    }
+
     frontend::Welcome welcome(std::uint64_t sequence, bool selectItemContentAppend = false) {
         frontend::Json extensions{{"permittedScopes", frontend::Json::array({"observe", "control"})},
                                   {"projection", frontend::Json{{"identity", "public-adapter"}}}};
@@ -979,6 +998,157 @@ namespace {
                           "ambiguous turn lookup fails closed");
     }
 
+    void testPartialScopeDuplicateUsesExactAppendIdentity(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState initialPublication;
+        initialPublication.revision = 1;
+        initialPublication.freshness = core::PublishedFreshness::Current;
+        initialPublication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot initialSnapshot = canonicalSnapshot(1, 1, "partial item parents");
+        initialSnapshot.threads.emplace_back(model::ThreadIdentity{"partial-thread"});
+        initialSnapshot.turns.emplace_back(
+            model::TurnIdentity{"full-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData fullyScoped{model::ItemIdentity{"duplicate-item"},
+                                    model::ThreadIdentity{"adapter-thread"},
+                                    model::TurnIdentity{"full-turn"}};
+        fullyScoped.agentText = "alpha";
+        initialSnapshot.items.push_back(model::AgentMessageItem{std::move(fullyScoped)});
+        model::ItemData partiallyScoped{model::ItemIdentity{"duplicate-item"},
+                                        model::ThreadIdentity{"partial-thread"},
+                                        std::nullopt};
+        partiallyScoped.agentText = "bravo";
+        initialSnapshot.items.push_back(model::AgentMessageItem{std::move(partiallyScoped)});
+        initialPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(initialSnapshot));
+
+        std::string error;
+        const auto initial = buildCanonicalState(
+            adopter, initialPublication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const auto firstDescriptor = initial ? initial->itemContentDescriptor(
+                                                   typed::ThreadId{"adapter-thread"},
+                                                   typed::TurnId{"full-turn"},
+                                                   typed::ItemId{"duplicate-item"},
+                                                   client::ItemContentChannel::AgentText)
+                                             : std::nullopt;
+
+        core::PublishedState currentPublication = initialPublication;
+        currentPublication.revision = 2;
+        model::CanonicalSnapshot currentSnapshot = *initialPublication.snapshot;
+        std::get<model::AgentMessageItem>(currentSnapshot.items[1]).value.agentText = "bravo!";
+        currentPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(currentSnapshot));
+
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"duplicate-item"}};
+        update.threadId = model::ThreadIdentity{"partial-thread"};
+        update.channel = "agentText";
+        update.content = "bravo!";
+        update.appendHint = model::ItemContentAppendHint{5, "!", 0, true};
+        const std::array<core::Change, 1> changes{core::Change{std::move(update)}};
+        const auto current = initial ? buildPreparedCanonicalState(
+                                           adopter, currentPublication, initialPublication, changes, *initial, error)
+                                     : std::nullopt;
+        const auto stableFirstDescriptor = current ? current->itemContentDescriptor(
+                                                         typed::ThreadId{"adapter-thread"},
+                                                         typed::TurnId{"full-turn"},
+                                                         typed::ItemId{"duplicate-item"},
+                                                         client::ItemContentChannel::AgentText)
+                                                   : std::nullopt;
+        const auto items = current ? current->items() : std::span<const client::ItemState>{};
+        result.expectTrue(initial && current && error.empty() && items.size() == 2 &&
+                              items[0].agentText == std::optional<std::string>{"alpha"} &&
+                              items[1].threadId == std::optional<typed::ThreadId>{typed::ThreadId{"partial-thread"}} &&
+                              !items[1].turnId.has_value() &&
+                              items[1].agentText == std::optional<std::string>{"bravo!"} && firstDescriptor &&
+                              stableFirstDescriptor &&
+                              firstDescriptor->contentRevision == stableFirstDescriptor->contentRevision,
+                          "a verified append with a partial parent scope updates the exact duplicate item without aliasing the first "
+                          "same-ID item");
+    }
+
+    void testMetadataOnlyUpsertsPreserveContentRevisions(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState initialPublication;
+        initialPublication.revision = 10;
+        initialPublication.freshness = core::PublishedFreshness::Current;
+        initialPublication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot initialSnapshot = canonicalSnapshot(1, 1, "metadata upserts");
+        initialSnapshot.turns.emplace_back(
+            model::TurnIdentity{"metadata-turn"}, model::ThreadIdentity{"adapter-thread"});
+        for (const std::string_view id : {"item-upsert", "turn-upsert", "thread-upsert"}) {
+            model::ItemData item{model::ItemIdentity{std::string{id}},
+                                 model::ThreadIdentity{"adapter-thread"},
+                                 model::TurnIdentity{"metadata-turn"}};
+            item.summary = "before";
+            item.agentText = std::string{id} + " agent";
+            item.reasoningText = std::string{id} + " reasoning";
+            item.reasoningSummary = std::string{id} + " summary";
+            item.commandOutput = std::string{id} + " output";
+            initialSnapshot.items.push_back(model::AgentMessageItem{std::move(item)});
+        }
+        initialPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(initialSnapshot));
+
+        std::string error;
+        const auto initial = buildCanonicalState(
+            adopter, initialPublication, std::numeric_limits<std::size_t>::max(), 64, error);
+        std::array<std::array<std::optional<client::ItemContentDescriptor>, 4>, 3> before{};
+        const std::array<std::string_view, 3> itemIds{"item-upsert", "turn-upsert", "thread-upsert"};
+        if (initial) {
+            for (std::size_t itemIndex = 0; itemIndex < itemIds.size(); ++itemIndex) {
+                for (std::size_t channelIndex = 0; channelIndex < 4; ++channelIndex) {
+                    before[itemIndex][channelIndex] = initial->itemContentDescriptor(
+                        typed::ThreadId{"adapter-thread"},
+                        typed::TurnId{"metadata-turn"},
+                        typed::ItemId{std::string{itemIds[itemIndex]}},
+                        static_cast<client::ItemContentChannel>(channelIndex));
+                }
+            }
+        }
+
+        core::PublishedState currentPublication = initialPublication;
+        currentPublication.revision = 11;
+        model::CanonicalSnapshot currentSnapshot = *initialPublication.snapshot;
+        for (model::ThreadItem& value : currentSnapshot.items) {
+            std::get<model::AgentMessageItem>(value).value.summary = "after";
+        }
+        currentPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(currentSnapshot);
+
+        model::ItemUpsertedOccurrence itemUpdate{currentSnapshot.items[0]};
+        model::TurnUpsertedOccurrence turnUpdate{currentSnapshot.turns.front()};
+        turnUpdate.items.push_back(currentSnapshot.items[1]);
+        model::ThreadUpsertedOccurrence threadUpdate{currentSnapshot.threads.front()};
+        threadUpdate.items.push_back(currentSnapshot.items[2]);
+        const std::array<core::Change, 3> changes{
+            core::Change{std::move(itemUpdate)}, core::Change{std::move(turnUpdate)}, core::Change{std::move(threadUpdate)}};
+        const auto current = initial ? buildPreparedCanonicalState(
+                                           adopter, currentPublication, initialPublication, changes, *initial, error)
+                                     : std::nullopt;
+
+        bool exact = initial.has_value() && current.has_value() && error.empty();
+        for (std::size_t itemIndex = 0; exact && itemIndex < itemIds.size(); ++itemIndex) {
+            const client::ItemState* item = current->item(
+                typed::ThreadId{"adapter-thread"},
+                typed::TurnId{"metadata-turn"},
+                typed::ItemId{std::string{itemIds[itemIndex]}});
+            exact = item != nullptr && item->summary == std::optional<std::string>{"after"};
+            for (std::size_t channelIndex = 0; exact && channelIndex < 4; ++channelIndex) {
+                const auto after = current->itemContentDescriptor(
+                    typed::ThreadId{"adapter-thread"},
+                    typed::TurnId{"metadata-turn"},
+                    typed::ItemId{std::string{itemIds[itemIndex]}},
+                    static_cast<client::ItemContentChannel>(channelIndex));
+                exact = before[itemIndex][channelIndex].has_value() && after.has_value() &&
+                        before[itemIndex][channelIndex]->contentRevision == after->contentRevision;
+            }
+        }
+        result.expectTrue(
+            exact,
+            "item, turn, and thread metadata-only upserts preserve all unchanged per-channel content revisions");
+    }
+
     void testIndexedStateLookupsAndGroupedOrdering(tests::support::TestResult& result) {
         constexpr std::size_t ThreadCount = 128;
         constexpr std::size_t TurnsPerThread = 4;
@@ -1088,10 +1258,21 @@ namespace {
                                       frontend::SequenceNumber(9), frontend::SequenceNumber(9), {upsert}}})
                                   .accepted;
         const auto* upsertChange = findChange<client::ItemUpsertedChange>(harness.changes);
-        const client::ItemState* firstAfterUpsert = sdk.state().item(
+        const client::State upsertState = sdk.state();
+        const client::ItemState* firstAfterUpsert = upsertState.item(
             typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
-        const client::ItemState* secondAfterUpsert = sdk.state().item(
+        const client::ItemState* secondAfterUpsert = upsertState.item(
             typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
+        const auto beforeReplacement = upsertState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::AgentText);
+        const auto beforeReasoning = upsertState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::ReasoningText);
         result.expectTrue(
             synchronized && upserted && upsertChange && upsertChange->itemId == typed::ItemId{"item-1"} &&
                 upsertChange->threadId == std::optional<typed::ThreadId>{typed::ThreadId{"second-thread"}} &&
@@ -1107,10 +1288,21 @@ namespace {
                                       frontend::SequenceNumber(10), frontend::SequenceNumber(10), {content}}})
                                   .accepted;
         const auto* contentChange = findChange<client::ItemContentReplacedChange>(harness.changes);
-        const client::ItemState* firstAfterContent = sdk.state().item(
+        const client::State contentState = sdk.state();
+        const client::ItemState* firstAfterContent = contentState.item(
             typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
-        const client::ItemState* secondAfterContent = sdk.state().item(
+        const client::ItemState* secondAfterContent = contentState.item(
             typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
+        const auto afterReplacement = contentState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::AgentText);
+        const auto afterReasoning = contentState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::ReasoningText);
         result.expectTrue(
             replaced && contentChange && contentChange->itemId == typed::ItemId{"item-1"} &&
                 contentChange->channel == client::ItemContentChannel::AgentText &&
@@ -1119,6 +1311,36 @@ namespace {
                 firstAfterContent->agentText == std::optional<std::string>{"first scoped item"} && secondAfterContent &&
                 secondAfterContent->agentText == std::optional<std::string>{"second streamed item"},
             "public item-content changes retain canonical thread/turn scope when bare item IDs repeat");
+
+        harness.changes.clear();
+        const frontend::FrontendEvent provider = providerEvent(11, 4);
+        const bool providerUpdated = connection
+                                         .receive(frontend::ServerMessage{frontend::EventBatch{
+                                             frontend::SequenceNumber(11), frontend::SequenceNumber(11), {provider}}})
+                                         .accepted;
+        const client::State providerState = sdk.state();
+        const auto afterProvider = providerState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::AgentText);
+        const auto reasoningAfterProvider = providerState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::ReasoningText);
+        result.expectTrue(
+            beforeReplacement && afterReplacement && afterProvider && beforeReplacement->present &&
+                afterReplacement->present && afterProvider->present &&
+                beforeReplacement->retainedUtf8Bytes == std::string_view{"second upserted item"}.size() &&
+                afterReplacement->retainedUtf8Bytes == std::string_view{"second streamed item"}.size() &&
+                beforeReplacement->retainedUtf8Bytes == afterReplacement->retainedUtf8Bytes &&
+                beforeReplacement->contentRevision != afterReplacement->contentRevision &&
+                afterReplacement->contentRevision == afterProvider->contentRevision && beforeReasoning && afterReasoning &&
+                reasoningAfterProvider && !beforeReasoning->present && beforeReasoning->retainedUtf8Bytes == 0 &&
+                beforeReasoning->contentRevision == afterReasoning->contentRevision &&
+                afterReasoning->contentRevision == reasoningAfterProvider->contentRevision && providerUpdated,
+            "content descriptors change the replaced equal-length channel only and remain stable across an unrelated publication");
     }
 
     void testVerifiedIncrementalItemPublication(tests::support::TestResult& result) {
@@ -1127,8 +1349,10 @@ namespace {
         harness.sdk = &sdk;
         client::Connection connection = sdk.openConnection(harness.transport());
         connection.transportConnected();
-        const bool synchronized = connection.receive(frontend::ServerMessage{welcome(1, true)}).accepted &&
-                                  connection.receive(frontend::ServerMessage{expandedAppendItemSnapshot(1)}).accepted &&
+        const bool snapshotAccepted = connection.receive(frontend::ServerMessage{welcome(1, true)}).accepted &&
+                                      connection.receive(frontend::ServerMessage{expandedAppendItemSnapshot(1)}).accepted;
+        const client::State synchronizingState = sdk.state();
+        const bool synchronized = snapshotAccepted &&
                                   connection.receive(frontend::ServerMessage{
                                       frontend::SyncComplete{frontend::SequenceNumber{1}}})
                                       .accepted;
@@ -1159,6 +1383,31 @@ namespace {
         }
 
         const client::State current = sdk.state();
+        const auto initialDescriptor = initial.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::AgentText);
+        const auto synchronizingDescriptor = synchronizingState.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::AgentText);
+        const auto currentDescriptor = current.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::AgentText);
+        const auto initialReasoningDescriptor = initial.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::ReasoningText);
+        const auto currentReasoningDescriptor = current.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::ReasoningText);
         const client::ItemState* initialItem = initial.item("append-item");
         const client::ItemState* currentItem = current.item("append-item");
         std::string expected = "seed";
@@ -1169,7 +1418,16 @@ namespace {
         std::string accountingError;
         const bool exactAccounting = client::detail::CanonicalStateBuilder::verifyAccounting(
             client::detail::ClientTestAccess::stateStorage(current), accountingError);
-        result.expectTrue(accepted && exactChanges && harness.changes.size() == AppendCount && initialItem && currentItem &&
+        result.expectTrue(accepted && exactChanges && harness.changes.size() == AppendCount && synchronizingDescriptor &&
+                              initialDescriptor && currentDescriptor && synchronizingDescriptor->present && initialDescriptor->present &&
+                              currentDescriptor->present &&
+                              synchronizingDescriptor->contentRevision == initialDescriptor->contentRevision &&
+                              initialDescriptor->retainedUtf8Bytes == 4 && currentDescriptor->retainedUtf8Bytes == baseBytes &&
+                              initialDescriptor->contentRevision != currentDescriptor->contentRevision &&
+                              initialReasoningDescriptor && currentReasoningDescriptor && !initialReasoningDescriptor->present &&
+                              initialReasoningDescriptor->retainedUtf8Bytes == 0 &&
+                              initialReasoningDescriptor->contentRevision == currentReasoningDescriptor->contentRevision && initialItem &&
+                              currentItem &&
                               initialItem->agentText == std::optional<std::string>{"seed"} &&
                               currentItem->agentText == std::optional<std::string>{expected} && exactAccounting,
                           "verified content appends publish exact deltas, preserve prior immutable State, and retain byte-exact accounting: " +
@@ -1575,6 +1833,8 @@ int main() {
     testExecutionConfigurationPublicState(result);
     testCanonicalLookupIdentityPreflight(result);
     testScopedItemIdentities(result);
+    testPartialScopeDuplicateUsesExactAppendIdentity(result);
+    testMetadataOnlyUpsertsPreserveContentRevisions(result);
     testIndexedStateLookupsAndGroupedOrdering(result);
     testScopedItemChanges(result);
     testVerifiedIncrementalItemPublication(result);
