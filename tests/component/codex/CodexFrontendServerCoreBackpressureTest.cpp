@@ -828,6 +828,90 @@ namespace {
                               core.connectionOpen(*connection),
                           "a publish requested by Send is coalesced after the active flush without recursively invoking Send");
     }
+
+    frontend::Hello largeSnapshotHello() {
+        frontend::Hello hello;
+        hello.capabilities = {frontend::FrontendCapability::CompleteThreadItems};
+        hello.extensions = {{"projection", {{"itemContentUpdateModes", {"append-v2", "append-v1"}}}}};
+        return hello;
+    }
+
+    void testDerivedLargeSnapshotMessageBoundary(tests::support::TestResult& result) {
+        constexpr std::size_t FormerAggregateCeiling = 26U * 1024U * 1024U;
+        constexpr std::size_t ItemCount = 1'700;
+        constexpr std::size_t ItemTextBytes = 16U * 1024U;
+
+        Backend backend;
+        backend.state.items.reserve(ItemCount);
+        backend.state.itemsPresent = true;
+        const std::string content(ItemTextBytes, 's');
+        for (std::size_t index = 0; index < ItemCount; ++index) {
+            model::ItemData item{model::ItemIdentity{"large-snapshot-item-" + std::to_string(index)}};
+            item.agentText = content;
+            backend.state.items.push_back(model::AgentMessageItem{std::move(item)});
+        }
+
+        const auto measureSnapshot = [&](std::size_t individualLimit,
+                                         std::vector<std::size_t>& snapshotSizes,
+                                         std::vector<server::ConnectionClose>& closes) {
+            std::vector<std::function<void()>> scheduled;
+            server::ServerCoreOptions options;
+            options.authenticator = authenticate;
+            options.maxOutboundMessageBytes = individualLimit;
+            options.scheduler = [&scheduled](std::function<void()> callback) {
+                scheduled.push_back(std::move(callback));
+            };
+            server::ServerCore core(backend, std::move(options));
+            core.start();
+            const auto connection = core.openConnection(
+                {},
+                {{},
+                 [&closes](const server::ConnectionClose& close) {
+                     closes.push_back(close);
+                 },
+                 [&snapshotSizes](server::SerializedServerMessage& outbound) {
+                     if (std::holds_alternative<frontend::Snapshot>(outbound.message)) {
+                         snapshotSizes.push_back(outbound.compactJson.size());
+                     }
+                     return frontend::OutboundDeliveryStatus::Accepted;
+                 }});
+            const server::ReceiveResult received =
+                connection ? core.receive(*connection, frontend::ClientMessage{largeSnapshotHello()})
+                           : server::ReceiveResult{};
+            drainScheduled(scheduled);
+            return received;
+        };
+
+        std::vector<std::size_t> measuredSizes;
+        std::vector<server::ConnectionClose> measuredCloses;
+        const server::ReceiveResult measured =
+            measureSnapshot(frontend::DefaultFrontendMaximumServerMessageBytes, measuredSizes, measuredCloses);
+        const std::size_t exactBytes = measuredSizes.empty() ? 0 : measuredSizes.front();
+        const auto onlyCleanShutdown = [](const std::vector<server::ConnectionClose>& closes) {
+            return std::all_of(closes.begin(), closes.end(), [](const server::ConnectionClose& close) {
+                return close.clean && !close.protocolCode.has_value();
+            });
+        };
+        result.expectTrue(measured.accepted() && onlyCleanShutdown(measuredCloses) && measuredSizes.size() == 1 &&
+                              exactBytes > FormerAggregateCeiling &&
+                              exactBytes <= frontend::DefaultFrontendMaximumProjectedSnapshotBytes,
+                          "the derived default carries one unchunked projected Snapshot beyond the former ~26 MiB ceiling");
+
+        std::vector<std::size_t> exactSizes;
+        std::vector<server::ConnectionClose> exactCloses;
+        const server::ReceiveResult atLimit = measureSnapshot(exactBytes, exactSizes, exactCloses);
+        result.expectTrue(exactBytes != 0 && atLimit.accepted() && onlyCleanShutdown(exactCloses) && exactSizes.size() == 1 &&
+                              exactSizes.front() == exactBytes,
+                          "an individual projected Snapshot exactly at the configured message limit is accepted");
+
+        std::vector<std::size_t> rejectedSizes;
+        std::vector<server::ConnectionClose> rejectedCloses;
+        const server::ReceiveResult aboveLimit = measureSnapshot(exactBytes - 1, rejectedSizes, rejectedCloses);
+        result.expectTrue(exactBytes != 0 && aboveLimit.status == server::ReceiveStatus::Closing && rejectedSizes.empty() &&
+                              rejectedCloses.size() == 1 &&
+                              rejectedCloses.front().protocolCode == frontend::ErrorCode::CapacityExceeded,
+                          "an individual projected Snapshot one byte above the configured message limit fails deterministically");
+    }
 } // namespace
 
 int main() {
@@ -840,5 +924,6 @@ int main() {
     testPublishResultDeliveryContract(result);
     testMixedSnapshotFallbackAdvancesSequence(result);
     testNestedFlushCoalescing(result);
+    testDerivedLargeSnapshotMessageBoundary(result);
     return result.processResult();
 }

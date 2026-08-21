@@ -44,7 +44,7 @@ namespace ai::openai::codex::frontend::client {
         // Pragmatic headroom for the public JSON-shaped immutable State after
         // restoring backend-bounded item output. This is not a universal
         // proof for arbitrarily large operator-configured backend limits.
-        std::size_t maximumDecodedStateBytes = 128U * 1024U * 1024U;
+        std::size_t maximumDecodedStateBytes = frontend::DefaultFrontendMaximumDecodedStateBytes;
         std::size_t maximumPendingOperations = 256;
         std::size_t maximumRetainedDiagnostics = 64;
         bool allowLegacyV1 = true;

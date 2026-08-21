@@ -38,6 +38,16 @@ namespace ai::openai::codex::frontend {
     inline constexpr std::size_t DefaultFrontendMaximumInboundMessageBytes = 8U * 1024U * 1024U;
     inline constexpr std::size_t DefaultFrontendServiceMaxOutboundMessages = 512;
 
+    // The public client accepts this much canonical decoded State.  A server
+    // that can project a legitimate State of that size must also be able to
+    // carry its unchunked Snapshot message; keep the contract centralized so
+    // client admission, server message framing, and aggregate backpressure
+    // cannot drift apart.
+    inline constexpr std::size_t DefaultFrontendMaximumDecodedStateBytes = 128U * 1024U * 1024U;
+    inline constexpr std::size_t DefaultFrontendProjectedSnapshotEnvelopeHeadroomBytes = 64U * 1024U;
+    inline constexpr std::size_t DefaultFrontendMaximumProjectedSnapshotBytes =
+        DefaultFrontendMaximumDecodedStateBytes + DefaultFrontendProjectedSnapshotEnvelopeHeadroomBytes;
+
     // A provider result is a subset of an accepted app-server response. The
     // frontend response adds its own bounded request/type envelope around that
     // result, so reserve explicit headroom beyond the provider framing limit.
@@ -57,18 +67,22 @@ namespace ai::openai::codex::frontend {
     inline constexpr std::size_t DefaultFrontendMaximumReplayBytes =
         DefaultJournalMaxBytes + DefaultJournalMaxEntries * DefaultReplayEnvelopeHeadroomPerEntry +
         DefaultReplayControlHeadroomBytes;
-    // Preserve room for one maximum provider-derived response without
-    // consuming the independently bounded replay/backlog allowance.
+    // One individual message may be either a maximum provider-derived result
+    // or a maximum projected Snapshot.  The aggregate queue then reserves an
+    // independent replay/control allowance in addition to that message.
+    inline constexpr std::size_t DefaultFrontendMaximumServerMessageBytes =
+        DefaultFrontendMaximumProjectedSnapshotBytes > DefaultFrontendMaximumProviderResponseBytes
+            ? DefaultFrontendMaximumProjectedSnapshotBytes
+            : DefaultFrontendMaximumProviderResponseBytes;
     inline constexpr std::size_t DefaultFrontendServiceMaxOutboundBytes =
-        DefaultFrontendMaximumProviderResponseBytes + DefaultFrontendMaximumReplayBytes;
-    // ServerCore uses its outbound-byte budget as both the aggregate and
-    // individual-message ceiling. Clients must therefore accept that ceiling,
-    // including an unchunked projected Snapshot.
-    inline constexpr std::size_t DefaultFrontendMaximumServerMessageBytes = DefaultFrontendServiceMaxOutboundBytes;
+        DefaultFrontendMaximumServerMessageBytes + DefaultFrontendMaximumReplayBytes;
     inline constexpr std::size_t DefaultFrontendServiceMaxMessagesPerDelivery = 64;
 
     static_assert(DefaultFrontendServiceMaxOutboundBytes >= DefaultFrontendMaximumProviderResponseBytes);
     static_assert(DefaultFrontendServiceMaxOutboundBytes >= DefaultFrontendMaximumReplayBytes);
+    static_assert(DefaultFrontendMaximumServerMessageBytes >= DefaultFrontendMaximumProjectedSnapshotBytes);
+    static_assert(DefaultFrontendServiceMaxOutboundBytes - DefaultFrontendMaximumServerMessageBytes >=
+                  DefaultFrontendMaximumReplayBytes);
 
     inline constexpr std::size_t kDefaultJournalMaxEntries = DefaultJournalMaxEntries;
     inline constexpr std::size_t kDefaultJournalMaxBytes = DefaultJournalMaxBytes;
@@ -77,6 +91,10 @@ namespace ai::openai::codex::frontend {
     inline constexpr std::size_t kDefaultMaxDirtyEntities = DefaultMaxDirtyEntities;
     inline constexpr std::size_t kDefaultFrontendMaximumInboundMessageBytes = DefaultFrontendMaximumInboundMessageBytes;
     inline constexpr std::size_t kDefaultFrontendServiceMaxOutboundMessages = DefaultFrontendServiceMaxOutboundMessages;
+    inline constexpr std::size_t kDefaultFrontendMaximumDecodedStateBytes = DefaultFrontendMaximumDecodedStateBytes;
+    inline constexpr std::size_t kDefaultFrontendProjectedSnapshotEnvelopeHeadroomBytes =
+        DefaultFrontendProjectedSnapshotEnvelopeHeadroomBytes;
+    inline constexpr std::size_t kDefaultFrontendMaximumProjectedSnapshotBytes = DefaultFrontendMaximumProjectedSnapshotBytes;
     inline constexpr std::size_t kDefaultFrontendServerMessageEnvelopeHeadroomBytes =
         DefaultFrontendServerMessageEnvelopeHeadroomBytes;
     inline constexpr std::size_t kDefaultFrontendMaximumProviderResponseBytes = DefaultFrontendMaximumProviderResponseBytes;

@@ -29,6 +29,7 @@ namespace ai::openai::codex::frontend::client {
             [[nodiscard]] static std::size_t verifiedMovedFromStringScrubs(const Client& client) noexcept;
             [[nodiscard]] static bool shortStringStorageScrubbed() noexcept;
             [[nodiscard]] static State adoptStateStorage(Client& client, std::shared_ptr<const StateStorage> storage) noexcept;
+            [[nodiscard]] static std::shared_ptr<const StateStorage> stateStorage(const State& state) noexcept;
         };
 
     } // namespace detail

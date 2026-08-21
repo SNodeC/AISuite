@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -140,7 +141,7 @@ namespace ai::openai::codex::frontend::internal::client {
     struct ClientLimits {
         std::size_t maximumInboundMessageBytes = DefaultFrontendMaximumServerMessageBytes;
         std::size_t maximumOutboundMessageBytes = DefaultFrontendMaximumInboundMessageBytes;
-        std::size_t maximumDecodedStateBytes = 128U * 1024U * 1024U;
+        std::size_t maximumDecodedStateBytes = DefaultFrontendMaximumDecodedStateBytes;
         std::size_t maximumRetainedEntities = 1U << 20U;
         std::size_t maximumPendingOperations = 256;
         std::size_t maximumRetainedDiagnostics = 64;
@@ -164,6 +165,9 @@ namespace ai::openai::codex::frontend::internal::client {
         std::string requestIdPrefix = "c";
         std::uint64_t initialRequestId = 1;
         bool allowLegacyV1 = true;
+        // The public SDK adapter owns the exact decoded-State ledger. Generic
+        // ClientCore users leave this false and retain canonical measurement.
+        bool publicationPreparationEnforcesByteCapacity = false;
     };
 
     struct SessionInfo {
@@ -325,6 +329,15 @@ namespace ai::openai::codex::frontend::internal::client {
                                 model::DiagnosticsUpdatedOccurrence,
                                 CompatibilityExtensionChange>;
 
+    // Private two-phase publication input. The public adapter may use the
+    // exact reduced changes to prepare a structurally shared State while the
+    // canonical candidate and its predecessor are both still immutable.
+    struct StatePublicationPreparation {
+        const PublishedState& publication;
+        const PublishedState& previousPublication;
+        std::span<const Change> changes;
+    };
+
     struct StateUpdate {
         std::shared_ptr<const PublishedState> state;
         UpdateCause cause = UpdateCause::Live;
@@ -339,7 +352,7 @@ namespace ai::openai::codex::frontend::internal::client {
         // immutable State before the canonical publication becomes visible.
         // Preparation must not invoke user callbacks. A reported error leaves
         // both authorities at their previous revision.
-        std::function<std::optional<ClientError>(const PublishedState&)> prepareStatePublication;
+        std::function<std::optional<ClientError>(const StatePublicationPreparation&)> prepareStatePublication;
         // Commit is called immediately after the canonical pointer swap and
         // before any semantic publication callback. Implementations must be
         // noexcept and may only expose the already prepared immutable value.

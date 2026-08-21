@@ -236,6 +236,7 @@ namespace ai::openai::codex::frontend::internal::server {
         // not the dirty/coalescing-key bound above.
         std::size_t maxPendingDeliveryGroups = DefaultMaxDirtyEntities;
         std::size_t maxOutboundMessagesPerConnection = DefaultFrontendServiceMaxOutboundMessages;
+        std::size_t maxOutboundMessageBytes = DefaultFrontendMaximumServerMessageBytes;
         std::size_t maxOutboundBytesPerConnection = DefaultFrontendServiceMaxOutboundBytes;
         std::size_t maxMessagesPerDelivery = DefaultFrontendServiceMaxMessagesPerDelivery;
         std::size_t maxEventsPerBatch = DefaultBatchMaxEvents;

@@ -9,15 +9,22 @@
 #define AI_OPENAI_CODEX_FRONTEND_INTERNAL_MODEL_MODEL_H
 
 #include "ai/openai/codex/frontend/Messages.h"
+#include "ai/openai/codex/frontend/detail/PersistentText.h"
 
+#include <algorithm>
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -609,6 +616,431 @@ namespace ai::openai::codex::frontend::internal::model {
     [[nodiscard]] ThreadItemKind threadItemKind(const ThreadItem& item) noexcept;
     [[nodiscard]] const ItemData& itemData(const ThreadItem& item) noexcept;
 
+    // Canonical snapshots are immutable once published.  Live content
+    // updates therefore need a new snapshot, but copying every retained item
+    // (and every growing content string) for each streamed fragment is both
+    // unnecessary and prohibitively expensive.  This vector-compatible
+    // collection keeps a shared immutable root plus immutable per-index
+    // replacements.  Ordinary mutating operations materialize a private
+    // vector, while the reducer's content-only path replaces exactly one
+    // item without copying the remaining item values.
+    class PersistentThreadItems {
+    public:
+        enum class ContentChannel : std::uint8_t { AgentText, ReasoningText, ReasoningSummary, CommandOutput };
+
+        using value_type = ThreadItem;
+        using size_type = std::size_t;
+        using difference_type = std::ptrdiff_t;
+        using iterator = std::vector<ThreadItem>::iterator;
+        using reverse_iterator = std::vector<ThreadItem>::reverse_iterator;
+
+        class const_iterator {
+        public:
+            using iterator_category = std::random_access_iterator_tag;
+            using iterator_concept = std::random_access_iterator_tag;
+            using value_type = ThreadItem;
+            using difference_type = std::ptrdiff_t;
+            using pointer = const ThreadItem*;
+            using reference = const ThreadItem&;
+
+            const_iterator() = default;
+
+            [[nodiscard]] reference operator*() const {
+                return owner->at(position);
+            }
+            [[nodiscard]] pointer operator->() const {
+                return &owner->at(position);
+            }
+            reference operator[](difference_type offset) const {
+                return owner->at(static_cast<size_type>(static_cast<difference_type>(position) + offset));
+            }
+            const_iterator& operator++() noexcept {
+                ++position;
+                return *this;
+            }
+            const_iterator operator++(int) noexcept {
+                const_iterator previous = *this;
+                ++*this;
+                return previous;
+            }
+            const_iterator& operator--() noexcept {
+                --position;
+                return *this;
+            }
+            const_iterator operator--(int) noexcept {
+                const_iterator previous = *this;
+                --*this;
+                return previous;
+            }
+            const_iterator& operator+=(difference_type offset) noexcept {
+                position = static_cast<size_type>(static_cast<difference_type>(position) + offset);
+                return *this;
+            }
+            const_iterator& operator-=(difference_type offset) noexcept {
+                return *this += -offset;
+            }
+            friend const_iterator operator+(const_iterator value, difference_type offset) noexcept {
+                value += offset;
+                return value;
+            }
+            friend const_iterator operator+(difference_type offset, const_iterator value) noexcept {
+                value += offset;
+                return value;
+            }
+            friend const_iterator operator-(const_iterator value, difference_type offset) noexcept {
+                value -= offset;
+                return value;
+            }
+            friend difference_type operator-(const const_iterator& left, const const_iterator& right) noexcept {
+                return static_cast<difference_type>(left.position) - static_cast<difference_type>(right.position);
+            }
+            friend bool operator==(const const_iterator&, const const_iterator&) = default;
+            friend auto operator<=>(const const_iterator& left, const const_iterator& right) noexcept {
+                return left.position <=> right.position;
+            }
+
+        private:
+            friend class PersistentThreadItems;
+            const_iterator(const PersistentThreadItems* collection, size_type index) noexcept
+                : owner(collection)
+                , position(index) {
+            }
+            const PersistentThreadItems* owner = nullptr;
+            size_type position = 0;
+        };
+
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+        struct ItemLookup {
+            std::optional<size_type> firstById;
+            std::optional<size_type> scoped;
+        };
+
+    private:
+        using LookupIndex = std::unordered_map<std::string, std::vector<size_type>>;
+
+        struct LookupState {
+            mutable std::mutex mutex;
+            mutable std::shared_ptr<LookupIndex> byId;
+        };
+
+    public:
+
+        PersistentThreadItems()
+            : root(std::make_shared<std::vector<ThreadItem>>())
+            , lookupState(std::make_shared<LookupState>()) {
+        }
+        PersistentThreadItems(std::initializer_list<ThreadItem> values)
+            : root(std::make_shared<std::vector<ThreadItem>>(values))
+            , lookupState(std::make_shared<LookupState>()) {
+        }
+
+        PersistentThreadItems& operator=(std::initializer_list<ThreadItem> values) {
+            root = std::make_shared<std::vector<ThreadItem>>(values);
+            replacements.clear();
+            lookupState = std::make_shared<LookupState>();
+            return *this;
+        }
+
+        [[nodiscard]] bool empty() const noexcept {
+            return root->empty();
+        }
+        [[nodiscard]] size_type size() const noexcept {
+            return root->size();
+        }
+        [[nodiscard]] const ThreadItem& at(size_type index) const {
+            const auto found = replacements.find(index);
+            return found == replacements.end() ? (*root)[index] : materialized(*found->second);
+        }
+
+        // Content overlays never change item identity, parentage, or kind.
+        // Reducer validation can therefore inspect this stable metadata
+        // without materializing a growing content string on every append.
+        [[nodiscard]] const ThreadItem& metadataAt(size_type index) const {
+            const auto found = replacements.find(index);
+            return found == replacements.end() ? root->at(index) : *found->second->base;
+        }
+        [[nodiscard]] ThreadItem& at(size_type index) {
+            return mutableValues().at(index);
+        }
+        [[nodiscard]] const ThreadItem& operator[](size_type index) const {
+            return at(index);
+        }
+        [[nodiscard]] ThreadItem& operator[](size_type index) {
+            return mutableValues()[index];
+        }
+        [[nodiscard]] const ThreadItem& front() const {
+            return at(0);
+        }
+        [[nodiscard]] ThreadItem& front() {
+            return mutableValues().front();
+        }
+        [[nodiscard]] const ThreadItem& back() const {
+            return at(size() - 1);
+        }
+        [[nodiscard]] ThreadItem& back() {
+            return mutableValues().back();
+        }
+
+        // Content changes preserve item identity, so all snapshots that share
+        // this immutable root can also share its lazily built lookup. A
+        // structural mutation receives a fresh lookup state in mutableValues().
+        [[nodiscard]] ItemLookup lookup(const ItemIdentity& id,
+                                        const std::optional<ThreadIdentity>& threadId,
+                                        const std::optional<TurnIdentity>& turnId) const {
+            std::lock_guard lock(lookupState->mutex);
+            if (!lookupState->byId) {
+                auto index = std::make_shared<LookupIndex>();
+                index->reserve(size());
+                for (size_type position = 0; position < size(); ++position) {
+                    index->try_emplace(itemData(metadataAt(position)).id.value()).first->second.push_back(position);
+                }
+                lookupState->byId = std::move(index);
+            }
+            const auto found = lookupState->byId->find(id.value());
+            if (found == lookupState->byId->end() || found->second.empty()) {
+                return {};
+            }
+            ItemLookup result;
+            result.firstById = found->second.front();
+            for (const size_type position : found->second) {
+                const ItemData& item = itemData(metadataAt(position));
+                if ((!threadId || item.threadId == threadId) && (!turnId || item.turnId == turnId)) {
+                    result.scoped = position;
+                    break;
+                }
+            }
+            return result;
+        }
+
+        [[nodiscard]] const_iterator begin() const noexcept {
+            return const_iterator(this, 0);
+        }
+        [[nodiscard]] const_iterator end() const noexcept {
+            return const_iterator(this, size());
+        }
+        [[nodiscard]] const_iterator cbegin() const noexcept {
+            return begin();
+        }
+        [[nodiscard]] const_iterator cend() const noexcept {
+            return end();
+        }
+        [[nodiscard]] const_reverse_iterator rbegin() const noexcept {
+            return const_reverse_iterator(end());
+        }
+        [[nodiscard]] const_reverse_iterator rend() const noexcept {
+            return const_reverse_iterator(begin());
+        }
+        [[nodiscard]] iterator begin() {
+            return mutableValues().begin();
+        }
+        [[nodiscard]] iterator end() {
+            return mutableValues().end();
+        }
+        [[nodiscard]] reverse_iterator rbegin() {
+            return mutableValues().rbegin();
+        }
+        [[nodiscard]] reverse_iterator rend() {
+            return mutableValues().rend();
+        }
+
+        void reserve(size_type capacity) {
+            mutableValues().reserve(capacity);
+        }
+        void clear() {
+            mutableValues().clear();
+        }
+        void push_back(const ThreadItem& item) {
+            mutableValues().push_back(item);
+        }
+        void push_back(ThreadItem&& item) {
+            mutableValues().push_back(std::move(item));
+        }
+        template <typename... Args>
+        ThreadItem& emplace_back(Args&&... args) {
+            return mutableValues().emplace_back(std::forward<Args>(args)...);
+        }
+        iterator erase(iterator position) {
+            return mutableValues().erase(position);
+        }
+        iterator erase(iterator first, iterator last) {
+            return mutableValues().erase(first, last);
+        }
+        template <typename Predicate>
+        size_type eraseIf(Predicate&& predicate) {
+            return std::erase_if(mutableValues(), std::forward<Predicate>(predicate));
+        }
+
+        // Preserve the immutable root and all unrelated replacements.
+        void replace(size_type index, ThreadItem item) {
+            if (index >= size()) {
+                throw std::out_of_range("persistent frontend item index");
+            }
+            auto overlay = std::make_shared<ItemOverlay>();
+            overlay->base = std::make_shared<const ThreadItem>(std::move(item));
+            replacements[index] = std::move(overlay);
+        }
+
+        // Apply an already reducer-validated append without materializing or
+        // copying the target's growing string.  The base byte count and UTF-8
+        // discard boundary are nevertheless rechecked transactionally here.
+        [[nodiscard]] bool appendContent(size_type index,
+                                         ContentChannel channel,
+                                         std::uint64_t baseContentBytes,
+                                         std::uint64_t discardPrefixBytes,
+                                         std::string_view delta,
+                                         bool contentTruncatedKnown,
+                                         bool contentTruncated,
+                                         bool droppedContentBytesKnown,
+                                         std::optional<std::uint64_t> droppedContentBytes,
+                                         std::size_t maximumRetainedBytes) {
+            if (index >= size() || baseContentBytes > std::numeric_limits<std::size_t>::max() ||
+                discardPrefixBytes > std::numeric_limits<std::size_t>::max()) {
+                return false;
+            }
+            const auto prior = replacements.find(index);
+            auto next = std::make_shared<ItemOverlay>();
+            if (prior == replacements.end()) {
+                next->base = std::shared_ptr<const ThreadItem>(root, &(*root)[index]);
+            } else {
+                next->base = prior->second->base;
+                next->contents = prior->second->contents;
+                next->contentTruncatedKnown = prior->second->contentTruncatedKnown;
+                next->contentTruncated = prior->second->contentTruncated;
+                next->droppedContentBytesKnown = prior->second->droppedContentBytesKnown;
+                next->droppedContentBytes = prior->second->droppedContentBytes;
+            }
+
+            const std::size_t channelIndex = static_cast<std::size_t>(channel);
+            detail::PersistentText current;
+            if (next->contents[channelIndex]) {
+                current = *next->contents[channelIndex];
+            } else {
+                const ItemData& data = itemData(*next->base);
+                const std::optional<std::string>* initial = content(data, channel);
+                current = detail::PersistentText::from(initial && *initial ? std::string_view{**initial} : std::string_view{});
+            }
+            if (current.size() != static_cast<std::size_t>(baseContentBytes) ||
+                discardPrefixBytes > baseContentBytes) {
+                return false;
+            }
+            if (discardPrefixBytes < baseContentBytes) {
+                const auto boundary = current.byteAt(static_cast<std::size_t>(discardPrefixBytes));
+                if (!boundary || (*boundary & 0xc0U) == 0x80U) {
+                    return false;
+                }
+            }
+            const std::size_t retained = current.size() - static_cast<std::size_t>(discardPrefixBytes);
+            if (delta.size() > maximumRetainedBytes || retained > maximumRetainedBytes - delta.size()) {
+                return false;
+            }
+            auto appended = current.appended(static_cast<std::size_t>(discardPrefixBytes), delta);
+            if (!appended) {
+                return false;
+            }
+            next->contents[channelIndex] = std::move(*appended);
+            if (contentTruncatedKnown) {
+                next->contentTruncatedKnown = true;
+                next->contentTruncated = contentTruncated;
+            }
+            if (droppedContentBytesKnown) {
+                next->droppedContentBytesKnown = true;
+                next->droppedContentBytes = droppedContentBytes;
+            }
+            replacements[index] = std::move(next);
+            return true;
+        }
+
+        [[nodiscard]] std::vector<ThreadItem> releaseVector() && {
+            std::vector<ThreadItem>& values = mutableValues();
+            std::vector<ThreadItem> result = std::move(values);
+            root = std::make_shared<std::vector<ThreadItem>>();
+            return result;
+        }
+
+        [[nodiscard]] bool operator==(const PersistentThreadItems& other) const {
+            if (size() != other.size()) {
+                return false;
+            }
+            for (size_type index = 0; index < size(); ++index) {
+                if (at(index) != other.at(index)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+    private:
+        std::vector<ThreadItem>& mutableValues() {
+            if (!replacements.empty() || !root.unique()) {
+                auto materializedValues = std::make_shared<std::vector<ThreadItem>>(*root);
+                for (const auto& [index, replacement] : replacements) {
+                    if (index < materializedValues->size()) {
+                        (*materializedValues)[index] = materialized(*replacement);
+                    }
+                }
+                root = std::move(materializedValues);
+                replacements.clear();
+            }
+            lookupState = std::make_shared<LookupState>();
+            return *root;
+        }
+
+        struct ItemOverlay {
+            std::shared_ptr<const ThreadItem> base;
+            std::array<std::optional<detail::PersistentText>, 4> contents;
+            bool contentTruncatedKnown = false;
+            bool contentTruncated = false;
+            bool droppedContentBytesKnown = false;
+            std::optional<std::uint64_t> droppedContentBytes;
+            mutable std::mutex mutex;
+            mutable std::shared_ptr<const ThreadItem> cached;
+        };
+
+        [[nodiscard]] static const std::optional<std::string>* content(const ItemData& data, ContentChannel channel) noexcept {
+            switch (channel) {
+                case ContentChannel::AgentText:
+                    return &data.agentText;
+                case ContentChannel::ReasoningText:
+                    return &data.reasoningText;
+                case ContentChannel::ReasoningSummary:
+                    return &data.reasoningSummary;
+                case ContentChannel::CommandOutput:
+                    return &data.commandOutput;
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] static std::optional<std::string>* content(ItemData& data, ContentChannel channel) noexcept {
+            return const_cast<std::optional<std::string>*>(content(std::as_const(data), channel));
+        }
+
+        [[nodiscard]] static const ThreadItem& materialized(const ItemOverlay& overlay) {
+            std::lock_guard lock(overlay.mutex);
+            if (!overlay.cached) {
+                ThreadItem value = *overlay.base;
+                ItemData& data = std::visit([](auto& item) -> ItemData& { return item.value; }, value);
+                for (std::size_t index = 0; index < overlay.contents.size(); ++index) {
+                    if (overlay.contents[index]) {
+                        *content(data, static_cast<ContentChannel>(index)) = overlay.contents[index]->materialize();
+                    }
+                }
+                if (overlay.contentTruncatedKnown) {
+                    data.contentTruncated = overlay.contentTruncated;
+                }
+                if (overlay.droppedContentBytesKnown) {
+                    data.droppedContentBytes = overlay.droppedContentBytes;
+                }
+                overlay.cached = std::make_shared<const ThreadItem>(std::move(value));
+            }
+            return *overlay.cached;
+        }
+
+        std::shared_ptr<std::vector<ThreadItem>> root;
+        std::unordered_map<size_type, std::shared_ptr<ItemOverlay>> replacements;
+        std::shared_ptr<LookupState> lookupState;
+    };
+
     struct LegacyItemCompatibility {
         ItemData value;
         std::string discriminator;
@@ -794,7 +1226,7 @@ namespace ai::openai::codex::frontend::internal::model {
         bool threadsPresent = true;
         std::vector<TurnState> turns;
         bool turnsPresent = true;
-        std::vector<ThreadItem> items;
+        PersistentThreadItems items;
         bool itemsPresent = true;
         std::vector<LegacyItemCompatibility> legacyItems;
         std::vector<PendingRequest> pendingRequests;

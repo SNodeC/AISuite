@@ -8,6 +8,7 @@
 #include "ai/openai/codex/frontend/client/detail/OperationCodecs.h"
 #include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
+#include "ai/openai/codex/frontend/detail/PersistentText.h"
 #include "ai/openai/codex/detail/ConversationCodec.h"
 
 #include <algorithm>
@@ -16,6 +17,7 @@
 #include <cstdio>
 #include <initializer_list>
 #include <limits>
+#include <mutex>
 #include <set>
 #include <string_view>
 #include <tuple>
@@ -148,6 +150,35 @@ namespace ai::openai::codex::frontend::client {
         using ScopedItemLookupIndex = std::unordered_map<ScopedItemLookupView, std::size_t, ScopedItemLookupHash>;
     } // namespace detail
 
+    namespace detail {
+        struct StateItemOverlay {
+            std::shared_ptr<const ItemState> base;
+            std::array<std::optional<frontend::detail::PersistentText>, 4> contents;
+            bool contentTruncatedKnown = false;
+            bool contentTruncated = false;
+            bool droppedContentBytesKnown = false;
+            std::optional<std::uint64_t> droppedContentBytes;
+            std::size_t encodedBytes = 0;
+            mutable std::mutex mutex;
+            mutable std::shared_ptr<const ItemState> cached;
+        };
+
+        struct StateItemPayload {
+            bool itemProjectionPresent = false;
+            // A complete root plus shared immutable replacements form a
+            // persistent item section. Repeated appends copy only the small
+            // index-to-pointer map and the one changed ItemState.
+            std::vector<ItemState> items;
+            std::vector<std::size_t> encodedItemBytes;
+            StringLookupIndex firstItemById;
+            ScopedItemLookupIndex itemByScope;
+            std::shared_ptr<const StateItemPayload> root;
+            std::unordered_map<std::size_t, std::shared_ptr<StateItemOverlay>> replacements;
+            mutable std::mutex materializationMutex;
+            mutable std::shared_ptr<const std::vector<ItemState>> materialized;
+        };
+    } // namespace detail
+
     struct detail::StateStorage {
         std::uint64_t revision = 0;
         StateFreshness freshness = StateFreshness::Stale;
@@ -161,9 +192,14 @@ namespace ai::openai::codex::frontend::client {
         std::optional<frontend::SequenceNumber> retainedReplayThrough;
         std::optional<frontend::SequenceNumber> lastSynchronizationBatchSequence;
         std::optional<SessionInfo> session;
+        std::optional<ProjectionFingerprintMetadata> projectionFingerprint;
+        // Incremental publications retain one complete immutable root for all
+        // unchanged sections instead of copying them into every revision.
+        std::shared_ptr<const StateStorage> sharedBase;
+        std::shared_ptr<StateItemPayload> itemPayload;
+
         BackendCursorState backendCursor;
         ProjectionMetadataState projectionMetadata;
-        std::optional<ProjectionFingerprintMetadata> projectionFingerprint;
         Projected<ProviderState> provider;
         Projected<ControllerState> controller;
         Projected<std::vector<SessionState>> sessions;
@@ -172,18 +208,11 @@ namespace ai::openai::codex::frontend::client {
         std::vector<ThreadState> threads;
         bool turnProjectionPresent = false;
         std::vector<TurnState> turns;
-        bool itemProjectionPresent = false;
-        std::vector<ItemState> items;
         bool pendingRequestProjectionPresent = false;
         std::vector<PendingRequestState> pendingRequests;
-        // Built only after the vectors above reach their immutable published
-        // form; the non-owning keys therefore remain valid for this storage's
-        // complete lifetime without duplicating every retained identity.
         StringLookupIndex threadById;
         StringLookupIndex uniqueTurnById;
         ScopedTurnLookupIndex turnByScope;
-        StringLookupIndex firstItemById;
-        ScopedItemLookupIndex itemByScope;
         StringLookupIndex pendingRequestById;
         Projected<AccountState> accounts;
         Projected<ModelsState> models;
@@ -208,7 +237,81 @@ namespace ai::openai::codex::frontend::client {
         Projected<TruncationMetadata> truncation;
         Projected<DiagnosticCollectionState> diagnostics;
         frontend::Json compatibilityExtensions = frontend::Json::object();
+
         mutable StateSizeLedger sizeLedger;
+
+        StateStorage()
+            : itemPayload(std::make_shared<StateItemPayload>()) {
+        }
+
+        [[nodiscard]] const StateStorage& common() const noexcept {
+            return sharedBase ? *sharedBase : *this;
+        }
+
+        [[nodiscard]] const StateItemPayload& itemRoot() const noexcept {
+            return itemPayload->root ? *itemPayload->root : *itemPayload;
+        }
+
+        [[nodiscard]] bool itemProjectionIsPresent() const noexcept {
+            return itemRoot().itemProjectionPresent;
+        }
+
+        [[nodiscard]] const ItemState& itemAt(std::size_t index) const {
+            if (const auto found = itemPayload->replacements.find(index); found != itemPayload->replacements.end()) {
+                const StateItemOverlay& overlay = *found->second;
+                std::lock_guard lock(overlay.mutex);
+                if (!overlay.cached) {
+                    ItemState value = *overlay.base;
+                    std::array<std::optional<std::string>*, 4> fields{
+                        &value.agentText, &value.reasoningText, &value.reasoningSummary, &value.commandOutput};
+                    for (std::size_t channel = 0; channel < overlay.contents.size(); ++channel) {
+                        if (overlay.contents[channel]) {
+                            *fields[channel] = overlay.contents[channel]->materialize();
+                        }
+                    }
+                    if (overlay.contentTruncatedKnown) {
+                        value.contentTruncated = overlay.contentTruncated;
+                    }
+                    if (overlay.droppedContentBytesKnown) {
+                        value.droppedContentBytes = overlay.droppedContentBytes;
+                    }
+                    overlay.cached = std::make_shared<const ItemState>(std::move(value));
+                }
+                return *overlay.cached;
+            }
+            return itemRoot().items[index];
+        }
+
+        [[nodiscard]] const std::vector<ItemState>& allItems() const {
+            const StateItemPayload& root = itemRoot();
+            if (itemPayload->replacements.empty()) {
+                return root.items;
+            }
+            std::lock_guard lock(itemPayload->materializationMutex);
+            if (!itemPayload->materialized) {
+                auto values = std::make_shared<std::vector<ItemState>>(root.items);
+                for (const auto& [index, replacement] : itemPayload->replacements) {
+                    (void) replacement;
+                    if (index < values->size()) {
+                        (*values)[index] = itemAt(index);
+                    }
+                }
+                itemPayload->materialized = std::move(values);
+            }
+            return *itemPayload->materialized;
+        }
+
+        [[nodiscard]] std::vector<ItemState>& mutableRootItems() noexcept {
+            return itemPayload->items;
+        }
+
+        [[nodiscard]] StringLookupIndex& mutableRootFirstItemById() noexcept {
+            return itemPayload->firstItemById;
+        }
+
+        [[nodiscard]] ScopedItemLookupIndex& mutableRootItemByScope() noexcept {
+            return itemPayload->itemByScope;
+        }
     };
 
     namespace {
@@ -237,20 +340,27 @@ namespace ai::openai::codex::frontend::client {
                 }
             }
 
-            state.firstItemById.reserve(state.items.size());
-            state.itemByScope.reserve(state.items.size());
-            for (std::size_t index = 0; index < state.items.size(); ++index) {
-                const ItemState& item = state.items[index];
-                state.firstItemById.try_emplace(item.id.value, index);
-                if (item.threadId && item.turnId) {
-                    state.itemByScope.emplace(
-                        detail::ScopedItemLookupView{item.threadId->value, item.turnId->value, item.id.value}, index);
-                }
-            }
-
             state.pendingRequestById.reserve(state.pendingRequests.size());
             for (std::size_t index = 0; index < state.pendingRequests.size(); ++index) {
                 state.pendingRequestById.emplace(state.pendingRequests[index].id.value, index);
+            }
+        }
+
+        void buildItemLookupIndexes(detail::StateStorage& state) {
+            auto& firstItemById = state.mutableRootFirstItemById();
+            auto& itemByScope = state.mutableRootItemByScope();
+            const auto& items = state.mutableRootItems();
+            firstItemById.clear();
+            itemByScope.clear();
+            firstItemById.reserve(items.size());
+            itemByScope.reserve(items.size());
+            for (std::size_t index = 0; index < items.size(); ++index) {
+                const ItemState& item = items[index];
+                firstItemById.try_emplace(item.id.value, index);
+                if (item.threadId && item.turnId) {
+                    itemByScope.emplace(
+                        detail::ScopedItemLookupView{item.threadId->value, item.turnId->value, item.id.value}, index);
+                }
             }
         }
 
@@ -2121,7 +2231,6 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
-#ifndef NDEBUG
         frontend::Json encodeProcessCollectionState(const ProcessCollectionState& value) {
             frontend::Json result = value.extensions;
             if (!result.is_object())
@@ -2176,7 +2285,6 @@ namespace ai::openai::codex::frontend::client {
             result["truncation"] = encodeTruncation(value.truncation);
             return result;
         }
-#endif
 
         frontend::Json encodeCapacityState(const CapacityState& value) {
             frontend::Json result = value.extensions;
@@ -2207,7 +2315,6 @@ namespace ai::openai::codex::frontend::client {
             return result;
         }
 
-#ifndef NDEBUG
         frontend::Json encodeDiagnosticCollectionState(const DiagnosticCollectionState& value) {
             frontend::Json result = frontend::Json::object();
             addOptional(result, "received", value.received);
@@ -2216,16 +2323,15 @@ namespace ai::openai::codex::frontend::client {
                 result["entries"].push_back(encodeDiagnosticState(entry));
             return result;
         }
-#endif
 
         // IMPORTANT: encodeState() defines the canonical logical decoded-State
         // byte metric. Incremental accounting must remain byte-identical to
         // this compact JSON serialization plus the two explicitly documented
         // internal-only sequence contributions. Changes to one require
         // corresponding changes to the other.
-#ifndef NDEBUG
         frontend::Json encodeState(const detail::StateStorage& state) {
             frontend::Json result = frontend::Json::object();
+            const detail::StateStorage& common = state.common();
             result["revision"] = state.revision;
             result["freshness"] = static_cast<unsigned>(state.freshness);
             result["representationMode"] = static_cast<unsigned>(state.representationMode);
@@ -2236,72 +2342,71 @@ namespace ai::openai::codex::frontend::client {
             if (state.session)
                 result["session"] = encodeSessionInfo(*state.session);
 
-            frontend::Json backendCursor = encodeBackendCursor(state.backendCursor);
+            frontend::Json backendCursor = encodeBackendCursor(common.backendCursor);
             if (!backendCursor.empty())
                 result["backendCursor"] = std::move(backendCursor);
 
             if (state.projectionFingerprint)
                 result["projectionFingerprint"] = state.projectionFingerprint->canonical;
 
-            if (!state.projectionMetadata.omittedFields.empty() || !state.projectionMetadata.redactedFields.empty())
-                result["projectionMetadata"] = encodeProjectionMetadata(state.projectionMetadata);
+            if (!common.projectionMetadata.omittedFields.empty() || !common.projectionMetadata.redactedFields.empty())
+                result["projectionMetadata"] = encodeProjectionMetadata(common.projectionMetadata);
 
-            result["provider"] = encodeProjected(state.provider, encodeProvider);
-            result["controller"] = encodeProjected(state.controller, encodeControllerState);
-            result["sessions"] = encodeProjected(state.sessions, [](const std::vector<SessionState>& values) {
+            result["provider"] = encodeProjected(common.provider, encodeProvider);
+            result["controller"] = encodeProjected(common.controller, encodeControllerState);
+            result["sessions"] = encodeProjected(common.sessions, [](const std::vector<SessionState>& values) {
                 frontend::Json encoded = frontend::Json::array();
                 for (const SessionState& value : values)
                     encoded.push_back(encodeSessionState(value));
                 return encoded;
             });
-            result["threadList"] = encodeProjected(state.threadList, encodeThreadListState);
+            result["threadList"] = encodeProjected(common.threadList, encodeThreadListState);
             result["threads"] = frontend::Json::array();
-            result["threadProjectionPresent"] = state.threadProjectionPresent;
-            for (const ThreadState& value : state.threads)
+            result["threadProjectionPresent"] = common.threadProjectionPresent;
+            for (const ThreadState& value : common.threads)
                 result["threads"].push_back(encodeThreadState(value));
             result["turns"] = frontend::Json::array();
-            result["turnProjectionPresent"] = state.turnProjectionPresent;
-            for (const TurnState& value : state.turns)
+            result["turnProjectionPresent"] = common.turnProjectionPresent;
+            for (const TurnState& value : common.turns)
                 result["turns"].push_back(encodeTurnState(value));
             result["items"] = frontend::Json::array();
-            result["itemProjectionPresent"] = state.itemProjectionPresent;
-            for (const ItemState& value : state.items)
+            result["itemProjectionPresent"] = state.itemProjectionIsPresent();
+            for (const ItemState& value : state.allItems())
                 result["items"].push_back(encodeItemState(value));
             result["pendingRequests"] = frontend::Json::array();
-            result["pendingRequestProjectionPresent"] = state.pendingRequestProjectionPresent;
-            for (const PendingRequestState& value : state.pendingRequests)
+            result["pendingRequestProjectionPresent"] = common.pendingRequestProjectionPresent;
+            for (const PendingRequestState& value : common.pendingRequests)
                 result["pendingRequests"].push_back(encodePendingRequestState(value));
 
             const auto domainProjection = [](const auto& value) {
                 return encodeTypedDomain(value);
             };
-            result["accounts"] = encodeProjected(state.accounts, domainProjection);
-            result["models"] = encodeProjected(state.models, domainProjection);
-            result["configuration"] = encodeProjected(state.configuration, domainProjection);
-            result["permissionProfiles"] = encodeProjected(state.permissionProfiles, domainProjection);
-            result["reviews"] = encodeProjected(state.reviews, domainProjection);
-            result["apps"] = encodeProjected(state.apps, domainProjection);
-            result["externalAgents"] = encodeProjected(state.externalAgents, domainProjection);
-            result["hooks"] = encodeProjected(state.hooks, domainProjection);
-            result["marketplace"] = encodeProjected(state.marketplace, domainProjection);
-            result["plugins"] = encodeProjected(state.plugins, domainProjection);
-            result["skills"] = encodeProjected(state.skills, domainProjection);
-            result["mcp"] = encodeProjected(state.mcp, domainProjection);
-            result["windowsSandbox"] = encodeProjected(state.windowsSandbox, domainProjection);
-            result["platform"] = encodeProjected(state.platform, domainProjection);
+            result["accounts"] = encodeProjected(common.accounts, domainProjection);
+            result["models"] = encodeProjected(common.models, domainProjection);
+            result["configuration"] = encodeProjected(common.configuration, domainProjection);
+            result["permissionProfiles"] = encodeProjected(common.permissionProfiles, domainProjection);
+            result["reviews"] = encodeProjected(common.reviews, domainProjection);
+            result["apps"] = encodeProjected(common.apps, domainProjection);
+            result["externalAgents"] = encodeProjected(common.externalAgents, domainProjection);
+            result["hooks"] = encodeProjected(common.hooks, domainProjection);
+            result["marketplace"] = encodeProjected(common.marketplace, domainProjection);
+            result["plugins"] = encodeProjected(common.plugins, domainProjection);
+            result["skills"] = encodeProjected(common.skills, domainProjection);
+            result["mcp"] = encodeProjected(common.mcp, domainProjection);
+            result["windowsSandbox"] = encodeProjected(common.windowsSandbox, domainProjection);
+            result["platform"] = encodeProjected(common.platform, domainProjection);
 
-            result["processes"] = encodeProjected(state.processes, encodeProcessCollectionState);
-            result["filesystemWatches"] = encodeProjected(state.filesystemWatches, encodeFilesystemWatchCollectionState);
-            result["fuzzySearches"] = encodeProjected(state.fuzzySearches, encodeFuzzySearchCollectionState);
-            result["notices"] = encodeProjected(state.notices, encodeNoticeCollectionState);
-            result["activities"] = encodeProjected(state.activities, encodeActivityCollectionState);
-            result["capacity"] = encodeProjected(state.capacity, encodeCapacityState);
-            result["truncation"] = encodeProjected(state.truncation, encodeTruncation);
-            result["diagnostics"] = encodeProjected(state.diagnostics, encodeDiagnosticCollectionState);
-            result["compatibilityExtensions"] = state.compatibilityExtensions;
+            result["processes"] = encodeProjected(common.processes, encodeProcessCollectionState);
+            result["filesystemWatches"] = encodeProjected(common.filesystemWatches, encodeFilesystemWatchCollectionState);
+            result["fuzzySearches"] = encodeProjected(common.fuzzySearches, encodeFuzzySearchCollectionState);
+            result["notices"] = encodeProjected(common.notices, encodeNoticeCollectionState);
+            result["activities"] = encodeProjected(common.activities, encodeActivityCollectionState);
+            result["capacity"] = encodeProjected(common.capacity, encodeCapacityState);
+            result["truncation"] = encodeProjected(common.truncation, encodeTruncation);
+            result["diagnostics"] = encodeProjected(common.diagnostics, encodeDiagnosticCollectionState);
+            result["compatibilityExtensions"] = common.compatibilityExtensions;
             return result;
         }
-#endif
 
         constexpr std::array StateSizeSectionNames{
             std::string_view{"revision"},
@@ -2439,6 +2544,152 @@ namespace ai::openai::codex::frontend::client {
             return value.dump().size();
         }
 
+        const std::optional<std::string>& itemContent(const ItemState& item, ItemContentChannel channel) noexcept {
+            switch (channel) {
+                case ItemContentChannel::AgentText:
+                    return item.agentText;
+                case ItemContentChannel::ReasoningText:
+                    return item.reasoningText;
+                case ItemContentChannel::ReasoningSummary:
+                    return item.reasoningSummary;
+                case ItemContentChannel::CommandOutput:
+                    return item.commandOutput;
+            }
+            return item.agentText;
+        }
+
+        std::optional<ItemContentChannel> itemContentChannel(const std::optional<std::string>& channel) noexcept {
+            if (channel == std::optional<std::string>{"agentText"})
+                return ItemContentChannel::AgentText;
+            if (channel == std::optional<std::string>{"reasoningText"})
+                return ItemContentChannel::ReasoningText;
+            if (channel == std::optional<std::string>{"reasoningSummary"})
+                return ItemContentChannel::ReasoningSummary;
+            if (channel == std::optional<std::string>{"commandOutput"})
+                return ItemContentChannel::CommandOutput;
+            return std::nullopt;
+        }
+
+        std::optional<std::size_t> optionalStringMemberBytes(std::string_view key,
+                                                             bool present,
+                                                             std::size_t encodedStringBytes) noexcept {
+            if (!present) {
+                return std::size_t{0};
+            }
+            std::size_t result = key.size() + 4; // quoted key, colon, and the added object comma
+            return checkedAdd(result, encodedStringBytes, result) ? std::optional<std::size_t>{result} : std::nullopt;
+        }
+
+        std::optional<std::size_t> optionalUnsignedMemberBytes(std::string_view key,
+                                                               const std::optional<std::uint64_t>& value) noexcept {
+            if (!value) {
+                return std::size_t{0};
+            }
+            try {
+                std::size_t result = key.size() + 4;
+                return checkedAdd(result, frontend::Json(*value).dump().size(), result)
+                           ? std::optional<std::size_t>{result}
+                           : std::nullopt;
+            } catch (...) {
+                return std::nullopt;
+            }
+        }
+
+        bool adjustEncodedBytes(std::size_t& encodedBytes, std::size_t oldContribution, std::size_t newContribution) noexcept {
+            return checkedSubtract(encodedBytes, oldContribution, encodedBytes) &&
+                   checkedAdd(encodedBytes, newContribution, encodedBytes);
+        }
+
+        std::shared_ptr<detail::StateItemOverlay>
+        appendedItemOverlay(const detail::StateItemPayload& payload,
+                            std::size_t index,
+                            ItemContentChannel channel,
+                            const frontend::internal::model::ItemContentUpdatedOccurrence& update) {
+            if (!update.appendHint || index >= payload.root->items.size()) {
+                return {};
+            }
+            const frontend::internal::model::ItemContentAppendHint& hint = *update.appendHint;
+            if (hint.baseContentBytes > std::numeric_limits<std::size_t>::max() ||
+                hint.discardPrefixBytes > std::numeric_limits<std::size_t>::max()) {
+                return {};
+            }
+            const std::size_t channelIndex = static_cast<std::size_t>(channel);
+            const auto prior = payload.replacements.find(index);
+            auto next = std::make_shared<detail::StateItemOverlay>();
+            if (prior == payload.replacements.end()) {
+                next->base = std::shared_ptr<const ItemState>(payload.root, &payload.root->items[index]);
+                if (index >= payload.root->encodedItemBytes.size()) {
+                    return {};
+                }
+                next->encodedBytes = payload.root->encodedItemBytes[index];
+            } else {
+                next->base = prior->second->base;
+                next->contents = prior->second->contents;
+                next->contentTruncatedKnown = prior->second->contentTruncatedKnown;
+                next->contentTruncated = prior->second->contentTruncated;
+                next->droppedContentBytesKnown = prior->second->droppedContentBytesKnown;
+                next->droppedContentBytes = prior->second->droppedContentBytes;
+                next->encodedBytes = prior->second->encodedBytes;
+            }
+
+            const std::string_view memberName = toString(channel);
+            if (next->base->extensions.contains(memberName) || next->base->extensions.contains("contentTruncated") ||
+                next->base->extensions.contains("droppedContentBytes")) {
+                return {};
+            }
+
+            const std::optional<std::string>& initial = itemContent(*next->base, channel);
+            const bool oldContentPresent = next->contents[channelIndex].has_value() || initial.has_value();
+            frontend::detail::PersistentText current = next->contents[channelIndex]
+                                                           ? *next->contents[channelIndex]
+                                                           : frontend::detail::PersistentText::from(
+                                                                 initial ? std::string_view{*initial} : std::string_view{});
+            if (current.size() != static_cast<std::size_t>(hint.baseContentBytes)) {
+                return {};
+            }
+            auto appended = current.appended(static_cast<std::size_t>(hint.discardPrefixBytes), hint.delta);
+            if (!appended) {
+                return {};
+            }
+
+            const std::size_t oldStringBytes = current.jsonStringBytes();
+            const std::size_t newStringBytes = appended->jsonStringBytes();
+            const auto oldContentBytes = optionalStringMemberBytes(memberName, oldContentPresent, oldStringBytes);
+            const auto newContentBytes = optionalStringMemberBytes(memberName, true, newStringBytes);
+            if (!oldContentBytes || !newContentBytes ||
+                !adjustEncodedBytes(next->encodedBytes, *oldContentBytes, *newContentBytes)) {
+                return {};
+            }
+            next->contents[channelIndex] = std::move(*appended);
+
+            const bool oldTruncated = next->contentTruncatedKnown ? next->contentTruncated : next->base->contentTruncated;
+            if (update.contentTruncatedKnown) {
+                const bool newTruncated = update.truncation.truncated;
+                if (!adjustEncodedBytes(next->encodedBytes,
+                                        oldTruncated ? std::size_t{4} : std::size_t{5},
+                                        newTruncated ? std::size_t{4} : std::size_t{5})) {
+                    return {};
+                }
+                next->contentTruncatedKnown = true;
+                next->contentTruncated = newTruncated;
+            }
+
+            const std::optional<std::uint64_t> oldDropped =
+                next->droppedContentBytesKnown ? next->droppedContentBytes : next->base->droppedContentBytes;
+            if (update.droppedContentBytesKnown) {
+                const std::optional<std::uint64_t> newDropped = update.truncation.droppedBytes;
+                const auto oldDroppedBytes = optionalUnsignedMemberBytes("droppedContentBytes", oldDropped);
+                const auto newDroppedBytes = optionalUnsignedMemberBytes("droppedContentBytes", newDropped);
+                if (!oldDroppedBytes || !newDroppedBytes ||
+                    !adjustEncodedBytes(next->encodedBytes, *oldDroppedBytes, *newDroppedBytes)) {
+                    return {};
+                }
+                next->droppedContentBytesKnown = true;
+                next->droppedContentBytes = newDropped;
+            }
+            return next;
+        }
+
         bool adjustArrayContribution(detail::StateArrayContribution& contribution,
                                      std::optional<std::size_t> oldBytes,
                                      std::optional<std::size_t> newBytes) noexcept {
@@ -2485,6 +2736,30 @@ namespace ai::openai::codex::frontend::client {
             }
             contribution = next;
             return refreshDirectArraySection(state, section, contribution);
+        }
+
+        bool rebuildItemsSection(detail::StateStorage& state) noexcept {
+            detail::StateArrayContribution next;
+            try {
+                auto& encodedItemBytes = state.itemPayload->encodedItemBytes;
+                encodedItemBytes.clear();
+                encodedItemBytes.reserve(state.itemPayload->items.size());
+                for (const ItemState& value : state.itemPayload->items) {
+                    const std::size_t bytes = encodedEntityBytes(encodeItemState(value));
+                    if (next.count == std::numeric_limits<std::size_t>::max() ||
+                        !checkedAdd(next.elementBytes, bytes, next.elementBytes)) {
+                        state.sizeLedger.failed = true;
+                        return false;
+                    }
+                    ++next.count;
+                    encodedItemBytes.push_back(bytes);
+                }
+            } catch (...) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+            state.sizeLedger.items = next;
+            return refreshDirectArraySection(state, detail::StateSizeSection::Items, next);
         }
 
         template <typename Collection>
@@ -2596,14 +2871,7 @@ namespace ai::openai::codex::frontend::client {
             }
         }
 
-#ifndef NDEBUG
-        thread_local std::size_t DebugAccountingRebuildCount = 0;
-#endif
-
         bool rebuildStateSizeLedger(detail::StateStorage& state) noexcept {
-#ifndef NDEBUG
-            ++DebugAccountingRebuildCount;
-#endif
             state.sizeLedger = {};
             try {
                 const auto optionalSection = [&state](detail::StateSizeSection section, std::optional<frontend::Json> value) {
@@ -2666,11 +2934,10 @@ namespace ai::openai::codex::frontend::client {
                     !setSectionJson(state,
                                     detail::StateSizeSection::TurnProjectionPresent,
                                     frontend::Json(state.turnProjectionPresent)) ||
-                    !rebuildDirectArraySection(
-                        state, detail::StateSizeSection::Items, state.sizeLedger.items, state.items, encodeItemState) ||
+                    !rebuildItemsSection(state) ||
                     !setSectionJson(state,
                                     detail::StateSizeSection::ItemProjectionPresent,
-                                    frontend::Json(state.itemProjectionPresent)) ||
+                                    frontend::Json(state.itemProjectionIsPresent())) ||
                     !rebuildDirectArraySection(state,
                                                detail::StateSizeSection::PendingRequests,
                                                state.sizeLedger.pendingRequests,
@@ -2781,7 +3048,6 @@ namespace ai::openai::codex::frontend::client {
             return found == values.end() ? std::nullopt : std::optional<std::size_t>{encodedEntityBytes(encoder(*found))};
         }
 
-#ifndef NDEBUG
         std::optional<std::size_t> referenceStateBytes(const detail::StateStorage& state) noexcept {
             try {
                 std::size_t bytes = encodeState(state).dump().size();
@@ -2796,7 +3062,6 @@ namespace ai::openai::codex::frontend::client {
                 return std::nullopt;
             }
         }
-#endif
 
         std::optional<std::size_t> accountedStateBytes(const detail::StateStorage& state) noexcept {
             if (!state.sizeLedger.initialized || state.sizeLedger.failed)
@@ -2807,31 +3072,71 @@ namespace ai::openai::codex::frontend::client {
             return total;
         }
 
-#ifndef NDEBUG
-        thread_local std::size_t DebugAccountingVerificationCount = 0;
-#endif
-
         bool stateFits(const detail::StateStorage& state, std::size_t maximumBytes, std::string& error) {
             const std::optional<std::size_t> encodedBytes = accountedStateBytes(state);
             if (!encodedBytes) {
                 error = "decoded frontend state size accounting failed";
                 return false;
             }
-#ifndef NDEBUG
-            const std::optional<std::size_t> referenceBytes = referenceStateBytes(state);
-            if (!referenceBytes || *referenceBytes != *encodedBytes)
-                std::fprintf(stderr,
-                             "frontend State accounting invariant failed: revision=%llu accounted=%zu reference=%zu\n",
-                             static_cast<unsigned long long>(state.revision),
-                             *encodedBytes,
-                             referenceBytes.value_or(0));
-            assert(referenceBytes && *referenceBytes == *encodedBytes);
-            ++DebugAccountingVerificationCount;
-#endif
             if (*encodedBytes <= maximumBytes)
                 return true;
             error = "decoded frontend state exceeds maximumDecodedStateBytes";
             return false;
+        }
+
+        bool refreshPublicationMetadataAccounting(detail::StateStorage& state) noexcept {
+            try {
+                const auto optionalSection = [&state](detail::StateSizeSection section, std::optional<frontend::Json> value) {
+                    return setSectionJson(state, section, value);
+                };
+                return setSectionJson(state, detail::StateSizeSection::Revision, frontend::Json(state.revision)) &&
+                       setSectionJson(
+                           state, detail::StateSizeSection::Freshness, frontend::Json(static_cast<unsigned>(state.freshness))) &&
+                       setSectionJson(state,
+                                      detail::StateSizeSection::RepresentationMode,
+                                      frontend::Json(static_cast<unsigned>(state.representationMode))) &&
+                       optionalSection(detail::StateSizeSection::VisibleSequence,
+                                       state.visibleSequence
+                                           ? std::optional<frontend::Json>{frontend::Json(state.visibleSequence->value())}
+                                           : std::nullopt) &&
+                       optionalSection(detail::StateSizeSection::SynchronizedThrough,
+                                       state.synchronizedThrough
+                                           ? std::optional<frontend::Json>{frontend::Json(state.synchronizedThrough->value())}
+                                           : std::nullopt) &&
+                       optionalSection(detail::StateSizeSection::Session,
+                                       state.session ? std::optional<frontend::Json>{encodeSessionInfo(*state.session)} : std::nullopt) &&
+                       optionalSection(detail::StateSizeSection::ProjectionFingerprint,
+                                       state.projectionFingerprint
+                                           ? std::optional<frontend::Json>{frontend::Json(state.projectionFingerprint->canonical)}
+                                           : std::nullopt);
+            } catch (...) {
+                state.sizeLedger.failed = true;
+                return false;
+            }
+        }
+
+        StateFreshness publicFreshness(frontend::internal::client::PublishedFreshness value) noexcept;
+        RepresentationMode publicRepresentation(frontend::internal::client::RepresentationMode value) noexcept;
+        SessionInfo publicSession(const frontend::internal::client::SessionInfo& value);
+
+        void assignPublicationMetadata(
+            detail::StateStorage& result,
+            const frontend::internal::client::PublishedState& publication) {
+            result.revision = publication.revision;
+            result.freshness = publicFreshness(publication.freshness);
+            result.representationMode = publicRepresentation(publication.representation);
+            result.visibleSequence = publication.visibleSequence
+                                         ? std::optional<frontend::SequenceNumber>{publication.visibleSequence->protocolValue()}
+                                         : std::nullopt;
+            result.synchronizedThrough = publication.synchronizedThrough
+                                             ? std::optional<frontend::SequenceNumber>{
+                                                   publication.synchronizedThrough->protocolValue()}
+                                             : std::nullopt;
+            result.session = publication.session ? std::optional<SessionInfo>{publicSession(*publication.session)} : std::nullopt;
+            result.projectionFingerprint = publication.projectionFingerprint
+                                               ? std::optional<ProjectionFingerprintMetadata>{
+                                                     ProjectionFingerprintMetadata{*publication.projectionFingerprint}}
+                                               : std::nullopt;
         }
 
     } // namespace
@@ -2869,100 +3174,107 @@ namespace ai::openai::codex::frontend::client {
         return impl->session;
     }
     const BackendCursorState& State::backendCursor() const noexcept {
-        return impl->backendCursor;
+        return impl->common().backendCursor;
     }
     const ProjectionMetadataState& State::projectionMetadata() const noexcept {
-        return impl->projectionMetadata;
+        return impl->common().projectionMetadata;
     }
     const std::optional<ProjectionFingerprintMetadata>& State::projectionFingerprintMetadata() const noexcept {
         return impl->projectionFingerprint;
     }
     const Projected<ProviderState>& State::provider() const noexcept {
-        return impl->provider;
+        return impl->common().provider;
     }
     const Projected<ControllerState>& State::controller() const noexcept {
-        return impl->controller;
+        return impl->common().controller;
     }
     const Projected<std::vector<SessionState>>& State::sessions() const noexcept {
-        return impl->sessions;
+        return impl->common().sessions;
     }
     const SessionState* State::session(const FrontendSessionId& id) const noexcept {
         return session(id.value);
     }
     const SessionState* State::session(std::string_view id) const noexcept {
-        if (!impl->sessions.value)
+        const auto& sessions = impl->common().sessions;
+        if (!sessions.value)
             return nullptr;
-        const auto found = std::find_if(impl->sessions.value->begin(), impl->sessions.value->end(), [id](const SessionState& value) {
+        const auto found = std::find_if(sessions.value->begin(), sessions.value->end(), [id](const SessionState& value) {
             return value.sessionId.value == id;
         });
-        return found == impl->sessions.value->end() ? nullptr : &*found;
+        return found == sessions.value->end() ? nullptr : &*found;
     }
     const Projected<ThreadListState>& State::threadList() const noexcept {
-        return impl->threadList;
+        return impl->common().threadList;
     }
     bool State::hasThreadProjection() const noexcept {
-        return impl->threadProjectionPresent;
+        return impl->common().threadProjectionPresent;
     }
     std::span<const ThreadState> State::threads() const noexcept {
-        return impl->threads;
+        return impl->common().threads;
     }
     bool State::hasTurnProjection() const noexcept {
-        return impl->turnProjectionPresent;
+        return impl->common().turnProjectionPresent;
     }
     std::span<const TurnState> State::turns() const noexcept {
-        return impl->turns;
+        return impl->common().turns;
     }
     bool State::hasItemProjection() const noexcept {
-        return impl->itemProjectionPresent;
+        return impl->itemProjectionIsPresent();
     }
-    std::span<const ItemState> State::items() const noexcept {
-        return impl->items;
+    std::span<const ItemState> State::items() const {
+        return impl->allItems();
     }
     bool State::hasPendingRequestProjection() const noexcept {
-        return impl->pendingRequestProjectionPresent;
+        return impl->common().pendingRequestProjectionPresent;
     }
     std::span<const PendingRequestState> State::pendingRequests() const noexcept {
-        return impl->pendingRequests;
+        return impl->common().pendingRequests;
     }
     const ThreadState* State::thread(const typed::ThreadId& id) const noexcept {
         return thread(id.value);
     }
     const ThreadState* State::thread(std::string_view id) const noexcept {
-        const auto found = impl->threadById.find(id);
-        return found == impl->threadById.end() ? nullptr : &impl->threads[found->second];
+        const auto& common = impl->common();
+        const auto found = common.threadById.find(id);
+        return found == common.threadById.end() ? nullptr : &common.threads[found->second];
     }
     const TurnState* State::turn(const typed::TurnId& id) const noexcept {
         return turn(id.value);
     }
     const TurnState* State::turn(std::string_view id) const noexcept {
-        const auto found = impl->uniqueTurnById.find(id);
-        return found == impl->uniqueTurnById.end() ? nullptr : &impl->turns[found->second];
+        const auto& common = impl->common();
+        const auto found = common.uniqueTurnById.find(id);
+        return found == common.uniqueTurnById.end() ? nullptr : &common.turns[found->second];
     }
     const TurnState* State::turn(const typed::ThreadId& threadId, const typed::TurnId& turnId) const noexcept {
-        const auto found = impl->turnByScope.find(detail::ScopedTurnLookupView{threadId.value, turnId.value});
-        return found == impl->turnByScope.end() ? nullptr : &impl->turns[found->second];
+        const auto& common = impl->common();
+        const auto found = common.turnByScope.find(detail::ScopedTurnLookupView{threadId.value, turnId.value});
+        return found == common.turnByScope.end() ? nullptr : &common.turns[found->second];
     }
-    const ItemState* State::item(const typed::ItemId& id) const noexcept {
+    const ItemState* State::item(const typed::ItemId& id) const {
         return item(id.value);
     }
-    const ItemState* State::item(std::string_view id) const noexcept {
-        const auto found = impl->firstItemById.find(id);
-        return found == impl->firstItemById.end() ? nullptr : &impl->items[found->second];
+    const ItemState* State::item(std::string_view id) const {
+        const auto& index = impl->itemRoot().firstItemById;
+        const auto found = index.find(id);
+        return found == index.end() ? nullptr : &impl->itemAt(found->second);
     }
     const ItemState* State::item(const typed::ThreadId& threadId,
                                  const typed::TurnId& turnId,
-                                 const typed::ItemId& id) const noexcept {
-        const auto found = impl->itemByScope.find(detail::ScopedItemLookupView{threadId.value, turnId.value, id.value});
-        return found == impl->itemByScope.end() ? nullptr : &impl->items[found->second];
+                                 const typed::ItemId& id) const {
+        const auto& index = impl->itemRoot().itemByScope;
+        const auto found = index.find(detail::ScopedItemLookupView{threadId.value, turnId.value, id.value});
+        return found == index.end() ? nullptr : &impl->itemAt(found->second);
     }
     const PendingRequestState* State::pendingRequest(const PendingRequestId& id) const noexcept {
-        const auto found = impl->pendingRequestById.find(id.value);
-        return found == impl->pendingRequestById.end() ? nullptr : &impl->pendingRequests[found->second];
+        const auto& common = impl->common();
+        const auto found = common.pendingRequestById.find(id.value);
+        return found == common.pendingRequestById.end() ? nullptr : &common.pendingRequests[found->second];
     }
 
 #define AISUITE_STATE_GETTER(type, name)                                                                                                   \
     const Projected<type>& State::name() const noexcept {                                                                                  \
-        return impl->name;                                                                                                                 \
+        return impl->common().name;                                                                                                        \
     }
     AISUITE_STATE_GETTER(AccountState, accounts)
     AISUITE_STATE_GETTER(ModelsState, models)
@@ -2988,49 +3300,53 @@ namespace ai::openai::codex::frontend::client {
 #undef AISUITE_STATE_GETTER
 
     const Projected<DiagnosticCollectionState>& State::diagnostics() const noexcept {
-        return impl->diagnostics;
+        return impl->common().diagnostics;
     }
     const ProcessState* State::process(const ProcessHandle& handle) const noexcept {
         return process(handle.value);
     }
     const ProcessState* State::process(std::string_view handle) const noexcept {
-        if (!impl->processes.value)
+        const auto& processes = impl->common().processes;
+        if (!processes.value)
             return nullptr;
         const auto found =
-            std::find_if(impl->processes.value->entries.begin(), impl->processes.value->entries.end(), [handle](const auto& value) {
+            std::find_if(processes.value->entries.begin(), processes.value->entries.end(), [handle](const auto& value) {
                 return value.processHandle.value == handle;
             });
-        return found == impl->processes.value->entries.end() ? nullptr : &*found;
+        return found == processes.value->entries.end() ? nullptr : &*found;
     }
     const FilesystemWatchState* State::filesystemWatch(const typed::FsWatchId& id) const noexcept {
-        if (!impl->filesystemWatches.value)
+        const auto& watches = impl->common().filesystemWatches;
+        if (!watches.value)
             return nullptr;
         const auto found = std::find_if(
-            impl->filesystemWatches.value->entries.begin(), impl->filesystemWatches.value->entries.end(), [&](const auto& value) {
+            watches.value->entries.begin(), watches.value->entries.end(), [&](const auto& value) {
                 return value.watchId == id;
             });
-        return found == impl->filesystemWatches.value->entries.end() ? nullptr : &*found;
+        return found == watches.value->entries.end() ? nullptr : &*found;
     }
     const FuzzySearchState* State::fuzzySearch(const FuzzySearchSessionId& id) const noexcept {
-        if (!impl->fuzzySearches.value)
+        const auto& searches = impl->common().fuzzySearches;
+        if (!searches.value)
             return nullptr;
         const auto found =
-            std::find_if(impl->fuzzySearches.value->entries.begin(), impl->fuzzySearches.value->entries.end(), [&](const auto& value) {
+            std::find_if(searches.value->entries.begin(), searches.value->entries.end(), [&](const auto& value) {
                 return value.sessionId == id;
             });
-        return found == impl->fuzzySearches.value->entries.end() ? nullptr : &*found;
+        return found == searches.value->entries.end() ? nullptr : &*found;
     }
     const ActivityState* State::activity(const ActivityKey& key) const noexcept {
-        if (!impl->activities.value)
+        const auto& activities = impl->common().activities;
+        if (!activities.value)
             return nullptr;
         const auto found =
-            std::find_if(impl->activities.value->entries.begin(), impl->activities.value->entries.end(), [&](const auto& value) {
+            std::find_if(activities.value->entries.begin(), activities.value->entries.end(), [&](const auto& value) {
                 return value.key == key;
             });
-        return found == impl->activities.value->entries.end() ? nullptr : &*found;
+        return found == activities.value->entries.end() ? nullptr : &*found;
     }
     const frontend::Json& State::compatibilityExtensions() const noexcept {
-        return impl->compatibilityExtensions;
+        return impl->common().compatibilityExtensions;
     }
 
     namespace {
@@ -3533,6 +3849,115 @@ namespace ai::openai::codex::frontend::client {
     } // namespace
 
     std::optional<std::shared_ptr<const detail::StateStorage>>
+    detail::CanonicalStateBuilder::build(const canonical_client::StatePublicationPreparation& preparation,
+                                         const std::shared_ptr<const StateStorage>& previous,
+                                         std::size_t maximumBytes,
+                                         std::size_t maximumRetainedDiagnostics,
+                                         std::string& error,
+                                         CanonicalStateBuildFailure* failure) noexcept {
+        if (previous == nullptr || preparation.changes.empty() || preparation.publication.snapshot == nullptr) {
+            return build(
+                preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+        }
+
+        try {
+            std::vector<const canonical::ItemContentUpdatedOccurrence*> contentChanges;
+            contentChanges.reserve(preparation.changes.size());
+            for (const canonical_client::Change& change : preparation.changes) {
+                const auto* content = std::get_if<canonical::ItemContentUpdatedOccurrence>(&change);
+                if (content == nullptr) {
+                    return build(
+                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                }
+                contentChanges.push_back(content);
+            }
+
+            auto itemPayload = std::make_shared<StateItemPayload>();
+            itemPayload->root = previous->itemPayload->root ? previous->itemPayload->root : previous->itemPayload;
+            itemPayload->replacements = previous->itemPayload->replacements;
+            auto result = std::make_shared<StateStorage>();
+            result->sharedBase = previous->sharedBase ? previous->sharedBase : previous;
+            result->itemPayload = std::move(itemPayload);
+            assignPublicationMetadata(*result, preparation.publication);
+            result->retainedReplayThrough = previous->retainedReplayThrough;
+            result->lastSynchronizationBatchSequence = previous->lastSynchronizationBatchSequence;
+            result->sizeLedger = previous->sizeLedger;
+
+            for (const canonical::ItemContentUpdatedOccurrence* update : contentChanges) {
+                if (!update->appendHint || !update->appendHint->sourceVerified) {
+                    return build(
+                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                }
+                std::optional<std::size_t> publicIndex;
+                const StateItemPayload& root = previous->itemRoot();
+                if (update->threadId && update->turnId) {
+                    const auto found = root.itemByScope.find(detail::ScopedItemLookupView{
+                        update->threadId->value(), update->turnId->value(), update->itemId.value()});
+                    if (found != root.itemByScope.end()) {
+                        publicIndex = found->second;
+                    }
+                } else {
+                    const auto found = root.firstItemById.find(update->itemId.value());
+                    if (found != root.firstItemById.end()) {
+                        publicIndex = found->second;
+                    }
+                }
+                if (!publicIndex || *publicIndex >= root.items.size()) {
+                    return build(
+                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                }
+                const std::optional<ItemContentChannel> channel = itemContentChannel(update->channel);
+                if (!channel) {
+                    return build(
+                        preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                }
+                const auto priorOverlay = result->itemPayload->replacements.find(*publicIndex);
+                const std::size_t oldBytes = priorOverlay == result->itemPayload->replacements.end()
+                                                 ? root.encodedItemBytes.at(*publicIndex)
+                                                 : priorOverlay->second->encodedBytes;
+                std::shared_ptr<StateItemOverlay> replacement =
+                    appendedItemOverlay(*result->itemPayload, *publicIndex, *channel, *update);
+                if (!replacement ||
+                    !adjustArrayContribution(result->sizeLedger.items, oldBytes, replacement->encodedBytes)) {
+                    if (failure != nullptr) {
+                        *failure = replacement ? CanonicalStateBuildFailure::Capacity
+                                               : CanonicalStateBuildFailure::StateDivergence;
+                    }
+                    if (!replacement) {
+                        return build(
+                            preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+                    }
+                    error = "incremental public State item accounting failed";
+                    return std::nullopt;
+                }
+                result->itemPayload->replacements[*publicIndex] = std::move(replacement);
+            }
+
+            if (!refreshDirectArraySection(
+                    *result, detail::StateSizeSection::Items, result->sizeLedger.items) ||
+                !refreshPublicationMetadataAccounting(*result) || !stateFits(*result, maximumBytes, error)) {
+                if (failure != nullptr) {
+                    *failure = CanonicalStateBuildFailure::Capacity;
+                }
+                if (error.empty()) {
+                    error = "incremental public State accounting failed";
+                }
+                return std::nullopt;
+            }
+            if (failure != nullptr) {
+                *failure = CanonicalStateBuildFailure::StateDivergence;
+            }
+            error.clear();
+            return std::shared_ptr<const StateStorage>{std::move(result)};
+        } catch (...) {
+            // A failed optimization must not weaken publication semantics;
+            // the complete canonical builder remains the transactional
+            // fallback for allocation failure or an unexpected shape.
+            return build(preparation.publication, maximumBytes, maximumRetainedDiagnostics, error, failure);
+        }
+    }
+
+    std::optional<std::shared_ptr<const detail::StateStorage>>
     detail::CanonicalStateBuilder::build(const canonical_client::PublishedState& publication,
                                          std::size_t maximumBytes,
                                          std::size_t maximumRetainedDiagnostics,
@@ -3643,7 +4068,8 @@ namespace ai::openai::codex::frontend::client {
 
                 result->threadProjectionPresent = source.threadsPresent && !rootUnrepresented(source.projection, "/threads");
                 result->turnProjectionPresent = source.turnsPresent && !rootUnrepresented(source.projection, "/turns");
-                result->itemProjectionPresent = source.itemsPresent && !rootUnrepresented(source.projection, "/items");
+                result->itemPayload->itemProjectionPresent =
+                    source.itemsPresent && !rootUnrepresented(source.projection, "/items");
                 result->pendingRequestProjectionPresent =
                     source.pendingRequestsPresent && !rootUnrepresented(source.projection, "/pendingRequests");
 
@@ -3841,10 +4267,10 @@ namespace ai::openai::codex::frontend::client {
                     result->turns.push_back(std::move(decoded));
                 }
 
-                result->items.reserve(orderedItems.size());
+                result->mutableRootItems().reserve(orderedItems.size());
                 for (auto& [index, item] : orderedItems) {
                     (void) index;
-                    result->items.push_back(std::move(item));
+                    result->mutableRootItems().push_back(std::move(item));
                 }
 
                 std::vector<std::pair<std::size_t, PendingRequestState>> orderedPending;
@@ -4157,6 +4583,7 @@ namespace ai::openai::codex::frontend::client {
             }
 
             buildStateLookupIndexes(*result);
+            buildItemLookupIndexes(*result);
             if (!rebuildStateSizeLedger(*result) || !stateFits(*result, maximumBytes, error)) {
                 if (failure != nullptr) {
                     *failure = CanonicalStateBuildFailure::Capacity;
@@ -4175,6 +4602,22 @@ namespace ai::openai::codex::frontend::client {
             error = "canonical public State construction failed";
             return std::nullopt;
         }
+    }
+
+    bool detail::CanonicalStateBuilder::verifyAccounting(const std::shared_ptr<const StateStorage>& state,
+                                                          std::string& error) noexcept {
+        if (!state) {
+            error = "public State accounting verification requires a state";
+            return false;
+        }
+        const std::optional<std::size_t> accounted = accountedStateBytes(*state);
+        const std::optional<std::size_t> reference = referenceStateBytes(*state);
+        if (!accounted || !reference || *accounted != *reference) {
+            error = "public State incremental accounting differs from its complete reference serialization";
+            return false;
+        }
+        error.clear();
+        return true;
     }
 
     namespace detail {

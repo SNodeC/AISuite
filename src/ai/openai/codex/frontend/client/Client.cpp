@@ -329,6 +329,7 @@ namespace ai::openai::codex::frontend::client {
             result.requestedCapabilities = options.requestedCapabilities;
             result.requiredCapabilities = options.requiredCapabilities;
             result.allowLegacyV1 = options.allowLegacyV1;
+            result.publicationPreparationEnforcesByteCapacity = true;
             result.limits.maximumInboundMessageBytes = options.maximumInboundMessageBytes;
             result.limits.maximumOutboundMessageBytes = options.maximumOutboundMessageBytes;
             result.limits.maximumDecodedStateBytes = options.maximumDecodedStateBytes;
@@ -376,12 +377,19 @@ namespace ai::openai::codex::frontend::client {
                                               change.error ? std::optional<Error>{publicError(*change.error)} : std::nullopt});
                 }
             };
-            result.prepareStatePublication = [this](const core::PublishedState& publication) -> std::optional<core::ClientError> {
+            result.prepareStatePublication = [this](const core::StatePublicationPreparation& preparation)
+                -> std::optional<core::ClientError> {
                 std::string error;
                 detail::CanonicalStateBuildFailure failure = detail::CanonicalStateBuildFailure::StateDivergence;
                 auto preparedStorage = detail::CanonicalStateBuilder::build(
-                    publication, options.maximumDecodedStateBytes, options.maximumRetainedDiagnostics, error, &failure);
+                    preparation,
+                    currentStorage,
+                    options.maximumDecodedStateBytes,
+                    options.maximumRetainedDiagnostics,
+                    error,
+                    &failure);
                 if (preparedStorage.has_value()) {
+                    preparedStorageValue = *preparedStorage;
                     preparedState = stateFactory(std::move(*preparedStorage));
                     return std::nullopt;
                 }
@@ -397,6 +405,7 @@ namespace ai::openai::codex::frontend::client {
                 if (preparedState.has_value()) {
                     currentState = std::move(*preparedState);
                     preparedState.reset();
+                    currentStorage = std::move(preparedStorageValue);
                 }
             };
             result.onStateUpdated = [this](const core::StateUpdate& update) {
@@ -451,11 +460,24 @@ namespace ai::openai::codex::frontend::client {
                                                        publicThreadId(item.threadId),
                                                        publicTurnId(item.turnId)});
                             } else if constexpr (std::is_same_v<Value, model::ItemContentUpdatedOccurrence>) {
-                                publicUpdate.changes.emplace_back(
-                                    ItemContentReplacedChange{typed::ItemId{value.itemId.value()},
-                                                              publicChannel(value.channel).value_or(ItemContentChannel::AgentText),
-                                                              publicThreadId(value.threadId),
-                                                              publicTurnId(value.turnId)});
+                                const ItemContentChannel channel =
+                                    publicChannel(value.channel).value_or(ItemContentChannel::AgentText);
+                                const typed::ItemId itemId{value.itemId.value()};
+                                const std::optional<typed::ThreadId> threadId = publicThreadId(value.threadId);
+                                const std::optional<typed::TurnId> turnId = publicTurnId(value.turnId);
+                                if (value.appendHint && value.appendHint->sourceVerified) {
+                                    const model::ItemContentAppendHint& hint = *value.appendHint;
+                                    publicUpdate.changes.emplace_back(ItemContentAppendedChange{itemId,
+                                                                                                 channel,
+                                                                                                 threadId,
+                                                                                                 turnId,
+                                                                                                 hint.baseContentBytes,
+                                                                                                 hint.discardPrefixBytes,
+                                                                                                 hint.delta});
+                                } else {
+                                    publicUpdate.changes.emplace_back(
+                                        ItemContentReplacedChange{itemId, channel, threadId, turnId});
+                                }
                             } else if constexpr (std::is_same_v<Value, model::PendingRequestsUpdatedOccurrence>) {
                                 publicUpdate.changes.emplace_back(PendingRequestsUpdatedChange{});
                             } else if constexpr (std::is_same_v<Value, model::AccountUpdatedOccurrence>) {
@@ -776,6 +798,8 @@ namespace ai::openai::codex::frontend::client {
         std::function<State(std::shared_ptr<const detail::StateStorage>)> stateFactory;
         State currentState;
         std::optional<State> preparedState;
+        std::shared_ptr<const detail::StateStorage> currentStorage;
+        std::shared_ptr<const detail::StateStorage> preparedStorageValue;
         std::shared_ptr<Connection::Control> active;
         std::unique_ptr<core::ClientCore> coreClient;
         bool failNextHelloConstruction = false;
@@ -1299,6 +1323,10 @@ namespace ai::openai::codex::frontend::client {
 
     State detail::ClientTestAccess::adoptStateStorage(Client& client, std::shared_ptr<const StateStorage> storage) noexcept {
         return client.impl->stateFactory(std::move(storage));
+    }
+
+    std::shared_ptr<const detail::StateStorage> detail::ClientTestAccess::stateStorage(const State& state) noexcept {
+        return state.impl;
     }
 
 } // namespace ai::openai::codex::frontend::client

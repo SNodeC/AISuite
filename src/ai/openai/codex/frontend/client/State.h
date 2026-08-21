@@ -14,6 +14,7 @@
 namespace ai::openai::codex::frontend::client {
 
     namespace detail {
+        struct ClientTestAccess;
         struct StateStorage;
     } // namespace detail
 
@@ -54,12 +55,12 @@ namespace ai::openai::codex::frontend::client {
         [[nodiscard]] const TurnState* turn(std::string_view id) const noexcept;
         [[nodiscard]] const TurnState* turn(const typed::ThreadId& threadId, const typed::TurnId& turnId) const noexcept;
         [[nodiscard]] bool hasItemProjection() const noexcept;
-        [[nodiscard]] std::span<const ItemState> items() const noexcept;
-        [[nodiscard]] const ItemState* item(const typed::ItemId& id) const noexcept;
-        [[nodiscard]] const ItemState* item(std::string_view id) const noexcept;
+        [[nodiscard]] std::span<const ItemState> items() const;
+        [[nodiscard]] const ItemState* item(const typed::ItemId& id) const;
+        [[nodiscard]] const ItemState* item(std::string_view id) const;
         [[nodiscard]] const ItemState* item(const typed::ThreadId& threadId,
                                             const typed::TurnId& turnId,
-                                            const typed::ItemId& id) const noexcept;
+                                            const typed::ItemId& id) const;
         [[nodiscard]] bool hasPendingRequestProjection() const noexcept;
         [[nodiscard]] std::span<const PendingRequestState> pendingRequests() const noexcept;
         [[nodiscard]] const PendingRequestState* pendingRequest(const PendingRequestId& id) const noexcept;
@@ -98,6 +99,7 @@ namespace ai::openai::codex::frontend::client {
 
     private:
         friend class Client;
+        friend struct detail::ClientTestAccess;
         AISUITE_OPENAI_CODEX_FRONTEND_CLIENT_NO_EXPORT explicit State(std::shared_ptr<const detail::StateStorage> implementation) noexcept;
         std::shared_ptr<const detail::StateStorage> impl;
     };

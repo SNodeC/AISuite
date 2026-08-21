@@ -602,16 +602,16 @@ replay rather than subjected to unreliable heuristic secret scanning.
 
 There are two independent per-client backpressure boundaries:
 
-- `FrontendService` allows at most 512 queued protocol messages and 26.125 MiB of
+- `FrontendService` allows at most 512 queued protocol messages and 138.125 MiB of
   compact serialized JSON per connection, delivering at most 64 messages in
   one event-loop callback;
-- each reference stream/WebSocket context allows at most 28.125 MiB outstanding in
+- each reference stream/WebSocket context allows at most 140.125 MiB outstanding in
   that connection's writer, including transport framing where applicable.
 
 The limits intentionally have headroom in dependency order: the 8 MiB journal
-counts canonical records, the 26.125 MiB service queue also accommodates one
-maximum provider-derived response plus bounded replay and synchronization
-envelopes, and the 28.125 MiB writer additionally accommodates framing and data
+counts canonical records, the 138.125 MiB service queue also accommodates one
+maximum projected snapshot or provider-derived response plus bounded replay and
+synchronization envelopes, and the 140.125 MiB writer additionally accommodates framing and data
 already handed off by the service. Thus a
 new Unix connection can replay a full default journal without being rejected
 solely because downstream accounting includes envelope overhead. All three

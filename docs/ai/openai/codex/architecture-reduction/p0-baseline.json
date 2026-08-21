@@ -6921,9 +6921,9 @@
             "include/aisuite/ai/openai/codex/typed/Types.h",
             "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
           ],
-          "soversion": 5,
+          "soversion": 6,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.4.0"
+          "version": "0.5.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexBackend",
@@ -6938,9 +6938,9 @@
             "include/aisuite/ai/openai/codex/backend/Reducer.h",
             "include/aisuite/ai/openai/codex/backend/Snapshot.h"
           ],
-          "soversion": 5,
+          "soversion": 6,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.4.0"
+          "version": "0.5.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontend",
@@ -6957,9 +6957,9 @@
             "include/aisuite/ai/openai/codex/frontend/Security.h",
             "include/aisuite/ai/openai/codex/frontend/UpdateBatch.h"
           ],
-          "soversion": 5,
+          "soversion": 6,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.4.0"
+          "version": "0.5.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontendClient",
@@ -7000,9 +7000,9 @@
             "include/aisuite/ai/openai/codex/frontend/client/Types.h",
             "include/aisuite/ai/openai/codex/frontend/client/WindowsSandbox.h"
           ],
-          "soversion": 5,
+          "soversion": 6,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.4.0"
+          "version": "0.5.0"
         }
       ]
     },

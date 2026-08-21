@@ -1102,7 +1102,8 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             std::string compactJson = std::move(encoded).value();
             const std::size_t bytes = compactJson.size();
-            if (options.maxOutboundMessagesPerConnection == 0 || bytes > options.maxOutboundBytesPerConnection) {
+            if (options.maxOutboundMessagesPerConnection == 0 || bytes > options.maxOutboundMessageBytes ||
+                bytes > options.maxOutboundBytesPerConnection) {
                 closeNow(identity, std::move(close));
                 return;
             }
@@ -1153,7 +1154,7 @@ namespace ai::openai::codex::frontend::internal::server {
         const std::size_t queuedMessages = connection->outbound.size() + connection->deferredSnapshotOutbound.size() +
                                            static_cast<std::size_t>(connection->deliveryInFlight);
         const bool messageCapacityExceeded = queuedMessages >= options.maxOutboundMessagesPerConnection;
-        if (messageCapacityExceeded || bytes > options.maxOutboundBytesPerConnection ||
+        if (messageCapacityExceeded || bytes > options.maxOutboundMessageBytes || bytes > options.maxOutboundBytesPerConnection ||
             connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
             closeWithProtocolError(
                 identity, ConnectionClose{"frontend outbound backpressure limit exceeded", ErrorCode::CapacityExceeded, false});

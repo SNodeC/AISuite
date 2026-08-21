@@ -39,8 +39,7 @@ int main() {
                           serviceDefaults.maximumInboundMessageBytes == frontend::DefaultFrontendMaximumInboundMessageBytes &&
                           frontend::DefaultFrontendMaximumInboundMessageBytes == 8U * 1024U * 1024U &&
                           serviceDefaults.maxOutboundBytesPerConnection ==
-                              frontend::DefaultFrontendMaximumProviderResponseBytes +
-                                  frontend::DefaultFrontendMaximumReplayBytes,
+                              frontend::DefaultFrontendServiceMaxOutboundBytes,
                       "FrontendService retains its independent protocol resource limits");
     result.expectTrue(app::SocketFrontendOptions{}.maximumFrameSize == frontend::DefaultFrontendMaximumInboundMessageBytes &&
                           app::DEFAULT_MAXIMUM_OUTBOUND_BYTES ==

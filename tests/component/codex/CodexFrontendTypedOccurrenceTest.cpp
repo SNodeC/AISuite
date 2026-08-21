@@ -246,13 +246,12 @@ namespace {
             return;
         }
 
-        const model::ThreadItem* const itemStorage = candidate.items.data();
-        const model::ThreadItem* const unchangedStorage = &candidate.items.back();
         const auto applied = model::applyOccurrence(candidate, occurrence.value());
-        result.expectTrue(applied && candidate.items.data() == itemStorage && &candidate.items.back() == unchangedStorage &&
-                              model::itemData(candidate.items.front()).agentText == std::optional<std::string>{"after"} &&
-                              model::itemData(candidate.items.back()).agentText == std::optional<std::string>{"unchanged"},
-                          "in-place occurrence reduction mutates the caller candidate without replacing retained item storage");
+        result.expectTrue(applied && model::itemData(std::as_const(candidate.items).front()).agentText ==
+                                         std::optional<std::string>{"after"} &&
+                              model::itemData(std::as_const(candidate.items).back()).agentText ==
+                                  std::optional<std::string>{"unchanged"},
+                          "in-place occurrence reduction mutates only the target while retaining unrelated item values");
 
         const auto reduced = model::reduceOccurrence(source, occurrence.value());
         result.expectTrue(reduced && source == sourceBefore &&
@@ -390,10 +389,16 @@ namespace {
                        data.threadId == std::optional<model::ThreadIdentity>{model::ThreadIdentity{std::string(threadId)}};
             });
         };
-        const auto firstItem = updated ? findItem(updated.value(), "first-thread") : state.items.end();
-        const auto secondItem = updated ? findItem(updated.value(), "second-thread") : state.items.end();
-        result.expectTrue(updated && updated.value().items.size() == 2 && firstItem != updated.value().items.end() &&
-                              secondItem != updated.value().items.end() && model::itemData(*firstItem).agentText == "first" &&
+        const model::ThreadItem* firstItem = nullptr;
+        const model::ThreadItem* secondItem = nullptr;
+        if (updated) {
+            const auto first = findItem(updated.value(), "first-thread");
+            const auto second = findItem(updated.value(), "second-thread");
+            firstItem = first == updated.value().items.end() ? nullptr : &*first;
+            secondItem = second == updated.value().items.end() ? nullptr : &*second;
+        }
+        result.expectTrue(updated && updated.value().items.size() == 2 && firstItem && secondItem &&
+                              model::itemData(*firstItem).agentText == "first" &&
                               model::itemData(*secondItem).agentText == "second updated",
                           "item upsert and content occurrences target the exact thread/turn/item identity when provider IDs repeat");
     }
@@ -584,7 +589,7 @@ namespace {
 
         model::ThreadUpsertedOccurrence wireUpdate{model::ThreadState{model::ThreadIdentity{"first-thread"}}};
         wireUpdate.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"first-thread"});
-        wireUpdate.items = source.items;
+        wireUpdate.items.assign(source.items.begin(), source.items.end());
         auto wireIdentity = occurrenceIdentity(41, "encode-fork-thread");
         wireIdentity.threadId = model::ThreadIdentity{"first-thread"};
         const auto wireOccurrence = model::makeOccurrence(std::move(wireIdentity), std::move(wireUpdate));

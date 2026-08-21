@@ -344,7 +344,7 @@ namespace {
         std::size_t cursors = 0;
         std::size_t updated = 0;
         core::ClientCallbacks callbacks;
-        callbacks.prepareStatePublication = [&prepared](const core::PublishedState&) -> std::optional<core::ClientError> {
+        callbacks.prepareStatePublication = [&prepared](const core::StatePublicationPreparation&) -> std::optional<core::ClientError> {
             ++prepared;
             return std::nullopt;
         };
@@ -385,7 +385,9 @@ namespace {
         bool nesting = false;
         core::ClientCore* reentrantClient = nullptr;
         core::ClientCallbacks reentrantCallbacks;
-        reentrantCallbacks.prepareStatePublication = [&](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        reentrantCallbacks.prepareStatePublication = [&](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             ++reentrantPreparations;
             if (!nesting) {
                 nesting = true;
@@ -416,7 +418,9 @@ namespace {
         bool receiveNesting = false;
         core::ClientCore* receiveClient = nullptr;
         core::ClientCallbacks receiveCallbacks;
-        receiveCallbacks.prepareStatePublication = [&](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        receiveCallbacks.prepareStatePublication = [&](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             if (!receiveNesting && receiveClient && receiveClient->ready()) {
                 receiveNesting = true;
                 receiveNestedCommitted = core::ClientCoreTestAccess::tryCommitPublishedRevision(*receiveClient, candidate.revision);
@@ -464,7 +468,9 @@ namespace {
         core::ClientCore* maximumClient = nullptr;
         std::vector<core::StateChange> maximumChanges;
         core::ClientCallbacks maximumCallbacks;
-        maximumCallbacks.prepareStatePublication = [&](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        maximumCallbacks.prepareStatePublication = [&](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             if (!maximumNesting && maximumClient && maximumClient->ready()) {
                 maximumNesting = true;
                 maximumNestedCommitted = core::ClientCoreTestAccess::tryCommitPublishedRevision(*maximumClient, candidate.revision);

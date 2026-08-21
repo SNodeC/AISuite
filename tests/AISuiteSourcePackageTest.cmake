@@ -82,6 +82,7 @@ foreach(required
     src/ai/openai/codex/frontend/detail/EventRepresentation.h
     src/ai/openai/codex/frontend/detail/GeneratedSchemaValidator.cpp
     src/ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h
+    src/ai/openai/codex/frontend/detail/PersistentText.h
     src/ai/openai/codex/frontend/internal/model/Journal.cpp
     src/ai/openai/codex/frontend/internal/model/Journal.h
     src/ai/openai/codex/frontend/internal/model/Model.cpp

@@ -278,7 +278,7 @@ class RuntimePlatformCurrentStateTest(unittest.TestCase):
             self.assertIsNotNone(block)
             self.assertEqual(expected, len(block.group(1).split()))
         root_cmake = (self.repo_root / "CMakeLists.txt").read_text(encoding="utf-8")
-        self.assertRegex(root_cmake, r"set\(AISUITE_CODEX_SOVERSION\s+5\)")
+        self.assertRegex(root_cmake, r"set\(AISUITE_CODEX_SOVERSION\s+6\)")
 
     def test_current_public_api_boundary(self) -> None:
         def source(relative: str) -> str:

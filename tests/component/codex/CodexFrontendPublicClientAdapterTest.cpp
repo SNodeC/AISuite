@@ -3,6 +3,7 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/client/Client.h"
 #include "ai/openai/codex/frontend/client/detail/ClientTestAccess.h"
+#include "ai/openai/codex/frontend/detail/PersistentText.h"
 #include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 #include "ai/openai/codex/frontend/internal/model/Model.h"
@@ -81,13 +82,17 @@ namespace {
         return client::detail::ClientTestAccess::adoptStateStorage(adopter, std::move(*storage));
     }
 
-    frontend::Welcome welcome(std::uint64_t sequence) {
+    frontend::Welcome welcome(std::uint64_t sequence, bool selectItemContentAppend = false) {
+        frontend::Json extensions{{"permittedScopes", frontend::Json::array({"observe", "control"})},
+                                  {"projection", frontend::Json{{"identity", "public-adapter"}}}};
+        if (selectItemContentAppend) {
+            extensions["projection"]["itemContentUpdateMode"] = "append-v1";
+        }
         return {"7",
                 frontend::SessionRole::Observer,
                 frontend::SequenceNumber(sequence),
                 frontend::SyncMode::Snapshot,
-                frontend::Json{{"permittedScopes", frontend::Json::array({"observe", "control"})},
-                               {"projection", frontend::Json{{"identity", "public-adapter"}}}},
+                std::move(extensions),
                 expandedCapabilities(),
                 allMethods(),
                 allMethods(),
@@ -170,6 +175,62 @@ namespace {
         const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
         return {frontend::SequenceNumber(sequence),
                 encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::Snapshot expandedAppendItemSnapshot(std::uint64_t sequence) {
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, 3, "incremental item");
+        snapshot.turns.emplace_back(model::TurnIdentity{"append-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData item{
+            model::ItemIdentity{"append-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"append-turn"}};
+        item.agentText = "seed";
+        snapshot.items.push_back(model::AgentMessageItem{std::move(item)});
+        const auto expanded = model::encodeSnapshot(snapshot, model::ItemContentWireMode::AppendV1);
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::Snapshot expandedRollingCommandSnapshot(std::uint64_t sequence, const std::string& content) {
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, 3, "rolling command");
+        snapshot.turns.emplace_back(model::TurnIdentity{"append-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData item{
+            model::ItemIdentity{"append-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"append-turn"}};
+        constexpr std::size_t PrefixBytes = 16U * 1024U;
+        item.commandOutput = content.substr(0, PrefixBytes);
+        item.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            PrefixBytes, content.substr(PrefixBytes), 0, false, false};
+        item.contentTruncated = true;
+        item.droppedContentBytes = content.size() - PrefixBytes;
+        item.truncation.truncated = true;
+        item.truncation.droppedBytes = content.size() - PrefixBytes;
+        item.truncation.omittedPaths = {"/commandOutput"};
+        snapshot.items.push_back(model::CommandExecutionItem{std::move(item)});
+        const auto expanded = model::encodeSnapshot(snapshot, model::ItemContentWireMode::AppendV2);
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::FrontendEvent appendItemContentEvent(std::uint64_t sequence,
+                                                    std::uint64_t baseContentBytes,
+                                                    std::string delta) {
+        return {frontend::SequenceNumber{sequence},
+                "item.content.updated",
+                {{"threadId", "adapter-thread"},
+                 {"turnId", "append-turn"},
+                 {"itemId", "append-item"},
+                 {"channel", "agentText"},
+                 {"content", ""},
+                 {"contentDelta", std::move(delta)},
+                 {"baseContentBytes", baseContentBytes},
+                 {"contentTruncated", false},
+                 {"droppedContentBytes", std::uint64_t{0}}}};
     }
 
     frontend::FrontendEvent occurrenceEvent(model::OccurrenceIdentity identity, model::OccurrencePayload payload) {
@@ -1060,6 +1121,143 @@ namespace {
             "public item-content changes retain canonical thread/turn scope when bare item IDs repeat");
     }
 
+    void testVerifiedIncrementalItemPublication(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+        const bool synchronized = connection.receive(frontend::ServerMessage{welcome(1, true)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{expandedAppendItemSnapshot(1)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{
+                                      frontend::SyncComplete{frontend::SequenceNumber{1}}})
+                                      .accepted;
+        const client::State initial = sdk.state();
+        harness.changes.clear();
+
+        constexpr std::size_t AppendCount = 1'024;
+        const std::string delta{"x\"\n\\"};
+        std::uint64_t baseBytes = 4;
+        bool accepted = synchronized;
+        bool exactChanges = synchronized;
+        for (std::size_t index = 0; index < AppendCount && accepted; ++index) {
+            frontend::FrontendEvent append = appendItemContentEvent(index + 2, baseBytes, delta);
+            accepted = connection
+                           .receive(frontend::ServerMessage{frontend::EventBatch{
+                               append.sequence, append.sequence, {std::move(append)}}})
+                           .accepted;
+            if (!accepted || harness.changes.empty()) {
+                exactChanges = false;
+                break;
+            }
+            const auto* change = std::get_if<client::ItemContentAppendedChange>(&harness.changes.back());
+            exactChanges = exactChanges && change != nullptr && change->itemId == typed::ItemId{"append-item"} &&
+                           change->channel == client::ItemContentChannel::AgentText &&
+                           change->baseContentBytes == baseBytes && change->discardPrefixBytes == 0 &&
+                           change->delta == delta;
+            baseBytes += delta.size();
+        }
+
+        const client::State current = sdk.state();
+        const client::ItemState* initialItem = initial.item("append-item");
+        const client::ItemState* currentItem = current.item("append-item");
+        std::string expected = "seed";
+        expected.reserve(static_cast<std::size_t>(baseBytes));
+        for (std::size_t index = 0; index < AppendCount; ++index) {
+            expected += delta;
+        }
+        std::string accountingError;
+        const bool exactAccounting = client::detail::CanonicalStateBuilder::verifyAccounting(
+            client::detail::ClientTestAccess::stateStorage(current), accountingError);
+        result.expectTrue(accepted && exactChanges && harness.changes.size() == AppendCount && initialItem && currentItem &&
+                              initialItem->agentText == std::optional<std::string>{"seed"} &&
+                              currentItem->agentText == std::optional<std::string>{expected} && exactAccounting,
+                          "verified content appends publish exact deltas, preserve prior immutable State, and retain byte-exact accounting: " +
+                              accountingError);
+    }
+
+    void testRollingPersistentTextReleasesDeadPrefixes(tests::support::TestResult& result) {
+        constexpr std::size_t WindowBytes = 4U * 1024U * 1024U;
+        constexpr std::size_t StepBytes = 512U * 1024U;
+        frontend::detail::PersistentText current =
+            frontend::detail::PersistentText::from(std::string(WindowBytes, 'a'));
+        const frontend::detail::PersistentText original = current;
+        const std::string delta(StepBytes, 'b');
+        std::size_t maximumBackingBytes = current.backingBytesForTesting();
+        bool appended = true;
+        for (std::size_t index = 0; index < 24 && appended; ++index) {
+            auto next = current.appended(StepBytes, delta);
+            appended = next.has_value();
+            if (next) {
+                current = std::move(*next);
+                maximumBackingBytes = std::max(maximumBackingBytes, current.backingBytesForTesting());
+            }
+        }
+        result.expectTrue(appended && current.size() == WindowBytes &&
+                              maximumBackingBytes <= WindowBytes * 2 &&
+                              original.materialize() == std::string(WindowBytes, 'a'),
+                          "rolling persistent content remains O(retained window) while an older immutable view remains exact");
+    }
+
+    void testPersistentTextBranchesFromSharedTail(tests::support::TestResult& result) {
+        const frontend::detail::PersistentText base = frontend::detail::PersistentText::from("base");
+        const auto first = base.appended(0, "-first");
+        const auto second = base.appended(0, "-second");
+        result.expectTrue(first && second && base.materialize() == "base" &&
+                              first->materialize() == "base-first" && second->materialize() == "base-second",
+                          "independent derivations from one persistent-text tail retain disjoint immutable ranges");
+    }
+
+    void testVerifiedRollingCommandPublication(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+        std::string content(model::MaximumCommandOutputOverflowV2Bytes, 'c');
+        frontend::Welcome rollingWelcome = welcome(1);
+        rollingWelcome.extensions["projection"]["itemContentUpdateMode"] = "append-v2";
+        const bool synchronized = connection.receive(frontend::ServerMessage{std::move(rollingWelcome)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{expandedRollingCommandSnapshot(1, content)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{
+                                      frontend::SyncComplete{frontend::SequenceNumber{1}}})
+                                      .accepted;
+        const client::State initial = sdk.state();
+        harness.changes.clear();
+        frontend::FrontendEvent append{
+            frontend::SequenceNumber{2},
+            "item.content.updated",
+            {{"threadId", "adapter-thread"},
+             {"turnId", "append-turn"},
+             {"itemId", "append-item"},
+             {"channel", "commandOutput"},
+             {"content", ""},
+             {"contentDelta", "tail"},
+             {"baseContentBytes", static_cast<std::uint64_t>(content.size())},
+             {"discardPrefixBytes", std::uint64_t{4}},
+             {"contentTruncated", true},
+             {"droppedContentBytes", std::uint64_t{4}}}};
+        const bool accepted = synchronized &&
+                              connection.receive(frontend::ServerMessage{frontend::EventBatch{
+                                  append.sequence, append.sequence, {std::move(append)}}})
+                                  .accepted;
+        const client::State current = sdk.state();
+        const client::ItemState* oldItem = initial.item("append-item");
+        const client::ItemState* currentItem = current.item("append-item");
+        std::string accountingError;
+        const bool exactAccounting = client::detail::CanonicalStateBuilder::verifyAccounting(
+            client::detail::ClientTestAccess::stateStorage(current), accountingError);
+        const auto* change = harness.changes.size() == 1
+                                 ? std::get_if<client::ItemContentAppendedChange>(&harness.changes.front())
+                                 : nullptr;
+        result.expectTrue(accepted && oldItem && currentItem && oldItem->commandOutput == std::optional<std::string>{content} &&
+                              currentItem->commandOutput == std::optional<std::string>{content.substr(4) + "tail"} &&
+                              change && change->channel == client::ItemContentChannel::CommandOutput &&
+                              change->discardPrefixBytes == 4 && exactAccounting,
+                          "verified append-v2 rolling command output preserves old State and exact incremental accounting: " +
+                              accountingError);
+    }
+
     void testTurnChangeDoesNotResolveToSiblingAfterSameBatchRemoval(tests::support::TestResult& result) {
         PublicHarness harness;
         client::Client sdk(publicOptions(), harness.callbacks());
@@ -1255,7 +1453,9 @@ namespace {
         bool currentCommitted = false;
         std::vector<std::string> diagnostics;
         core::ClientCallbacks callbacks;
-        callbacks.prepareStatePublication = [&prepared](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        callbacks.prepareStatePublication = [&prepared](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             ++prepared;
             if (candidate.freshness == core::PublishedFreshness::Current) {
                 return core::ClientError{core::ErrorOrigin::Protocol,
@@ -1316,7 +1516,9 @@ namespace {
         std::size_t staleRejections = 0;
         std::size_t emptyStaleCommits = 0;
         core::ClientCallbacks callbacks;
-        callbacks.prepareStatePublication = [&staleRejections](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        callbacks.prepareStatePublication = [&staleRejections](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             if (candidate.freshness == core::PublishedFreshness::Stale && candidate.snapshot) {
                 ++staleRejections;
                 return core::ClientError{core::ErrorOrigin::Protocol,
@@ -1375,6 +1577,10 @@ int main() {
     testScopedItemIdentities(result);
     testIndexedStateLookupsAndGroupedOrdering(result);
     testScopedItemChanges(result);
+    testVerifiedIncrementalItemPublication(result);
+    testRollingPersistentTextReleasesDeadPrefixes(result);
+    testPersistentTextBranchesFromSharedTail(result);
+    testVerifiedRollingCommandPublication(result);
     testTurnChangeDoesNotResolveToSiblingAfterSameBatchRemoval(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);

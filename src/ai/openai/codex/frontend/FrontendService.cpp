@@ -13,6 +13,7 @@
 #include "core/timer/Timer.h"
 #include "utils/Timeval.h"
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -61,6 +62,7 @@ namespace ai::openai::codex::frontend {
             result.maxDirtyEntities = options.coalescer.maxDirtyEntities;
             result.maxPendingDeliveryGroups = options.coalescer.maxDirtyEntities;
             result.maxOutboundMessagesPerConnection = options.maxOutboundMessagesPerConnection;
+            result.maxOutboundMessageBytes = options.maxOutboundMessageBytes;
             result.maxOutboundBytesPerConnection = options.maxOutboundBytesPerConnection;
             result.maxMessagesPerDelivery = options.maxMessagesPerDelivery;
             result.maxEventsPerBatch = options.batches.maxEvents;
@@ -94,11 +96,13 @@ namespace ai::openai::codex::frontend {
         }
 
         std::size_t maximumProviderResultBytes(const FrontendServiceOptions& options) noexcept {
-            if (options.maxOutboundBytesPerConnection <= DefaultFrontendServerMessageEnvelopeHeadroomBytes) {
+            const std::size_t messageBudget =
+                std::min(options.maxOutboundMessageBytes, options.maxOutboundBytesPerConnection);
+            if (messageBudget <= DefaultFrontendServerMessageEnvelopeHeadroomBytes) {
                 return 0;
             }
             const std::size_t available =
-                options.maxOutboundBytesPerConnection - DefaultFrontendServerMessageEnvelopeHeadroomBytes;
+                messageBudget - DefaultFrontendServerMessageEnvelopeHeadroomBytes;
             return available < MaximumAppServerFramedLineBytes ? available : MaximumAppServerFramedLineBytes;
         }
 

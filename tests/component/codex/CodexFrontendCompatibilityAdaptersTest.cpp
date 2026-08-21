@@ -28,6 +28,7 @@ namespace {
         source.batches = {17, 1800};
         source.coalescer = {19};
         source.maxOutboundMessagesPerConnection = 23;
+        source.maxOutboundMessageBytes = 2300;
         source.maxOutboundBytesPerConnection = 2400;
         source.maxMessagesPerDelivery = 29;
         source.maxConnections = 31;
@@ -76,6 +77,7 @@ namespace {
         const bool scalarParity =
             roundTrip.journal == source.journal && roundTrip.batches == source.batches && roundTrip.coalescer == source.coalescer &&
             roundTrip.maxOutboundMessagesPerConnection == source.maxOutboundMessagesPerConnection &&
+            roundTrip.maxOutboundMessageBytes == source.maxOutboundMessageBytes &&
             roundTrip.maxOutboundBytesPerConnection == source.maxOutboundBytesPerConnection &&
             roundTrip.maxMessagesPerDelivery == source.maxMessagesPerDelivery && roundTrip.maxConnections == source.maxConnections &&
             roundTrip.maxUnauthenticatedConnections == source.maxUnauthenticatedConnections &&

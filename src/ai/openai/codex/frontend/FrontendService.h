@@ -61,6 +61,7 @@ namespace ai::openai::codex::frontend {
         UpdateBatchConfig batches;
         EventCoalescerConfig coalescer;
         std::size_t maxOutboundMessagesPerConnection = DefaultFrontendServiceMaxOutboundMessages;
+        std::size_t maxOutboundMessageBytes = DefaultFrontendMaximumServerMessageBytes;
         std::size_t maxOutboundBytesPerConnection = DefaultFrontendServiceMaxOutboundBytes;
         std::size_t maxMessagesPerDelivery = DefaultFrontendServiceMaxMessagesPerDelivery;
         std::size_t maxConnections = 128;

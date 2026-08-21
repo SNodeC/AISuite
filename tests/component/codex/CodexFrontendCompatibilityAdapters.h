@@ -42,6 +42,7 @@ namespace tests::codex::frontend_compatibility {
         target.maxEventsPerBatch = source.batches.maxEvents;
         target.maxBatchBytes = source.batches.maxSerializedBytes;
         target.maxOutboundMessagesPerConnection = source.maxOutboundMessagesPerConnection;
+        target.maxOutboundMessageBytes = source.maxOutboundMessageBytes;
         target.maxOutboundBytesPerConnection = source.maxOutboundBytesPerConnection;
         target.maxMessagesPerDelivery = source.maxMessagesPerDelivery;
         target.maxConnections = source.maxConnections;
@@ -81,6 +82,7 @@ namespace tests::codex::frontend_compatibility {
         target.batches.maxEvents = source.maxEventsPerBatch;
         target.batches.maxSerializedBytes = source.maxBatchBytes;
         target.maxOutboundMessagesPerConnection = source.maxOutboundMessagesPerConnection;
+        target.maxOutboundMessageBytes = source.maxOutboundMessageBytes;
         target.maxOutboundBytesPerConnection = source.maxOutboundBytesPerConnection;
         target.maxMessagesPerDelivery = source.maxMessagesPerDelivery;
         target.maxConnections = source.maxConnections;
