@@ -1213,7 +1213,7 @@ namespace {
             bool retryable;
         };
         constexpr std::array cases{
-            Case{frontend::ErrorCode::InternalError, true},
+            Case{frontend::ErrorCode::InternalError, false},
             Case{frontend::ErrorCode::InvalidCommand, false},
         };
 
