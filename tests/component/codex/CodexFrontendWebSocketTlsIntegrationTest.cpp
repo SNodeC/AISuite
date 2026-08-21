@@ -9,6 +9,7 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "apps/codex-backend/Configuration.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
@@ -47,6 +48,7 @@ namespace {
     constexpr std::string_view Bearer = "a1-7b-wss-live-synthetic-token";
     constexpr std::string_view Endpoint = "/frontend";
     constexpr std::size_t MaximumInboundMessageBytes = 1024U * 1024U;
+    constexpr std::size_t SaturatedApplicationWriterBytes = 6U * 1024U;
 
     struct IntegrationState;
 
@@ -99,6 +101,7 @@ namespace {
         std::size_t decodeErrors = 0;
         std::size_t availableMethods = 0;
         std::size_t permittedMethods = 0;
+        std::size_t initialSynchronizationBytes = 0;
         std::size_t unexpectedStates = 0;
         bool textFramesOnly = true;
         bool preUpgradeSessionFree = false;
@@ -152,6 +155,7 @@ namespace {
             ++state.snapshotCount;
         } else if (std::holds_alternative<frontend::SyncComplete>(decoded.value())) {
             ++state.syncCompleteCount;
+            state.initialSynchronizationBytes = state.allReceivedWire.size();
             sendClose();
         } else if (std::holds_alternative<frontend::ProtocolErrorMessage>(decoded.value())) {
             ++state.protocolErrorCount;
@@ -243,6 +247,8 @@ namespace {
             webApp.getConfig()->Tls::setCert(AISUITE_CODEX_TEST_TLS_CERT);
             webApp.getConfig()->Tls::setCertKey(AISUITE_CODEX_TEST_TLS_KEY);
             webApp.getConfig()->Instance::forceUnrequired();
+            webApp.getConfig()->Connection::setMaximumWriteQueueBytes(app::DEFAULT_TRANSPORT_FRAMING_HEADROOM_BYTES +
+                                                                      SaturatedApplicationWriterBytes);
             webApp.getConfig()
                 ->net::config::ConfigInstance::getSubCommand<web::http::ConfigWebSocket>()
                 ->setMaximumFrameBytes(MaximumInboundMessageBytes)
@@ -333,6 +339,11 @@ namespace {
                           "one bearer Hello completes Welcome, snapshot, and sync over WSS without a protocol error");
         result.expectTrue(state.availableMethods == 90 && state.permittedMethods == 53,
                           "the authenticated WSS Welcome reports 90 available methods and default_remote 53/90");
+        // Initial synchronization is one synchronous ServerCore flush, so
+        // write events cannot drain this aggregate before the adapter reaches
+        // its application budget and schedules the retained-head retry.
+        result.expectTrue(state.initialSynchronizationBytes > SaturatedApplicationWriterBytes,
+                          "the lossless WSS synchronization exceeds its application writer allowance and completes after retry");
         result.expectTrue(state.authenticatedPeer.has_value() &&
                               state.authenticatedPeer->transport == frontend::FrontendTransportKind::WebSocketTls &&
                               state.authenticatedPeer->encrypted && state.authenticatedPeer->loopback &&

@@ -40,7 +40,9 @@ namespace apps::codex_backend {
         void onDisconnected() override;
         bool onSignal(int signal) override;
 
-        bool sendOutbound(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
+        ai::openai::codex::frontend::OutboundDeliveryStatus
+        sendOutbound(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
+        bool scheduleDeliveryRetry() noexcept;
         void serviceClosed(std::string reason) noexcept;
         void closeBounded(std::uint16_t status, const char* reason) noexcept;
         void detachFrontend(std::string reason) noexcept;
@@ -53,6 +55,7 @@ namespace apps::codex_backend {
         int receivedOpCode = 0;
         bool inputBlocked = false;
         bool closeStarted = false;
+        bool deliveryRetryScheduled = false;
     };
 
 } // namespace apps::codex_backend
