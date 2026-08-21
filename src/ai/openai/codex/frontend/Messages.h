@@ -52,6 +52,11 @@ namespace ai::openai::codex::frontend {
     enum class SessionRole { Observer, Controller };
     enum class SyncMode { Replay, Snapshot };
 
+    // Transport delivery has three distinct outcomes. Backpressured retains
+    // the exact message in the bounded ServerCore queue for a later retry;
+    // Closed is terminal for this frontend connection.
+    enum class OutboundDeliveryStatus { Accepted, Backpressured, Closed };
+
     // These string values are part of Frontend Protocol v1 and must remain
     // stable. Command failures and frontend-local protocol failures share one
     // enum so applications can implement one exhaustive error policy.

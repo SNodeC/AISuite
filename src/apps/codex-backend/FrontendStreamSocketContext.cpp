@@ -12,6 +12,7 @@
 #include "apps/codex-backend/FrontendCloseReason.h"
 #include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
+#include "core/timer/Timer.h"
 #include "utils/Timeval.h"
 
 #include <array>
@@ -23,11 +24,18 @@
 
 namespace apps::codex_backend {
 
+    namespace {
+
+        const utils::Timeval DeliveryRetryDelay(0.005);
+
+    } // namespace
+
     using ai::openai::codex::frontend::internal::transport::JsonLineFramer;
     using ai::openai::codex::frontend::CodecError;
     using ai::openai::codex::frontend::ErrorCode;
     using ai::openai::codex::frontend::FrontendConnectionCallbacks;
     using ai::openai::codex::frontend::OutboundMessage;
+    using ai::openai::codex::frontend::OutboundDeliveryStatus;
 
     struct FrontendStreamSocketContext::Lifetime {
         FrontendStreamSocketContext* context = nullptr;
@@ -51,15 +59,18 @@ namespace apps::codex_backend {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             frontendConnection =
                 service.openConnection(peer,
-                                       FrontendConnectionCallbacks{[weakLifetime](const OutboundMessage& message) {
-                                                                       const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
-                                                                       return locked && locked->context && locked->context->send(message);
-                                                                   },
+                                       FrontendConnectionCallbacks{{},
                                                                    [weakLifetime](const std::string& reason) {
                                                                        const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                                                                        if (locked && locked->context) {
                                                                            locked->context->serviceClosed(reason);
                                                                        }
+                                                                   },
+                                                                   [weakLifetime](const OutboundMessage& message) {
+                                                                       const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
+                                                                       return locked && locked->context
+                                                                                  ? locked->context->send(message)
+                                                                                  : OutboundDeliveryStatus::Closed;
                                                                    }});
         } catch (...) {
             rejectFrame(ErrorCode::InternalError, "failed to open frontend connection");
@@ -69,6 +80,7 @@ namespace apps::codex_backend {
     void FrontendStreamSocketContext::onDisconnected() {
         inputBlocked = true;
         disconnecting = true;
+        deliveryRetryScheduled = false;
         if (lifetime) {
             lifetime->context = nullptr;
         }
@@ -120,20 +132,80 @@ namespace apps::codex_backend {
         return true;
     }
 
-    bool FrontendStreamSocketContext::send(const OutboundMessage& message) noexcept {
+    OutboundDeliveryStatus FrontendStreamSocketContext::send(const OutboundMessage& message) noexcept {
         if (disconnecting) {
-            return false;
+            return OutboundDeliveryStatus::Closed;
         }
 
         try {
             auto* socketConnection = getSocketConnection();
             if (socketConnection == nullptr) {
-                return false;
+                return OutboundDeliveryStatus::Closed;
             }
+            const std::size_t frameBytes = message.compactJson.size() + 1;
+            if (frameBytes > DEFAULT_MAXIMUM_OUTBOUND_BYTES) {
+                return OutboundDeliveryStatus::Closed;
+            }
+
+            // Avoid repeatedly copying a retained multi-MiB head while the
+            // SNode.C writer is still too full to accept it. trySendToPeer
+            // remains the authoritative final admission check.
+            const std::size_t totalQueued = socketConnection->getTotalQueued();
+            const std::size_t totalSent = socketConnection->getTotalSent();
+            if (totalQueued >= totalSent) {
+                const std::size_t writerBytes = totalQueued - totalSent;
+                if (writerBytes > DEFAULT_MAXIMUM_OUTBOUND_BYTES - frameBytes) {
+                    return scheduleDeliveryRetry() ? OutboundDeliveryStatus::Backpressured : OutboundDeliveryStatus::Closed;
+                }
+            }
+
             std::string frame = message.compactJson;
             frame.push_back('\n');
-            return socketConnection->trySendToPeer(frame) == core::socket::stream::QueueResult::Queued;
+            switch (socketConnection->trySendToPeer(frame)) {
+                case core::socket::stream::QueueResult::Queued:
+                    return OutboundDeliveryStatus::Accepted;
+                case core::socket::stream::QueueResult::WouldExceedLimit:
+                    // Retain the exact ServerCore head until the bounded
+                    // writer has made room. If even an empty writer rejects
+                    // it, an externally tightened transport bound makes the
+                    // frame permanently undeliverable.
+                    if (socketConnection->getTotalQueued() == socketConnection->getTotalSent()) {
+                        return OutboundDeliveryStatus::Closed;
+                    }
+                    return scheduleDeliveryRetry() ? OutboundDeliveryStatus::Backpressured : OutboundDeliveryStatus::Closed;
+                case core::socket::stream::QueueResult::Closed:
+                case core::socket::stream::QueueResult::ShutdownInProgress:
+                    return OutboundDeliveryStatus::Closed;
+            }
         } catch (...) {
+            return OutboundDeliveryStatus::Closed;
+        }
+        return OutboundDeliveryStatus::Closed;
+    }
+
+    bool FrontendStreamSocketContext::scheduleDeliveryRetry() noexcept {
+        if (deliveryRetryScheduled || disconnecting || !lifetime) {
+            return deliveryRetryScheduled && !disconnecting;
+        }
+        deliveryRetryScheduled = true;
+        const std::weak_ptr<Lifetime> weakLifetime = lifetime;
+        try {
+            static_cast<void>(core::timer::Timer::singleshotTimer(
+                [weakLifetime] {
+                    const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
+                    if (!locked || !locked->context) {
+                        return;
+                    }
+                    FrontendStreamSocketContext& context = *locked->context;
+                    context.deliveryRetryScheduled = false;
+                    if (!context.disconnecting) {
+                        context.frontendConnection.resumeDelivery();
+                    }
+                },
+                DeliveryRetryDelay));
+            return true;
+        } catch (...) {
+            deliveryRetryScheduled = false;
             return false;
         }
     }
@@ -145,6 +217,7 @@ namespace apps::codex_backend {
         logFrontendCloseReason("stream transport", reason);
         inputBlocked = true;
         disconnecting = true;
+        deliveryRetryScheduled = false;
         try {
             shutdownRead();
             shutdownWrite();

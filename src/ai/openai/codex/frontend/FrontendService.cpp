@@ -167,16 +167,7 @@ namespace ai::openai::codex::frontend {
             }
             const std::optional<server::ConnectionIdentity> identity = target->openConnection(
                 std::move(peer),
-                server::ConnectionCallbacks{[callbackState](server::SerializedServerMessage outbound) {
-                                                if (!callbackState->callbacks.onMessage) {
-                                                    return false;
-                                                }
-                                                const std::size_t serializedBytes = outbound.compactJson.size();
-                                                return callbackState->callbacks.onMessage(
-                                                    OutboundMessage{std::move(outbound.message),
-                                                                    std::move(outbound.compactJson),
-                                                                    serializedBytes});
-                                            },
+                server::ConnectionCallbacks{{},
                                             [callbackState](const server::ConnectionClose& close) {
                                                 if (callbackState->callbacks.onClosed) {
                                                     try {
@@ -184,6 +175,25 @@ namespace ai::openai::codex::frontend {
                                                     } catch (...) {
                                                     }
                                                 }
+                                            },
+                                            [callbackState](server::SerializedServerMessage& outbound) {
+                                                if (!callbackState->callbacks.tryMessage && !callbackState->callbacks.onMessage) {
+                                                    return OutboundDeliveryStatus::Closed;
+                                                }
+                                                const std::size_t serializedBytes = outbound.compactJson.size();
+                                                OutboundMessage message{std::move(outbound.message),
+                                                                        std::move(outbound.compactJson),
+                                                                        serializedBytes};
+                                                const OutboundDeliveryStatus status =
+                                                    callbackState->callbacks.tryMessage
+                                                        ? callbackState->callbacks.tryMessage(message)
+                                                        : (callbackState->callbacks.onMessage(message) ? OutboundDeliveryStatus::Accepted
+                                                                                                     : OutboundDeliveryStatus::Closed);
+                                                if (status == OutboundDeliveryStatus::Backpressured) {
+                                                    outbound.message = std::move(message.message);
+                                                    outbound.compactJson = std::move(message.compactJson);
+                                                }
+                                                return status;
                                             }});
             if (!identity) {
                 return {};
@@ -324,6 +334,17 @@ namespace ai::openai::codex::frontend {
         const std::shared_ptr<FrontendService::Impl> service = control ? control->service.lock() : nullptr;
         const std::shared_ptr<server::ServerCore> target = service ? service->core : nullptr;
         return target ? target->queuedBytes(control->identity) : 0;
+    }
+
+    void FrontendConnection::resumeDelivery() noexcept {
+        const std::shared_ptr<FrontendService::Impl> service = control ? control->service.lock() : nullptr;
+        const std::shared_ptr<server::ServerCore> target = service ? service->core : nullptr;
+        if (target) {
+            try {
+                target->flushConnection(control->identity);
+            } catch (...) {
+            }
+        }
     }
 
     FrontendService::FrontendService(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions options)

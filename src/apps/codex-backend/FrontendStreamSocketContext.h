@@ -49,7 +49,9 @@ namespace apps::codex_backend {
         std::size_t onReceivedFromPeer() override;
         bool onSignal(int signum) override;
 
-        bool send(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
+        ai::openai::codex::frontend::OutboundDeliveryStatus
+        send(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
+        [[nodiscard]] bool scheduleDeliveryRetry() noexcept;
         void serviceClosed(std::string reason) noexcept;
         void rejectFrame(ai::openai::codex::frontend::ErrorCode code, std::string message) noexcept;
 
@@ -61,6 +63,7 @@ namespace apps::codex_backend {
         std::shared_ptr<Lifetime> lifetime;
         bool inputBlocked = false;
         bool disconnecting = false;
+        bool deliveryRetryScheduled = false;
 
         friend struct detail::FrontendStreamSocketContextTestAccess;
     };

@@ -222,9 +222,6 @@ namespace {
                                                                    },
                                                                    [&transportCloses](const server::ConnectionClose& close) {
                                                                        transportCloses.push_back(close);
-                                                                       if (close.protocolCode != frontend::ErrorCode::CapacityExceeded) {
-                                                                           throw std::runtime_error("unexpected close code");
-                                                                       }
                                                                        throw std::runtime_error("callback containment probe");
                                                                    }});
         result.expectTrue(transport.receive(*transportConnection, frontend::ClientMessage{frontend::Hello{}}).accepted() &&
@@ -232,8 +229,8 @@ namespace {
                           "deferred delivery retains typed outbound messages without invoking transport callbacks inline");
         scheduled.front()();
         result.expectTrue(transport.connectionCount() == 0 && transportCloses.size() == 1 &&
-                              transportCloses.front().reason == "frontend transport rejected outbound data",
-                          "transport refusal terminates only that connection and callback exceptions are contained");
+                              !transport.connectionOpen(*transportConnection),
+                          "a terminal transport close removes only that connection and contains close-callback exceptions");
 
         Backend throwingBackend;
         std::vector<std::function<void()>> throwingScheduled;
@@ -258,6 +255,137 @@ namespace {
         result.expectTrue(throwingHello && throwing.connectionCount() == 0 && throwingCloses.size() == 1 &&
                               throwingCloses.front().reason == "frontend outbound callback threw",
                           "a throwing send callback has the oracle close reason distinct from transport refusal");
+    }
+
+    void testLosslessTransportBackpressure(tests::support::TestResult& result) {
+        Backend backend;
+        std::vector<std::function<void()>> scheduled;
+        server::ServerCoreOptions options;
+        options.authenticator = authenticate;
+        options.maxMessagesPerDelivery = 2;
+        options.scheduler = [&scheduled](std::function<void()> callback) {
+            scheduled.push_back(std::move(callback));
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<std::string> attemptedJson;
+        std::vector<std::string> acceptedJson;
+        std::vector<server::ConnectionClose> closes;
+        bool backpressureOnce = false;
+        const auto connection = core.openConnection({},
+                                                    {{},
+                                                     [&closes](const server::ConnectionClose& close) {
+                                                         closes.push_back(close);
+                                                     },
+                                                     [&](server::SerializedServerMessage& outbound) {
+                                                         attemptedJson.push_back(outbound.compactJson);
+                                                         if (backpressureOnce) {
+                                                             backpressureOnce = false;
+                                                             return frontend::OutboundDeliveryStatus::Backpressured;
+                                                         }
+                                                         acceptedJson.push_back(std::move(outbound.compactJson));
+                                                         return frontend::OutboundDeliveryStatus::Accepted;
+                                                     }});
+        const bool helloAccepted =
+            connection && core.receive(*connection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        drainScheduled(scheduled);
+        attemptedJson.clear();
+        acceptedJson.clear();
+        backpressureOnce = true;
+
+        model::CanonicalSnapshot firstSnapshot = backend.state;
+        firstSnapshot.provider.lifecycle = model::ProviderLifecycle::Ready;
+        model::CanonicalSnapshot secondSnapshot = backend.state;
+        secondSnapshot.provider.lifecycle = model::ProviderLifecycle::Failed;
+        model::CanonicalSnapshot thirdSnapshot = backend.state;
+        thirdSnapshot.provider.lifecycle = model::ProviderLifecycle::Starting;
+        const server::SnapshotPublishResult firstPublished = core.publishSnapshot(firstSnapshot);
+        const server::SnapshotPublishResult secondPublished = core.publishSnapshot(secondSnapshot);
+        const server::SnapshotPublishResult thirdPublished = core.publishSnapshot(thirdSnapshot);
+        const std::size_t queuedMessagesBefore = connection ? core.queuedMessages(*connection) : 0;
+        const std::size_t queuedBytesBefore = connection ? core.queuedBytes(*connection) : 0;
+
+        std::function<void()> firstDelivery;
+        if (!scheduled.empty()) {
+            firstDelivery = std::move(scheduled.front());
+            scheduled.erase(scheduled.begin());
+        }
+        if (firstDelivery) {
+            firstDelivery();
+        }
+
+        result.expectTrue(helloAccepted && firstPublished.accepted && firstPublished.recipientCount == 1 &&
+                              secondPublished.accepted && secondPublished.recipientCount == 1 &&
+                              thirdPublished.accepted && thirdPublished.recipientCount == 1 &&
+                              queuedMessagesBefore == 3 && queuedBytesBefore > 0,
+                          "backpressure probe starts with three exact serialized Snapshots in a stable outbound queue");
+        result.expectTrue(attemptedJson.size() == 1 && acceptedJson.empty(),
+                          "the first delivery attempt reports backpressure without acceptance");
+        result.expectTrue(connection && core.connectionOpen(*connection) && closes.empty(),
+                          "temporary transport backpressure leaves the connection open");
+        result.expectTrue(connection && core.queuedMessages(*connection) == queuedMessagesBefore &&
+                              core.queuedBytes(*connection) == queuedBytesBefore,
+                          "temporary transport backpressure preserves exact queue accounting");
+
+        if (connection) {
+            core.flushConnection(*connection);
+        }
+        const bool retriedInOrder = attemptedJson.size() == 3 && acceptedJson.size() == 2 &&
+                                    attemptedJson[0] == attemptedJson[1] && attemptedJson[1] == acceptedJson[0] &&
+                                    attemptedJson[2] == acceptedJson[1] && attemptedJson[1] != attemptedJson[2];
+        const std::size_t acceptedBytes = acceptedJson.size() == 2
+                                              ? acceptedJson[0].size() + acceptedJson[1].size()
+                                              : 0;
+        result.expectTrue(retriedInOrder, "an explicit resume retries the identical JSON before the following queued message");
+        result.expectTrue(connection && core.connectionOpen(*connection) && closes.empty(),
+                          "successful resumed delivery keeps the frontend connection open");
+        result.expectTrue(connection && core.queuedMessages(*connection) == queuedMessagesBefore - 2 &&
+                              core.queuedBytes(*connection) == queuedBytesBefore - acceptedBytes,
+                          "successful resumed delivery debits only the two accepted messages");
+
+        drainScheduled(scheduled);
+        result.expectTrue(attemptedJson.size() == 4 && acceptedJson.size() == 3 && attemptedJson[3] == acceptedJson[2],
+                          "a resumed delivery schedules the remainder after reaching its per-turn fairness bound");
+        result.expectTrue(connection && core.queuedMessages(*connection) == 0 && core.queuedBytes(*connection) == 0,
+                          "the scheduled remainder drains the retained connection queue completely");
+
+        Backend closedBackend;
+        std::vector<std::function<void()>> closedScheduled;
+        server::ServerCoreOptions closedOptions;
+        closedOptions.authenticator = authenticate;
+        closedOptions.scheduler = [&closedScheduled](std::function<void()> callback) {
+            closedScheduled.push_back(std::move(callback));
+        };
+        server::ServerCore closedCore(closedBackend, std::move(closedOptions));
+        closedCore.start();
+        std::size_t closedSendCalls = 0;
+        std::vector<server::ConnectionClose> terminalCloses;
+        const auto closedConnection = closedCore.openConnection({},
+                                                                {{},
+                                                                 [&terminalCloses](const server::ConnectionClose& close) {
+                                                                     terminalCloses.push_back(close);
+                                                                 },
+                                                                 [&closedSendCalls](server::SerializedServerMessage&) {
+                                                                     ++closedSendCalls;
+                                                                     return frontend::OutboundDeliveryStatus::Closed;
+                                                                 }});
+        const bool closedHelloAccepted =
+            closedConnection && closedCore.receive(*closedConnection, frontend::ClientMessage{frontend::Hello{}}).accepted();
+        std::function<void()> closedDelivery;
+        if (!closedScheduled.empty()) {
+            closedDelivery = std::move(closedScheduled.front());
+            closedScheduled.erase(closedScheduled.begin());
+        }
+        if (closedDelivery) {
+            closedDelivery();
+        }
+        if (closedConnection) {
+            closedCore.flushConnection(*closedConnection);
+        }
+        result.expectTrue(closedHelloAccepted && closedSendCalls == 1 && terminalCloses.size() == 1 &&
+                              closedCore.connectionCount() == 0 && !closedCore.connectionOpen(*closedConnection),
+                          "a terminal transport close is never retained or retried");
     }
 
     void testDeliveryFairness(tests::support::TestResult& result) {
@@ -705,6 +833,7 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testQueueAndTransportBackpressure(result);
+    testLosslessTransportBackpressure(result);
     testDeliveryFairness(result);
     testSerializedOutboundFrames(result);
     testCapacityAndSequenceExhaustion(result);
