@@ -38,13 +38,16 @@ namespace ai::openai::codex::frontend {
     };
 
     struct FrontendConnectionCallbacks {
-        // Return false when the transport cannot accept the message without
-        // exceeding its own bounded queue. Only this frontend is then closed.
+        // Legacy terminal delivery callback. Returning false means the
+        // transport is closed; bounded adapters should use tryMessage so
+        // temporary write-queue pressure remains lossless and retryable.
         using Send = std::function<bool(const OutboundMessage&)>;
+        using TrySend = std::function<OutboundDeliveryStatus(const OutboundMessage&)>;
         using Closed = std::function<void(const std::string&)>;
 
         Send onMessage;
         Closed onClosed;
+        TrySend tryMessage = {};
     };
 
     using FrontendTimerCancellation = std::function<void()>;
@@ -128,6 +131,12 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] FrontendPeerContext peer() const;
         [[nodiscard]] std::size_t queuedMessages() const noexcept;
         [[nodiscard]] std::size_t queuedBytes() const noexcept;
+
+        // Retry the retained head message after a transport has made outbound
+        // capacity available. Backpressured callbacks schedule this after they
+        // return; they do not call it synchronously. Calling it on a closed
+        // connection is harmless.
+        void resumeDelivery() noexcept;
 
     private:
         friend class FrontendService;

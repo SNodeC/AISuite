@@ -80,6 +80,11 @@ namespace apps::codex_backend::detail {
         static void disconnect(FrontendStreamSocketContext& context) {
             context.onDisconnected();
         }
+
+        static ai::openai::codex::frontend::OutboundDeliveryStatus
+        send(FrontendStreamSocketContext& context, const ai::openai::codex::frontend::OutboundMessage& message) {
+            return context.send(message);
+        }
     };
 
 } // namespace apps::codex_backend::detail
@@ -289,8 +294,10 @@ namespace {
         void sendToPeer(const char*, std::size_t) override {
         }
 
-        core::socket::stream::QueueResult trySendToPeer(const char*, std::size_t) override {
-            return core::socket::stream::QueueResult::Queued;
+        core::socket::stream::QueueResult trySendToPeer(const char*, std::size_t chunkLength) override {
+            ++trySendCalls;
+            lastTrySendBytes = chunkLength;
+            return nextQueueResult;
         }
 
         bool streamToPeer(core::pipe::Source*) override {
@@ -344,11 +351,11 @@ namespace {
         }
 
         std::size_t getTotalSent() const override {
-            return 0;
+            return totalSent;
         }
 
         std::size_t getTotalQueued() const override {
-            return 0;
+            return totalQueued;
         }
 
         std::size_t getTotalRead() const override {
@@ -363,6 +370,11 @@ namespace {
         utils::Timeval writeTimeout = EstablishedInactivityProbeTimeout;
         std::size_t readTimeoutChanges = 0;
         std::size_t writeTimeoutChanges = 0;
+        core::socket::stream::QueueResult nextQueueResult = core::socket::stream::QueueResult::Queued;
+        std::size_t totalSent = 0;
+        std::size_t totalQueued = 0;
+        std::size_t trySendCalls = 0;
+        std::size_t lastTrySendBytes = 0;
 
     private:
         TimeoutProbeSocketAddress address;
@@ -409,6 +421,27 @@ namespace {
                           "successful frontend establishment disables the SNode.C read inactivity timeout exactly once");
         result.expectTrue(socketConnection.writeTimeoutChanges == 1 && socketConnection.writeTimeout == utils::Timeval({0, 0}),
                           "successful frontend establishment disables the SNode.C write inactivity timeout exactly once");
+
+        const frontend::OutboundMessage deliveryProbe{
+            frontend::ServerMessage{frontend::SyncComplete{}}, "native-delivery-probe", std::string_view("native-delivery-probe").size()};
+        socketConnection.totalQueued = app::DEFAULT_MAXIMUM_OUTBOUND_BYTES - 1;
+        const frontend::OutboundDeliveryStatus backpressured =
+            app::detail::FrontendStreamSocketContextTestAccess::send(context, deliveryProbe);
+        result.expectTrue(backpressured == frontend::OutboundDeliveryStatus::Backpressured && socketConnection.trySendCalls == 0,
+                          "a full native writer retains the ServerCore head without rebuilding or submitting its frame");
+
+        socketConnection.totalQueued = 0;
+        const frontend::OutboundDeliveryStatus accepted =
+            app::detail::FrontendStreamSocketContextTestAccess::send(context, deliveryProbe);
+        result.expectTrue(accepted == frontend::OutboundDeliveryStatus::Accepted && socketConnection.trySendCalls == 1 &&
+                              socketConnection.lastTrySendBytes == deliveryProbe.serializedBytes + 1,
+                          "native delivery submits and accepts the exact JSONL frame once bounded writer capacity is available");
+
+        socketConnection.nextQueueResult = core::socket::stream::QueueResult::WouldExceedLimit;
+        const frontend::OutboundDeliveryStatus permanentlyRejected =
+            app::detail::FrontendStreamSocketContextTestAccess::send(context, deliveryProbe);
+        result.expectTrue(permanentlyRejected == frontend::OutboundDeliveryStatus::Closed && socketConnection.trySendCalls == 2,
+                          "an empty writer rejecting a frame is classified as a terminal transport-bound mismatch");
 
         app::detail::FrontendStreamSocketContextTestAccess::disconnect(context);
     }

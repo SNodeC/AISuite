@@ -90,9 +90,12 @@ int main() {
             main.find("apps::codex_backend::ipv6FrontendServer") == std::string::npos &&
             main.find("apps::codex_backend::rfcommFrontendServer") == std::string::npos,
         "main constructs every native SNode.C listener explicitly instead of hiding instance configuration in wrappers");
-    result.expectTrue(streamContext.find("trySendToPeer(frame) == core::socket::stream::QueueResult::Queued") != std::string::npos &&
-                          streamContext.find("totalQueued") == std::string::npos && streamContext.find("totalSent") == std::string::npos,
-                      "stream transport admission uses SNode.C QueueResult without duplicate queue arithmetic");
+    result.expectTrue(
+        streamContext.find("case core::socket::stream::QueueResult::Queued:") != std::string::npos &&
+            streamContext.find("case core::socket::stream::QueueResult::WouldExceedLimit:") != std::string::npos &&
+            streamContext.find("scheduleDeliveryRetry()") != std::string::npos &&
+            streamContext.find("OutboundDeliveryStatus::Backpressured") != std::string::npos,
+        "stream transport distinguishes accepted, temporarily backpressured, and terminal SNode.C queue outcomes");
     result.expectTrue(unixCredentials.find("net::un::peerCredentials(") != std::string::npos &&
                           unixCredentials.find("SO_PEERCRED") == std::string::npos &&
                           unixCredentials.find("getpeereid") == std::string::npos,

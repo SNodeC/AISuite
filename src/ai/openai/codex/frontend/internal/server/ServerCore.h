@@ -209,13 +209,16 @@ namespace ai::openai::codex::frontend::internal::server {
     };
 
     struct ConnectionCallbacks {
-        // Returning false means the transport cannot accept another message
-        // without violating its own queue bound. Only this connection closes.
+        // Legacy terminal callback retained for internal tests/adapters.
         using Send = std::function<bool(SerializedServerMessage)>;
+        // Backpressured means ownership was not accepted; the callback must
+        // leave the borrowed serialized message unchanged for an exact retry.
+        using TrySend = std::function<OutboundDeliveryStatus(SerializedServerMessage&)>;
         using Closed = std::function<void(const ConnectionClose&)>;
 
         Send onMessage;
         Closed onClosed;
+        TrySend tryMessage = {};
     };
 
     using Scheduler = std::function<void(std::function<void()>)>;

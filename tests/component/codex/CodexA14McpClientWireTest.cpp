@@ -138,7 +138,8 @@ namespace {
         template <typename Operation>
         void completed(const Operation& operation, std::string_view method) {
             result.expectTrue(!insideSubmission && operation.kind == Operation::Kind::Success && operation.value.has_value() &&
-                                  operation.requestId.has_value() && operation.raw == responseFor(std::string(method)),
+                                  operation.requestId.has_value() && operation.raw.is_null() &&
+                                  operation.value->raw == responseFor(std::string(method)),
                               std::string(method) + " completes asynchronously with its own exact result and request ID");
             ++operationCallbacks;
             maybeFinish();

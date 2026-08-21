@@ -602,21 +602,28 @@ replay rather than subjected to unreliable heuristic secret scanning.
 
 There are two independent per-client backpressure boundaries:
 
-- `FrontendService` allows at most 512 queued protocol messages and 11 MiB of
+- `FrontendService` allows at most 512 queued protocol messages and 26.125 MiB of
   compact serialized JSON per connection, delivering at most 64 messages in
   one event-loop callback;
-- each reference stream/WebSocket context allows at most 13 MiB outstanding in
+- each reference stream/WebSocket context allows at most 28.125 MiB outstanding in
   that connection's writer, including transport framing where applicable.
 
 The limits intentionally have headroom in dependency order: the 8 MiB journal
-counts canonical records, the 11 MiB service queue also accommodates bounded
-replay batch and synchronization envelopes, and the 13 MiB writer additionally
-accommodates framing and data already handed off by the service. Thus a
+counts canonical records, the 26.125 MiB service queue also accommodates one
+maximum provider-derived response plus bounded replay and synchronization
+envelopes, and the 28.125 MiB writer additionally accommodates framing and data
+already handed off by the service. Thus a
 new Unix connection can replay a full default journal without being rejected
 solely because downstream accounting includes envelope overhead. All three
 limits remain finite. Deployments that customize one limit must adjust the
 downstream limits consistently; a complete snapshot is one separate message
 and a configured writer too small for it closes only that frontend.
+
+Native and WebSocket adapters report accepted, temporarily backpressured, and
+terminal delivery separately. A backpressured head remains owned by
+FrontendService and is retried byte-identically after the transport writer has
+room. WS and WSS additionally reserve the derived 2 MiB transport margin for
+WebSocket/control/TLS framing instead of admitting it as application JSON.
 
 When one atomic live occurrence cannot fit the event-batch limit,
 FrontendService sends a bare live Snapshot barrier to the already Ready

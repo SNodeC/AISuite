@@ -205,29 +205,16 @@ Provider operation completions preserve exact typed values for the command
 caller. The general `providerOperations` ledger and each domain's
 `latestResults` collection are metadata-only records: they retain the method,
 result alternative, bounded status/subject/page metadata, and source stamp,
-not another copy of the complete result. The 42 named trusted replacement
-caches retain bounded typed copies after discarding wire-only raw data and
-diagnostics:
-
-- account login cancellation/start, rate-limit read, account read, usage, and
-  workspace messages;
-- model list and provider capabilities;
-- configuration read, requirements, experimental features, last writes, and
-  feature enablement;
-- thread goal get/clear/set, unsubscribe, loaded-thread list,
-  permission-profile list, and latest review;
-- app list, external-agent detection/import/history, hooks, and marketplace
-  add/remove/upgrade results;
-- plugin install/catalog/detail/share-list/share-checkout/share-save/
-  share-update-targets/skill results plus skills list/configuration results;
-- MCP OAuth start and server-status list; and
-- Windows sandbox readiness.
-
-Authoritative extra-root state and large process/search payloads instead move
-into their dedicated bounded state.
+not another copy of the complete result. Authoritative reusable information is
+normalized into dedicated bounded state for accounts, app catalog, MCP status,
+Windows readiness, extra roots, and other provider domains. Fourteen
+configuration, goal, marketplace, and plugin/skill mutation summaries retain
+only the small set of fields projected by the safe snapshot. The backend does
+not retain a second complete typed response graph after delivering the exact
+result to the command caller.
 
 After an exact typed notification has been reduced, the general notification
-ledger retains only bounded metadata; authoritative domain fields and caches
+ledger retains only bounded metadata; authoritative domain fields and compact mutation records
 carry their own source stamps, so a notification does not broadly promote
 unconfirmed sibling state. Safe snapshots project bounded, renderable fields
 and never copy occurrence tokens, access tokens, secret answers, arbitrary
@@ -237,7 +224,7 @@ The completed state covers:
 
 - account/login, account, authentication mode, plan, rate-limit, usage,
   workspace-message, reset-credit, and logout state;
-- replacement caches for model pages and capabilities;
+- metadata-only summaries for model pages and capabilities;
 - configuration, requirements, feature enablement, write metadata, and
   configuration warnings;
 - complete thread, turn, item, goal, subscription, rollback, compaction, and
@@ -252,11 +239,11 @@ The completed state covers:
 - a bounded typed notice collection for warnings, deprecations,
   configuration/security notices, and Windows world-writable warnings.
 
-Latest-page/read caches replace their previous value rather than merging
-unbounded pagination. Cursors and completeness are retained, but BackendCore
-does not automatically follow them. Activity, notices, process output,
+Page/read metadata replaces its previous value rather than merging unbounded
+pagination. Cursors and completeness are retained where they are useful to
+canonical behavior, but BackendCore does not automatically follow them. Activity, notices, process output,
 watches, searches, and realtime text/audio accounting are explicitly bounded.
-Provider invalidation marks durable caches Stale and invalidates transient
+Provider invalidation marks durable semantic state Stale and invalidates transient
 handles without fabricating successful or terminal provider state. A reconnect
 marks only state confirmed by that generation Current. Child item changes do
 not promote stale turn or thread metadata.

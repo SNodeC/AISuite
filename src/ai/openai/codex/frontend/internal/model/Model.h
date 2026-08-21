@@ -176,7 +176,7 @@ namespace ai::openai::codex::frontend::internal::model {
     inline constexpr std::size_t MaximumItemContentOverflowV1Bytes = 32U * 1024U;
     inline constexpr std::size_t MaximumCommandOutputOverflowV2Bytes = 4U * 1024U * 1024U;
     // Base64 chunks make this bound independent of JSON escaping while
-    // retaining room in the 11 MiB server queue and 16 MiB client frame.
+    // retaining room in the derived server queue and client frame.
     inline constexpr std::size_t MaximumCommandOutputOverflowV2EncodedBytes = 8U * 1024U * 1024U;
 
     enum class ItemContentWireMode { Replacement, AppendV1, AppendV2 };

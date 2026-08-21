@@ -31,6 +31,10 @@ namespace ai::openai::codex::typed {
         std::optional<ProtocolError> remoteError;
         std::optional<Error> localError;
         std::optional<ClientRequestId> requestId;
+        // Populated only when a successful JSON-RPC result could not be
+        // decoded as its pinned typed contract. Successfully decoded values
+        // already retain their typed aggregate's compatibility data, so
+        // keeping the complete result here as well would duplicate it.
         Json raw = nullptr;
         std::optional<CodexErrorInfo> codexErrorInfo;
         std::optional<DecodeDiagnostic> codexErrorDiagnostic;

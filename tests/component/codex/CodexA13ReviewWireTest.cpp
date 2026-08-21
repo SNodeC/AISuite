@@ -450,7 +450,7 @@ namespace {
                 },
                 [this](const typed::OperationResult<typed::Unit>& operation) {
                     expect(!insideSubmission, "guardian approval completion remains asynchronous");
-                    expect(operation && operation.value && operation.raw == codex::Json::object(),
+                    expect(operation && operation.value && operation.raw.is_null(),
                            "guardian approval accepts the exact Unit response");
                     ++initialCallbacks;
                     maybeInjectEvents();

@@ -99,7 +99,11 @@ namespace ai::openai::codex::frontend::internal::client {
         }
 
         bool retryableProtocolError(ErrorCode code) noexcept {
-            return code == ErrorCode::InternalError || code == ErrorCode::BackendUnavailable || code == ErrorCode::RateLimited;
+            // InternalError includes deterministic server encoding and state
+            // failures. Replaying the same retained snapshot or journal suffix
+            // cannot repair those failures and can otherwise create an
+            // unbounded reconnect loop after a connection reached Ready.
+            return code == ErrorCode::BackendUnavailable || code == ErrorCode::RateLimited;
         }
 
         ClientError commandError(const CommandError& error) {

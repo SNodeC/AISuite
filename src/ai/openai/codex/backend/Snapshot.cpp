@@ -2442,120 +2442,92 @@ namespace ai::openai::codex::backend {
         snapshot.models = snapshotDomain(state.models);
         static_cast<ProviderDomainSnapshot&>(snapshot.configuration) = snapshotDomain(state.configuration);
         if (state.configuration.lastWrite) {
-            const auto& cache = *state.configuration.lastWrite;
+            const auto& write = *state.configuration.lastWrite;
             snapshot.configuration.lastWrite =
-                ConfigurationDomainSnapshot::Write{safeUtf8Prefix(cache.value.filePath.value, MaxSnapshotExtensionMethodBytes),
-                                                   safeUtf8Prefix(cache.value.status.value, MaxSnapshotExtensionMethodBytes),
-                                                   safeUtf8Prefix(cache.value.version, MaxSnapshotExtensionMethodBytes),
-                                                   cache.value.overriddenMetadata.hasValue(),
-                                                   cache.truncated,
-                                                   cache.stamp};
+                ConfigurationDomainSnapshot::Write{safeUtf8Prefix(write.filePath, MaxSnapshotExtensionMethodBytes),
+                                                   safeUtf8Prefix(write.status, MaxSnapshotExtensionMethodBytes),
+                                                   safeUtf8Prefix(write.version, MaxSnapshotExtensionMethodBytes),
+                                                   write.overridden,
+                                                   write.truncated,
+                                                   write.stamp};
         }
         if (state.configuration.experimentalFeatureEnablement) {
-            const auto& cache = *state.configuration.experimentalFeatureEnablement;
+            const auto& retained = *state.configuration.experimentalFeatureEnablement;
             ConfigurationDomainSnapshot::FeatureEnablement enablement;
-            enablement.totalEntries = cache.originalEntries;
-            enablement.truncated = cache.truncated;
-            enablement.stamp = cache.stamp;
-            enablement.entries.reserve(cache.value.enablement.size());
-            for (const auto& [feature, enabled] : cache.value.enablement) {
-                enablement.entries.emplace_back(safeUtf8Prefix(feature.value, MaxSnapshotExtensionMethodBytes), enabled);
+            enablement.totalEntries = retained.totalEntries;
+            enablement.truncated = retained.truncated;
+            enablement.stamp = retained.stamp;
+            enablement.entries.reserve(retained.entries.size());
+            for (const auto& [feature, enabled] : retained.entries) {
+                enablement.entries.emplace_back(safeUtf8Prefix(feature, MaxSnapshotExtensionMethodBytes), enabled);
             }
             snapshot.configuration.experimentalFeatureEnablement = std::move(enablement);
         }
         static_cast<ProviderDomainSnapshot&>(snapshot.conversations) = snapshotDomain(state.conversations);
-        const auto goalSnapshot =
-            [](std::string operation, const typed::ThreadId& threadId, const typed::ThreadGoal& goal, const SourceStamp& stamp) {
-                return ConversationDomainSnapshot::GoalMutation{std::move(operation),
-                                                                safeUtf8Prefix(threadId.value, MaxSnapshotExtensionMethodBytes),
-                                                                safeUtf8Prefix(goal.objective, MaxSnapshotExtensionPayloadBytes),
-                                                                safeUtf8Prefix(goal.status.value, MaxSnapshotExtensionMethodBytes),
-                                                                std::nullopt,
-                                                                stamp};
-            };
-        if (state.conversations.latestGoal && state.conversations.latestGoalThreadId &&
-            state.conversations.latestGoal->value.goal.hasValue()) {
-            snapshot.conversations.latestGoal = goalSnapshot("get",
-                                                             *state.conversations.latestGoalThreadId,
-                                                             *state.conversations.latestGoal->value.goal.value,
-                                                             state.conversations.latestGoal->stamp);
+        const auto goalSnapshot = [](const ConversationDomainState::GoalMutationState& retained) {
+            std::optional<std::string> objective = retained.objective;
+            std::optional<std::string> status = retained.status;
+            if (objective) {
+                *objective = safeUtf8Prefix(*objective, MaxSnapshotExtensionPayloadBytes);
+            }
+            if (status) {
+                *status = safeUtf8Prefix(*status, MaxSnapshotExtensionMethodBytes);
+            }
+            return ConversationDomainSnapshot::GoalMutation{retained.operation,
+                                                            safeUtf8Prefix(retained.threadId, MaxSnapshotExtensionMethodBytes),
+                                                            std::move(objective),
+                                                            std::move(status),
+                                                            retained.cleared,
+                                                            retained.stamp};
+        };
+        if (state.conversations.latestGoal && state.conversations.latestGoal->hasGoal &&
+            !state.conversations.latestGoal->threadId.empty()) {
+            snapshot.conversations.latestGoal = goalSnapshot(*state.conversations.latestGoal);
         }
-        if (state.conversations.latestGoalClear && state.conversations.latestGoalClearThreadId) {
-            snapshot.conversations.latestGoalClear = ConversationDomainSnapshot::GoalMutation{
-                "clear",
-                safeUtf8Prefix(state.conversations.latestGoalClearThreadId->value, MaxSnapshotExtensionMethodBytes),
-                std::nullopt,
-                std::nullopt,
-                state.conversations.latestGoalClear->value.cleared,
-                state.conversations.latestGoalClear->stamp};
+        if (state.conversations.latestGoalClear && !state.conversations.latestGoalClear->threadId.empty()) {
+            snapshot.conversations.latestGoalClear = goalSnapshot(*state.conversations.latestGoalClear);
         }
-        if (state.conversations.latestGoalSet && state.conversations.latestGoalSetThreadId) {
-            snapshot.conversations.latestGoalSet = goalSnapshot("set",
-                                                                *state.conversations.latestGoalSetThreadId,
-                                                                state.conversations.latestGoalSet->value.goal,
-                                                                state.conversations.latestGoalSet->stamp);
+        if (state.conversations.latestGoalSet && !state.conversations.latestGoalSet->threadId.empty()) {
+            snapshot.conversations.latestGoalSet = goalSnapshot(*state.conversations.latestGoalSet);
         }
-        if (state.conversations.latestUnsubscribe && state.conversations.latestUnsubscribeThreadId) {
-            snapshot.conversations.latestUnsubscribe = ConversationDomainSnapshot::GoalMutation{
-                "unsubscribe",
-                safeUtf8Prefix(state.conversations.latestUnsubscribeThreadId->value, MaxSnapshotExtensionMethodBytes),
-                std::nullopt,
-                safeUtf8Prefix(state.conversations.latestUnsubscribe->value.status.value, MaxSnapshotExtensionMethodBytes),
-                std::nullopt,
-                state.conversations.latestUnsubscribe->stamp};
+        if (state.conversations.latestUnsubscribe && !state.conversations.latestUnsubscribe->threadId.empty()) {
+            snapshot.conversations.latestUnsubscribe = goalSnapshot(*state.conversations.latestUnsubscribe);
         }
         snapshot.filesystem = snapshotDomain(state.filesystem);
         snapshot.reviews = snapshotDomain(state.reviews);
         static_cast<ProviderDomainSnapshot&>(snapshot.integrations) = snapshotDomain(state.integrations);
         snapshot.integrations.apps = state.integrations.apps;
-        const auto marketplaceSnapshot = [](std::string operation, const auto& cache) {
-            IntegrationsDomainSnapshot::MarketplaceMutation mutation;
-            mutation.operation = std::move(operation);
-            mutation.truncated = cache.truncated;
-            mutation.stamp = cache.stamp;
-            if constexpr (requires { cache.value.marketplaceName; }) {
-                mutation.marketplaceName = safeUtf8Prefix(cache.value.marketplaceName, MaxSnapshotExtensionMethodBytes);
+        const auto marketplaceSnapshot = [](const IntegrationsDomainState::MarketplaceMutationState& retained) {
+            IntegrationsDomainSnapshot::MarketplaceMutation mutation{retained.operation,
+                                                                     retained.marketplaceName,
+                                                                     retained.installedRoot,
+                                                                     retained.selectedCount,
+                                                                     retained.upgradedRootCount,
+                                                                     retained.errorCount,
+                                                                     retained.alreadyAdded,
+                                                                     retained.truncated,
+                                                                     retained.stamp};
+            if (mutation.marketplaceName) {
+                *mutation.marketplaceName = safeUtf8Prefix(*mutation.marketplaceName, MaxSnapshotExtensionMethodBytes);
             }
-            if constexpr (requires { cache.value.alreadyAdded; }) {
-                mutation.alreadyAdded = cache.value.alreadyAdded;
-            }
-            if constexpr (requires { cache.value.installedRoot.value; }) {
-                using InstalledRoot = std::remove_cvref_t<decltype(cache.value.installedRoot.value)>;
-                if constexpr (std::is_same_v<InstalledRoot, std::string>) {
-                    mutation.installedRoot = safeUtf8Prefix(cache.value.installedRoot.value, MaxSnapshotExtensionMethodBytes);
-                } else if constexpr (std::is_same_v<InstalledRoot, std::optional<typed::AbsolutePath>>) {
-                    if (cache.value.installedRoot.value) {
-                        mutation.installedRoot = safeUtf8Prefix(cache.value.installedRoot.value->value, MaxSnapshotExtensionMethodBytes);
-                    }
-                }
-            }
-            if constexpr (requires { cache.value.selectedMarketplaces.size(); }) {
-                mutation.selectedCount = cache.value.selectedMarketplaces.size();
-            }
-            if constexpr (requires { cache.value.upgradedRoots.size(); }) {
-                mutation.upgradedRootCount = cache.value.upgradedRoots.size();
-            }
-            if constexpr (requires { cache.value.errors.size(); }) {
-                mutation.errorCount = cache.value.errors.size();
+            if (mutation.installedRoot) {
+                *mutation.installedRoot = safeUtf8Prefix(*mutation.installedRoot, MaxSnapshotExtensionMethodBytes);
             }
             return mutation;
         };
         if (state.integrations.marketplaceAdd) {
-            snapshot.integrations.marketplaceAdd = marketplaceSnapshot("add", *state.integrations.marketplaceAdd);
+            snapshot.integrations.marketplaceAdd = marketplaceSnapshot(*state.integrations.marketplaceAdd);
         }
         if (state.integrations.marketplaceRemove) {
-            snapshot.integrations.marketplaceRemove = marketplaceSnapshot("remove", *state.integrations.marketplaceRemove);
+            snapshot.integrations.marketplaceRemove = marketplaceSnapshot(*state.integrations.marketplaceRemove);
         }
         if (state.integrations.marketplaceUpgrade) {
-            snapshot.integrations.marketplaceUpgrade = marketplaceSnapshot("upgrade", *state.integrations.marketplaceUpgrade);
+            snapshot.integrations.marketplaceUpgrade = marketplaceSnapshot(*state.integrations.marketplaceUpgrade);
         }
         static_cast<ProviderDomainSnapshot&>(snapshot.pluginsAndSkills) = snapshotDomain(state.pluginsAndSkills);
-        const auto pluginMutation = [](std::string operation,
-                                       std::optional<std::string> subjectId,
-                                       std::optional<std::string> status,
-                                       std::size_t itemCount,
-                                       bool truncated,
-                                       const SourceStamp& stamp) {
+        const auto pluginMutation = [](const PluginsAndSkillsDomainState::MutationState& retained) {
+            std::optional<std::string> subjectId = retained.subjectId;
+            std::optional<std::string> status = retained.status;
             if (subjectId) {
                 *subjectId = safeUtf8Prefix(*subjectId, MaxSnapshotExtensionMethodBytes);
             }
@@ -2563,40 +2535,23 @@ namespace ai::openai::codex::backend {
                 *status = safeUtf8Prefix(*status, MaxSnapshotExtensionMethodBytes);
             }
             return PluginsAndSkillsDomainSnapshot::Mutation{
-                std::move(operation), std::move(subjectId), std::move(status), itemCount, truncated, stamp};
+                retained.operation, std::move(subjectId), std::move(status), retained.itemCount, retained.truncated, retained.stamp};
         };
         if (state.pluginsAndSkills.pluginInstall) {
-            const auto& cache = *state.pluginsAndSkills.pluginInstall;
-            snapshot.pluginsAndSkills.pluginInstall = pluginMutation(
-                "install", std::nullopt, cache.value.authPolicy.value, cache.value.appsNeedingAuth.size(), cache.truncated, cache.stamp);
+            snapshot.pluginsAndSkills.pluginInstall = pluginMutation(*state.pluginsAndSkills.pluginInstall);
         }
         if (state.pluginsAndSkills.pluginShareCheckout) {
-            const auto& cache = *state.pluginsAndSkills.pluginShareCheckout;
-            snapshot.pluginsAndSkills.pluginShareCheckout =
-                pluginMutation("share_checkout", cache.value.remotePluginId, cache.value.pluginName, 0, cache.truncated, cache.stamp);
+            snapshot.pluginsAndSkills.pluginShareCheckout = pluginMutation(*state.pluginsAndSkills.pluginShareCheckout);
         }
         if (state.pluginsAndSkills.pluginShareSave) {
-            const auto& cache = *state.pluginsAndSkills.pluginShareSave;
-            snapshot.pluginsAndSkills.pluginShareSave =
-                pluginMutation("share_save", cache.value.remotePluginId, "saved", 0, cache.truncated, cache.stamp);
+            snapshot.pluginsAndSkills.pluginShareSave = pluginMutation(*state.pluginsAndSkills.pluginShareSave);
         }
         if (state.pluginsAndSkills.pluginShareUpdateTargets) {
-            const auto& cache = *state.pluginsAndSkills.pluginShareUpdateTargets;
-            snapshot.pluginsAndSkills.pluginShareUpdateTargets = pluginMutation("share_update_targets",
-                                                                                std::nullopt,
-                                                                                cache.value.discoverability.value,
-                                                                                cache.value.principals.size(),
-                                                                                cache.truncated,
-                                                                                cache.stamp);
+            snapshot.pluginsAndSkills.pluginShareUpdateTargets =
+                pluginMutation(*state.pluginsAndSkills.pluginShareUpdateTargets);
         }
         if (state.pluginsAndSkills.skillsConfigWrite) {
-            const auto& cache = *state.pluginsAndSkills.skillsConfigWrite;
-            snapshot.pluginsAndSkills.skillsConfigWrite = pluginMutation("skills_config_write",
-                                                                         std::nullopt,
-                                                                         cache.value.effectiveEnabled ? "enabled" : "disabled",
-                                                                         0,
-                                                                         cache.truncated,
-                                                                         cache.stamp);
+            snapshot.pluginsAndSkills.skillsConfigWrite = pluginMutation(*state.pluginsAndSkills.skillsConfigWrite);
         }
         if (state.pluginsAndSkills.extraRoots) {
             SkillsExtraRootsState roots = *state.pluginsAndSkills.extraRoots;

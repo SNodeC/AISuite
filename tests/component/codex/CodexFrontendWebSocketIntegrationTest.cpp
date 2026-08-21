@@ -9,6 +9,7 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "apps/codex-backend/Configuration.h"
 #include "apps/codex-backend/FrontendStreamSocketContextFactory.h"
 #include "apps/codex-backend/FrontendWebApplication.h"
 #include "core/SNodeC.h"
@@ -56,6 +57,7 @@ namespace {
     constexpr std::string_view InvalidBearer = "a1-7b-websocket-invalid-token";
     constexpr std::string_view Endpoint = "/frontend";
     constexpr std::size_t MaximumInboundMessageBytes = 512;
+    constexpr std::size_t SaturatedApplicationWriterBytes = 6U * 1024U;
 
     enum class CaseKind : std::size_t { WrongSubprotocol, MissingBearer, BadBearer, Binary, OversizedText, GoodText, Count };
 
@@ -108,6 +110,7 @@ namespace {
         std::size_t protocolErrorCount = 0;
         std::size_t availableMethods = 0;
         std::size_t permittedMethods = 0;
+        std::size_t initialSynchronizationBytes = 0;
         std::optional<frontend::ErrorCode> protocolError;
         bool textOpcodeOnly = true;
         bool advertisedMultiTransport = false;
@@ -276,6 +279,7 @@ namespace {
         } else if (std::holds_alternative<frontend::SyncComplete>(message)) {
             ++observation.syncCompleteCount;
             if (kind == CaseKind::GoodText && observation.syncCompleteCount == 1) {
+                observation.initialSynchronizationBytes = observation.allReceivedWire.size();
                 protocol.sendFrontend(frontend::ClientMessage{
                     frontend::Command{"websocket-snapshot", frontend::SnapshotGet{}, frontend::Json::object(), frontend::Json::object()}});
             }
@@ -396,6 +400,8 @@ namespace {
                 app::FrontendStreamSocketContextFactoryOptions{
                     .transport = frontend::FrontendTransportKind::Ipv4, .socket = {}, .resolvePeer = {}});
             webApp.getConfig()->Instance::forceUnrequired();
+            webApp.getConfig()->Connection::setMaximumWriteQueueBytes(app::DEFAULT_TRANSPORT_FRAMING_HEADROOM_BYTES +
+                                                                      SaturatedApplicationWriterBytes);
             nativeServer.getConfig()->Instance::forceUnrequired();
             auto* httpPolicy = webApp.getConfig()->net::config::ConfigInstance::getSubCommand<web::http::server::ConfigHttpServer>();
             httpPolicy->setMaximumPendingRequests(1)->setAllowChunkedTransfer(false)->setAllowPipelining(false);
@@ -581,6 +587,12 @@ namespace {
                               ", messages=" + std::to_string(good.messageEnds) + ")");
         result.expectTrue(good.availableMethods == 90 && good.permittedMethods == 53 && good.advertisedMultiTransport,
                           "the live Welcome reports 90 available methods, default_remote 53/90, and multi_transport for two families");
+        // Welcome, Snapshot, and SyncComplete are attempted by one
+        // synchronous ServerCore flush. Socket write events cannot interleave
+        // with that callback, so exceeding the configured application budget
+        // forces the adapter through Backpressured and its deferred retry.
+        result.expectTrue(good.initialSynchronizationBytes > SaturatedApplicationWriterBytes,
+                          "the lossless WebSocket synchronization exceeds its application writer allowance and completes after retry");
 
         const CaseObservation& binary = state.cases[caseIndex(CaseKind::Binary)];
         result.expectTrue(binary.completed && binary.websocketDisconnected == 1 && binary.messageEnds == 0 && binary.welcomeCount == 0,

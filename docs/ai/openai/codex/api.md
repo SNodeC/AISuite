@@ -235,9 +235,13 @@ client.models().list(
 ```
 
 `OperationResult<T>` distinguishes Success, RemoteError, Cancelled, and
-LocalError. It retains the decoded value, request ID, raw result, protocol
-error, local error, and structured Codex error information. `operator bool()`
-and `isSuccess()` both require a successful kind and a decoded value.
+LocalError. It retains the decoded value, request ID, protocol error, local
+error, and structured Codex error information. A successfully decoded value
+does not retain a duplicate raw JSON result. `raw` is reserved for a successful
+provider response that could not be decoded into `T`; remote wire error data
+remains in `remoteError.raw`, and cancellation does not retain raw data.
+`operator bool()` and `isSuccess()` both require a successful kind and a
+decoded value.
 `operator*` and `operator->` may be used only when that condition holds; they
 are unchecked optional-like accessors and do not manufacture a missing value.
 
@@ -302,8 +306,9 @@ temporarily deprecated while the final façade shape was undecided. Final A1b
 retained both paths. A1.5 resolves that deferred decision in favor of direct
 domain access and removes the redundant public grouped client.
 
-The Codex libraries use SOVERSION 4 after typed turn-plan State changed the C++
-ABI. A1.6a established
-the backend foundation, and A1.6b completes the trusted BackendCore command
-and canonical-state layer. Frontend Protocol redesign and provider-neutral
-architecture remain separate A1.7 and A2 work.
+The Codex libraries use SOVERSION 5 after the public BackendState ABI stopped
+retaining duplicate typed provider-result graphs in `ReplacementCache` fields.
+The compact canonical mutation records preserve Frontend Protocol v1. A1.6a
+established the backend foundation, and A1.6b completes the trusted BackendCore
+command and canonical-state layer. Frontend Protocol redesign and
+provider-neutral architecture remain separate A1.7 and A2 work.

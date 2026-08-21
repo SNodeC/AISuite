@@ -182,7 +182,9 @@ The existing convenience overloads for `thread/list`, `thread/read`,
 `thread/resume`, `thread/start`, `turn/interrupt`, and `turn/start` remain
 forwarding compatibility APIs where their old contract can be expressed
 without ambiguity. Canonical overloads account for every response-wrapper
-field and preserve the complete raw result in `OperationResult`.
+field. Successfully decoded aggregates preserve compatibility JSON on the
+typed value itself; `OperationResult::raw` is reserved for successful JSON-RPC
+payloads that could not be decoded as their pinned result contract.
 
 ## Stable server notifications
 
@@ -586,6 +588,12 @@ or a descriptor without one implemented row, is an error in both directions.
 Incoming aggregates retain raw JSON at the narrowest useful typed aggregate or
 union alternative. Outgoing-only params are authoritative encodings and do not
 gain a raw member without a protocol round-trip reason.
+
+`OperationResult<T>` does not retain a second copy of a successfully decoded
+result. Its `raw` member is null for typed success, remote error, and
+cancellation; a typed decode failure retains the exact successful JSON-RPC
+result there so callers can diagnose the rejected payload. Remote-error raw
+JSON remains on `ProtocolError::raw`.
 
 For every method and union:
 

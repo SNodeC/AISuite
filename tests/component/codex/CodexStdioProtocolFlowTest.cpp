@@ -365,7 +365,8 @@ namespace {
                     std::move(startParams), [&](const typed::OperationResult<typed::ThreadStartResponse>& startResult) {
                         inlineCallback = inlineCallback || insideSubmission;
                         threadStartValid = startResult && startResult.value->thread.id.value == "thread-fake-001" &&
-                                           startResult.value->model.value == "gpt-5" && startResult.raw["cwd"] == "/tmp/project";
+                                           startResult.value->model.value == "gpt-5" &&
+                                           startResult.value->raw["cwd"] == "/tmp/project";
 
                         typed::ThreadResumeParams resumeParams;
                         resumeParams.threadId = startResult.value->thread.id;
@@ -394,7 +395,8 @@ namespace {
                                             std::move(readParams),
                                             [&](const typed::OperationResult<typed::ThreadReadResponse>& readResult) {
                                                 inlineCallback = inlineCallback || insideSubmission;
-                                                threadReadValid = readResult && readResult.value->thread.raw == readResult.raw["thread"];
+                                                threadReadValid =
+                                                    readResult && readResult.value->thread.raw == readResult.value->raw["thread"];
 
                                                 typed::TurnStartParams turnParams;
                                                 turnParams.threadId = typed::ThreadId{"thread-fake-001"};

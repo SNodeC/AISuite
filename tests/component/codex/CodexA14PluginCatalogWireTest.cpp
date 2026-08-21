@@ -338,8 +338,8 @@ namespace {
                 [params = std::move(params), submit = std::move(submit)](std::function<void(bool, const codex::Json&)> completion) mutable {
                     return submit(params, [completion = std::move(completion)](const typed::OperationResult<Result>& operation) {
                         completion(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value.has_value() &&
-                                       operation.value->raw == operation.raw,
-                                   operation.raw);
+                                       operation.raw.is_null(),
+                                   operation.value ? operation.value->raw : operation.raw);
                     });
                 },
             };
@@ -486,7 +486,8 @@ namespace {
             const Submission submission =
                 client->plugins().list(std::move(params), [this](const typed::OperationResult<typed::PluginListResponse>& operation) {
                     expect(!insideSubmission, "reentrant plugin/list completion remains asynchronous");
-                    expect(operation && operation.raw == listResult(), "reentrant plugin/list shares the same decoder and RawProtocol");
+                    expect(operation && operation.raw.is_null() && operation.value && operation.value->raw == listResult(),
+                           "reentrant plugin/list shares the same decoder without duplicating compatibility JSON");
                     ++reentrantCallbacks;
                     probeDuplicate();
                 });

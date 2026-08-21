@@ -96,13 +96,14 @@ inventory is 29 main, seven backend, and nine frontend headers, or 45 total.
 A1.7b replaces `frontend/BackendAdapter.h` with
 `frontend/FrontendService.h` and installs no compatibility alias, so that
 inventory does not change.
-Project version is `0.3.0`; all Codex libraries use SOVERSION 4 after adding
-typed turn-plan state. The protocol identity and protocol version remain
-unchanged; negotiated append-v2 projection carries complete retained command
-output in bounded base64 chunks without enlarging the frozen scalar fields or
-depending on JSON escape expansion. After the backend's bounded command-output
-window fills, append-v2 advances it with a UTF-8-safe discard-prefix plus
-append delta instead of repeatedly replacing the whole window. “Complete
+Project version is `0.4.0`; all Codex libraries use SOVERSION 5 after removing
+duplicate public BackendState result graphs. The protocol identity and protocol
+version remain unchanged; negotiated append-v2 projection carries complete
+retained command output in bounded base64 chunks without enlarging the frozen
+scalar fields or depending on JSON escape expansion. After the backend's
+bounded command-output window fills, append-v2 advances it with a UTF-8-safe
+discard-prefix plus append delta instead of repeatedly replacing the whole
+window. “Complete
 retained” is still subject to BackendCore's aggregate
 content and snapshot capacities; clients are never promised output the backend
 has already discarded.
@@ -889,7 +890,7 @@ Default protocol-layer bounds are:
 | replay-journal entries | 4,096 |
 | serialized replay-journal bytes | 8 MiB |
 | queued messages per FrontendService connection | 512 |
-| queued serialized bytes per FrontendService connection | 11 MiB |
+| queued serialized bytes per FrontendService connection | 26.125 MiB |
 | messages delivered per event-loop callback | 64 |
 
 Batch size is measured from the compact serialized envelope, not estimated
@@ -945,7 +946,8 @@ the `events` envelopes, commas between events, `welcome`, and `sync.complete`.
 The default service therefore reserves explicit downstream headroom instead of
 using the same 8 MiB limit twice: 512 bytes per possible retained entry (a
 conservative upper bound for the v1 batch-envelope contribution), 64 KiB for
-control envelopes, and additional bounded margin, for an 11 MiB service limit.
+control envelopes, and room for one maximum provider-derived response, for a
+26.125 MiB service limit.
 This makes every replay that fits the default 4,096-entry/8 MiB journal fit the
 default service queue as well. The queue remains bounded and slow-client
 isolation is unchanged.

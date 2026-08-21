@@ -396,7 +396,7 @@ namespace {
                             [this](const typed::OperationResult<typed::FsReadFileResponse>& operation) {
                                 expect(operation.kind == typed::OperationResult<typed::FsReadFileResponse>::Kind::Success &&
                                            operation.value && operation.value->dataBase64 == "bm90LWEtbG9jYWwtZmlsZQ==" &&
-                                           operation.raw == readFileResult(),
+                                           operation.raw.is_null() && operation.value->raw == readFileResult(),
                                        "reentrant readFile completes through the same RawProtocol");
                                 ++reentrantCallbacks;
                                 maybeCompleteSuccess();
@@ -541,8 +541,8 @@ namespace {
                 }
                 if (phase == Phase::Success || phase == Phase::Generation) {
                     expect(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value &&
-                               operation.raw == expectedResult && typedRawMatches(operation, expectedResult),
-                           method + " decodes its authoritative result and retains exact raw");
+                               operation.raw.is_null() && typedRawMatches(operation, expectedResult),
+                           method + " decodes its authoritative result without duplicating retained compatibility JSON");
                     expectConcreteFields(operation, method);
                     auto& order = phase == Phase::Success ? successOrder : generationOrder;
                     auto& count = phase == Phase::Success ? successCallbacks : generationCallbacks;

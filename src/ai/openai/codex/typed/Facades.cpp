@@ -98,7 +98,6 @@ namespace ai::openai::codex::typed {
                        const Response& response) {
                 OperationResult<T> result;
                 result.requestId = response.id;
-                result.raw = response.result;
 
                 switch (response.kind) {
                     case Response::Kind::RemoteError:
@@ -130,6 +129,7 @@ namespace ai::openai::codex::typed {
                         if (result.value) {
                             result.kind = OperationResult<T>::Kind::Success;
                         } else {
+                            result.raw = response.result;
                             result.kind = OperationResult<T>::Kind::LocalError;
                             if (decodingError.empty()) {
                                 decodingError = "typed App Server result could not be decoded";
@@ -193,7 +193,9 @@ namespace ai::openai::codex::typed {
             result.remoteError = source.remoteError;
             result.localError = source.localError;
             result.requestId = source.requestId;
-            result.raw = source.raw;
+            if (source.kind == OperationResult<From>::Kind::LocalError) {
+                result.raw = source.raw;
+            }
             result.codexErrorInfo = source.codexErrorInfo;
             result.codexErrorDiagnostic = source.codexErrorDiagnostic;
             return result;

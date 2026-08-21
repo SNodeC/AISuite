@@ -85,8 +85,8 @@
     },
     {
       "path": "src/ai/openai/codex/typed/Facades.cpp",
-      "bytes": 58784,
-      "sha256": "6e120dfddfa4b71059f363d982286313bc6e7fae31e692b8833f03a667a1dcc4"
+      "bytes": 58888,
+      "sha256": "bc20b1904da327385eb00a575ad3e710f59df9e057c2bf7ce33926848c74e079"
     },
     {
       "path": "src/ai/openai/codex/typed/Conversation.h",
@@ -140,8 +140,8 @@
     },
     {
       "path": "tests/component/codex/CodexA11OperationWireTest.cpp",
-      "bytes": 144960,
-      "sha256": "0fbda15ce161c5a0061d8bf3f84d4883e343f0d30baff0d737a595a480720845"
+      "bytes": 145032,
+      "sha256": "fc8318481a2b857355b9d15255f66c5fc1f07ae63f17f3aa0e13e961648b4d04"
     },
     {
       "path": "tests/installed/codex/CodexApiConsumer.cpp",

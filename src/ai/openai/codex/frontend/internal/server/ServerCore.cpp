@@ -444,6 +444,8 @@ namespace ai::openai::codex::frontend::internal::server {
             bool helloAttempted = false;
             bool helloComplete = false;
             bool closing = false;
+            bool deliveryBackpressured = false;
+            bool deliveryInFlight = false;
             std::optional<ConnectionClose> closeAfterDrain;
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
@@ -1073,7 +1075,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         connection->closing = true;
         connection->closeAfterDrain = std::move(close);
-        if (connection->outbound.empty()) {
+        if (connection->outbound.empty() && !connection->deliveryInFlight) {
             const ConnectionClose drained = *connection->closeAfterDrain;
             connection = nullptr;
             closeNow(identity, drained);
@@ -1114,11 +1116,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 connection->outbound.pop_back();
             };
             const auto messageCount = [&connection] {
-                return connection->outbound.size();
+                return connection->outbound.size() + static_cast<std::size_t>(connection->deliveryInFlight);
             };
             while (messageCount() >= options.maxOutboundMessagesPerConnection ||
                    connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
-                if (messageCount() == 0) {
+                if (connection->outbound.empty()) {
                     closeNow(identity, std::move(close));
                     return;
                 }
@@ -1148,9 +1150,9 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         std::string compactJson = std::move(encoded).value();
         const std::size_t bytes = compactJson.size();
-        const bool messageCapacityExceeded =
-            connection->outbound.size() >= options.maxOutboundMessagesPerConnection ||
-            connection->deferredSnapshotOutbound.size() >= options.maxOutboundMessagesPerConnection - connection->outbound.size();
+        const std::size_t queuedMessages = connection->outbound.size() + connection->deferredSnapshotOutbound.size() +
+                                           static_cast<std::size_t>(connection->deliveryInFlight);
+        const bool messageCapacityExceeded = queuedMessages >= options.maxOutboundMessagesPerConnection;
         if (messageCapacityExceeded || bytes > options.maxOutboundBytesPerConnection ||
             connection->outboundBytes > options.maxOutboundBytesPerConnection - bytes) {
             closeWithProtocolError(
@@ -1362,32 +1364,79 @@ namespace ai::openai::codex::frontend::internal::server {
                 break;
             }
 
-            // Account and remove the message before entering transport code.
+            // Move the head out before entering transport code so a reentrant
+            // callback cannot invalidate a borrowed deque reference. Keep its
+            // bytes charged until the transport accepts it; temporary
+            // backpressure restores this exact message at the head.
             SerializedServerMessage queued = std::move(connection->outbound.front());
             connection->outbound.pop_front();
-            connection->outboundBytes -= queued.compactJson.size();
+            connection->deliveryInFlight = true;
+            const std::size_t queuedBytes = queued.compactJson.size();
             ConnectionCallbacks::Send send = connection->callbacks.onMessage;
+            ConnectionCallbacks::TrySend trySend = connection->callbacks.tryMessage;
             const ConnectionContinuation continuation{token, connection->helloComplete, connection->closing};
             connection = nullptr;
-            bool accepted = false;
-            if (send) {
+            OutboundDeliveryStatus delivery = OutboundDeliveryStatus::Closed;
+            if (trySend) {
                 try {
-                    accepted = send(std::move(queued));
+                    delivery = trySend(queued);
                 } catch (...) {
-                    if (findConnection(continuation)) {
+                    if (findConnection(token)) {
+                        closeNow(token.identity, ConnectionClose{"frontend outbound callback threw", ErrorCode::CapacityExceeded, false});
+                    }
+                    return;
+                }
+            } else if (send) {
+                try {
+                    delivery = send(std::move(queued)) ? OutboundDeliveryStatus::Accepted : OutboundDeliveryStatus::Closed;
+                } catch (...) {
+                    if (findConnection(token)) {
                         closeNow(token.identity, ConnectionClose{"frontend outbound callback threw", ErrorCode::CapacityExceeded, false});
                     }
                     return;
                 }
             }
-            if (!findConnection(continuation)) {
+            connection = findConnection(token);
+            if (!connection) {
                 return;
             }
-            if (!accepted) {
-                closeNow(token.identity, ConnectionClose{"frontend transport rejected outbound data", ErrorCode::CapacityExceeded, false});
-                return;
+            const bool continuationStable = connection->helloComplete == continuation.helloComplete &&
+                                            connection->closing == continuation.closing;
+            switch (delivery) {
+                case OutboundDeliveryStatus::Accepted:
+                    connection->outboundBytes -= queuedBytes;
+                    connection->deliveryInFlight = false;
+                    ++delivered;
+                    if (!continuationStable) {
+                        return;
+                    }
+                    break;
+                case OutboundDeliveryStatus::Backpressured:
+                    // A retry callback borrows this object only for the
+                    // attempt. Retention requires the exact serialized head;
+                    // reject an adapter that consumed it while declining it.
+                    if (queued.compactJson.size() != queuedBytes) {
+                        connection = nullptr;
+                        closeNow(token.identity,
+                                 ConnectionClose{"frontend outbound retry payload was modified", ErrorCode::InternalError, false});
+                        return;
+                    }
+                    try {
+                        connection->outbound.push_front(std::move(queued));
+                        connection->deliveryInFlight = false;
+                        connection->deliveryBackpressured = true;
+                    } catch (...) {
+                        connection = nullptr;
+                        closeNow(token.identity,
+                                 ConnectionClose{"frontend outbound retry queue allocation failed", ErrorCode::InternalError, false});
+                    }
+                    return;
+                case OutboundDeliveryStatus::Closed:
+                    connection = nullptr;
+                    closeNow(token.identity,
+                             ConnectionClose{"frontend transport rejected outbound data", ErrorCode::CapacityExceeded, false});
+                    return;
             }
-            ++delivered;
         }
 
         std::optional<ConnectionClose> drainedClose;
@@ -1415,7 +1464,7 @@ namespace ai::openai::codex::frontend::internal::server {
         std::vector<ConnectionToken> recipients;
         recipients.reserve(connections.size());
         for (const auto& [identity, connection] : connections) {
-            if (!connection.outbound.empty()) {
+            if (!connection.outbound.empty() && !connection.deliveryBackpressured) {
                 recipients.push_back(ConnectionToken{identity, connection.generation});
             }
         }
@@ -1424,7 +1473,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         const bool pending = std::any_of(connections.begin(), connections.end(), [](const auto& entry) {
-            return !entry.second.outbound.empty();
+            return !entry.second.outbound.empty() && !entry.second.deliveryBackpressured;
         });
         if (pending) {
             requestFlush();
@@ -3663,12 +3712,18 @@ namespace ai::openai::codex::frontend::internal::server {
     void ServerCore::flushConnection(ConnectionIdentity identity) {
         Impl::DispatchScope dispatch(*impl);
         if (impl->flushActive || impl->deferredPumpActive || impl->dispatchDepth > 1) {
+            if (Impl::Connection* connection = impl->findConnection(identity)) {
+                connection->deliveryBackpressured = false;
+            }
             impl->requestFlush();
             return;
         }
         impl->flushActive = true;
         try {
             if (const std::optional<Impl::ConnectionToken> token = impl->connectionToken(identity)) {
+                if (Impl::Connection* connection = impl->findConnection(*token)) {
+                    connection->deliveryBackpressured = false;
+                }
                 impl->flushConnectionLocked(*token);
             }
         } catch (...) {
@@ -3676,6 +3731,12 @@ namespace ai::openai::codex::frontend::internal::server {
             throw;
         }
         impl->flushActive = false;
+        if (const std::optional<Impl::ConnectionToken> token = impl->connectionToken(identity)) {
+            const Impl::Connection* connection = impl->findConnection(*token);
+            if (connection && !connection->outbound.empty() && !connection->deliveryBackpressured) {
+                impl->requestFlush();
+            }
+        }
     }
 
     void ServerCore::declareTransportFamily(FrontendTransportKind transport) {
@@ -3797,7 +3858,9 @@ namespace ai::openai::codex::frontend::internal::server {
     std::size_t ServerCore::queuedMessages(ConnectionIdentity identity) const noexcept {
         try {
             const Impl::Connection* connection = impl->findConnection(identity);
-            return connection ? connection->outbound.size() + connection->deferredSnapshotOutbound.size() : 0;
+            return connection ? connection->outbound.size() + connection->deferredSnapshotOutbound.size() +
+                                    static_cast<std::size_t>(connection->deliveryInFlight)
+                              : 0;
         } catch (...) {
             return 0;
         }

@@ -430,7 +430,14 @@ Each accepted message must be one complete text JSON value; SNode.C enforces
 frame/message limits and the AISuite subprotocol rejects binary messages. An
 upgrade requires exactly the WebSocket subprotocol token `codex`, which is
 distinct from the Frontend Protocol identity `snodec.codex-frontend`.
-SNode.C owns the finite 13 MiB writer queue and connection-local backpressure.
+The default SNode.C writer bound is derived from the reusable service bound
+plus 2 MiB of transport-framing headroom (28.125 MiB at the current defaults).
+The WebSocket adapter preflights both compact application bytes and complete
+unmasked frame bytes before invoking SNode.C's transmitter. Temporary writer
+pressure retains the exact FrontendService head and resumes it asynchronously;
+terminal writer state still closes only that connection. The same adapter and
+admission contract apply to WS and WSS, with the transport reserve left for
+WebSocket control/framing and TLS overhead.
 
 An optional static root serves only `GET` and `HEAD`. The root is canonicalized
 once, retained as an open directory descriptor, and may not be the filesystem
@@ -469,8 +476,8 @@ in production because framework tracing is configured and owned by SNode.C.
 ## Backpressure and failure isolation
 
 The default retained journal is bounded at 4,096 records and 8 MiB. The
-service queue is bounded at 512 messages and 11 MiB per connection, and the
-reference stream/WebSocket writer is bounded at 13 MiB. This preserves the
+service queue is bounded at 512 messages and 26.125 MiB per connection, and
+the reference stream/WebSocket writer is bounded at 28.125 MiB. This preserves the
 required relationship:
 
 ```text

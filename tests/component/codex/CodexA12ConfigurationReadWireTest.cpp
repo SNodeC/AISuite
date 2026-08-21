@@ -359,8 +359,8 @@ namespace {
                 if (phase == Phase::Success || phase == Phase::Generation) {
                     const bool typedRaw = operation.value && operation.value->raw == expectedResult;
                     expect(operation.kind == typed::OperationResult<Result>::Kind::Success && operation.value &&
-                               operation.raw == expectedResult && typedRaw,
-                           method + " decodes its concrete result and retains exact raw JSON");
+                               operation.raw.is_null() && typedRaw,
+                           method + " decodes its concrete result without duplicating retained compatibility JSON");
                     auto& order = phase == Phase::Success ? successOrder : generationOrder;
                     auto& count = phase == Phase::Success ? successCallbacks : generationCallbacks;
                     order.push_back(method);

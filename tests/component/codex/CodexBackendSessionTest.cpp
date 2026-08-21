@@ -285,8 +285,15 @@ namespace {
         result.expectTrue(static_cast<bool>(peer.submit("peer-acquire", backend::ControllerAcquire{})),
                           "peer emits another backend transition before queued delivery runs");
 
-        result.expectTrue(eventless.isOpen(),
-                          "a command-only session with no event callback does not mirror raw backend events into its outbound queue");
+        bool burstSessionsOpened = true;
+        for (std::size_t index = 0; index < 8; ++index) {
+            backend::FrontendSession transient = core.openSession({});
+            burstSessionsOpened = burstSessionsOpened && transient.isOpen();
+            transient.close("eventless-session burst probe");
+        }
+
+        result.expectTrue(burstSessionsOpened && eventless.isOpen(),
+                          "a command-only session with no event callback survives a backend-event burst beyond its queue limit");
         result.expectTrue(static_cast<bool>(eventless.submit("eventless-snapshot", backend::SnapshotGet{})),
                           "eventless session remains available for commands while a global observer handles updates");
         scheduler.drain();
