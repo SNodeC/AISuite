@@ -503,9 +503,10 @@ Turn input uses explicit discriminators:
 - `{"type":"mention","name":"...","path":"..."}`.
 
 The optional turn `sandboxPolicy.type` is `dangerFullAccess`, `readOnly`,
-`externalSandbox`, or `workspaceWrite`. `networkAccess` is Boolean except for
-`externalSandbox`, where it is a non-empty string. Only `workspaceWrite`
-accepts `writableRoots`, `excludeTmpdirEnvVar`, and `excludeSlashTmp`.
+`externalSandbox`, or `workspaceWrite`. `dangerFullAccess` accepts only its
+type. `networkAccess` is Boolean for `readOnly` and `workspaceWrite`, and a
+non-empty string for `externalSandbox`. Only `workspaceWrite` accepts
+`writableRoots`, `excludeTmpdirEnvVar`, and `excludeSlashTmp`.
 
 Controller acquisition is explicit:
 

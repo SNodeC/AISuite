@@ -210,11 +210,27 @@
         { "$ref": "#/$defs/MentionInput" }
       ]
     },
-    "BooleanNetworkSandbox": {
+    "DangerFullAccessSandbox": {
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["dangerFullAccess", "readOnly"] },
+        "type": { "const": "dangerFullAccess" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["networkAccess"] },
+          { "required": ["writableRoots"] },
+          { "required": ["excludeTmpdirEnvVar"] },
+          { "required": ["excludeSlashTmp"] }
+        ]
+      },
+      "additionalProperties": true
+    },
+    "ReadOnlyNetworkSandbox": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "readOnly" },
         "networkAccess": { "type": "boolean" }
       },
       "not": {
@@ -259,7 +275,8 @@
     },
     "SandboxPolicy": {
       "oneOf": [
-        { "$ref": "#/$defs/BooleanNetworkSandbox" },
+        { "$ref": "#/$defs/DangerFullAccessSandbox" },
+        { "$ref": "#/$defs/ReadOnlyNetworkSandbox" },
         { "$ref": "#/$defs/ExternalSandbox" },
         { "$ref": "#/$defs/WorkspaceWriteSandbox" }
       ]

@@ -417,6 +417,9 @@ namespace ai::openai::codex::frontend {
 
             const auto networkAccess = encoded.find("networkAccess");
             if (networkAccess != encoded.end()) {
+                if (policy.type == "dangerFullAccess") {
+                    fail(ErrorCode::InvalidField, "networkAccess is not supported for dangerFullAccess sandbox policy");
+                }
                 if (policy.type == "externalSandbox") {
                     if (!networkAccess->is_string() || networkAccess->get_ref<const std::string&>().empty()) {
                         fail(ErrorCode::InvalidField, "external sandbox field 'networkAccess' must be a non-empty string");

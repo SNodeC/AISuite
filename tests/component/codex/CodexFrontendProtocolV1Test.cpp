@@ -597,6 +597,18 @@ int main() {
                                                           {"method", "turn.interrupt"},
                                                           {"params", Json{{"threadId", 1}}}});
     result.expectTrue(!malformedParams, "malformed command-specific params are rejected");
+    const auto unsupportedFullAccessNetwork = Codec::decodeClient(
+        Json{{"protocol", ProtocolIdentity},
+             {"version", 1},
+             {"kind", "command"},
+             {"requestId", "unsupported-full-access-network"},
+             {"method", "turn.start"},
+             {"params",
+              Json{{"threadId", "thread-1"},
+                   {"input", Json::array({Json{{"type", "text"}, {"text", "hello"}}})},
+                   {"sandboxPolicy", Json{{"type", "dangerFullAccess"}, {"networkAccess", false}}}}}});
+    result.expectTrue(!unsupportedFullAccessNetwork && unsupportedFullAccessNetwork.error().code == ErrorCode::InvalidField,
+                      "danger-full-access rejects an unsupported network override instead of silently dropping it");
     const auto invalidRange = Codec::decodeClient(Json{{"protocol", ProtocolIdentity},
                                                        {"version", 1},
                                                        {"kind", "command"},
