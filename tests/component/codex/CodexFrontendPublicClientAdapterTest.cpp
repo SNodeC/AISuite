@@ -3,6 +3,7 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/client/Client.h"
 #include "ai/openai/codex/frontend/client/detail/ClientTestAccess.h"
+#include "ai/openai/codex/frontend/detail/PersistentText.h"
 #include "ai/openai/codex/frontend/internal/client/CanonicalStateBuilder.h"
 #include "ai/openai/codex/frontend/internal/client/ClientCore.h"
 #include "ai/openai/codex/frontend/internal/model/Model.h"
@@ -81,13 +82,36 @@ namespace {
         return client::detail::ClientTestAccess::adoptStateStorage(adopter, std::move(*storage));
     }
 
-    frontend::Welcome welcome(std::uint64_t sequence) {
+    std::optional<client::State> buildPreparedCanonicalState(client::Client& adopter,
+                                                             const core::PublishedState& publication,
+                                                             const core::PublishedState& previousPublication,
+                                                             std::span<const core::Change> changes,
+                                                             const client::State& previousState,
+                                                             std::string& error) {
+        const core::StatePublicationPreparation preparation{publication, previousPublication, changes};
+        auto storage = client::detail::CanonicalStateBuilder::build(
+            preparation,
+            client::detail::ClientTestAccess::stateStorage(previousState),
+            std::numeric_limits<std::size_t>::max(),
+            64,
+            error);
+        if (!storage.has_value()) {
+            return std::nullopt;
+        }
+        return client::detail::ClientTestAccess::adoptStateStorage(adopter, std::move(*storage));
+    }
+
+    frontend::Welcome welcome(std::uint64_t sequence, bool selectItemContentAppend = false) {
+        frontend::Json extensions{{"permittedScopes", frontend::Json::array({"observe", "control"})},
+                                  {"projection", frontend::Json{{"identity", "public-adapter"}}}};
+        if (selectItemContentAppend) {
+            extensions["projection"]["itemContentUpdateMode"] = "append-v1";
+        }
         return {"7",
                 frontend::SessionRole::Observer,
                 frontend::SequenceNumber(sequence),
                 frontend::SyncMode::Snapshot,
-                frontend::Json{{"permittedScopes", frontend::Json::array({"observe", "control"})},
-                               {"projection", frontend::Json{{"identity", "public-adapter"}}}},
+                std::move(extensions),
                 expandedCapabilities(),
                 allMethods(),
                 allMethods(),
@@ -170,6 +194,62 @@ namespace {
         const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
         return {frontend::SequenceNumber(sequence),
                 encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::Snapshot expandedAppendItemSnapshot(std::uint64_t sequence) {
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, 3, "incremental item");
+        snapshot.turns.emplace_back(model::TurnIdentity{"append-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData item{
+            model::ItemIdentity{"append-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"append-turn"}};
+        item.agentText = "seed";
+        snapshot.items.push_back(model::AgentMessageItem{std::move(item)});
+        const auto expanded = model::encodeSnapshot(snapshot, model::ItemContentWireMode::AppendV1);
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::Snapshot expandedRollingCommandSnapshot(std::uint64_t sequence, const std::string& content) {
+        model::CanonicalSnapshot snapshot = canonicalSnapshot(sequence, 3, "rolling command");
+        snapshot.turns.emplace_back(model::TurnIdentity{"append-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData item{
+            model::ItemIdentity{"append-item"}, model::ThreadIdentity{"adapter-thread"}, model::TurnIdentity{"append-turn"}};
+        constexpr std::size_t PrefixBytes = 16U * 1024U;
+        item.commandOutput = content.substr(0, PrefixBytes);
+        item.commandOutputOverflowV2 = model::ItemContentOverflowV1{
+            PrefixBytes, content.substr(PrefixBytes), 0, false, false};
+        item.contentTruncated = true;
+        item.droppedContentBytes = content.size() - PrefixBytes;
+        item.truncation.truncated = true;
+        item.truncation.droppedBytes = content.size() - PrefixBytes;
+        item.truncation.omittedPaths = {"/commandOutput"};
+        snapshot.items.push_back(model::CommandExecutionItem{std::move(item)});
+        const auto expanded = model::encodeSnapshot(snapshot, model::ItemContentWireMode::AppendV2);
+        if (!expanded) {
+            return {frontend::SequenceNumber(sequence), frontend::Json{{"invalid", true}, {"error", expanded.error().message}}};
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(expanded.value());
+        return {frontend::SequenceNumber(sequence),
+                encoded ? encoded.value().at("state") : frontend::Json{{"invalid", true}, {"error", encoded.error().message}}};
+    }
+
+    frontend::FrontendEvent appendItemContentEvent(std::uint64_t sequence,
+                                                    std::uint64_t baseContentBytes,
+                                                    std::string delta) {
+        return {frontend::SequenceNumber{sequence},
+                "item.content.updated",
+                {{"threadId", "adapter-thread"},
+                 {"turnId", "append-turn"},
+                 {"itemId", "append-item"},
+                 {"channel", "agentText"},
+                 {"content", ""},
+                 {"contentDelta", std::move(delta)},
+                 {"baseContentBytes", baseContentBytes},
+                 {"contentTruncated", false},
+                 {"droppedContentBytes", std::uint64_t{0}}}};
     }
 
     frontend::FrontendEvent occurrenceEvent(model::OccurrenceIdentity identity, model::OccurrencePayload payload) {
@@ -918,6 +998,157 @@ namespace {
                           "ambiguous turn lookup fails closed");
     }
 
+    void testPartialScopeDuplicateUsesExactAppendIdentity(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState initialPublication;
+        initialPublication.revision = 1;
+        initialPublication.freshness = core::PublishedFreshness::Current;
+        initialPublication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot initialSnapshot = canonicalSnapshot(1, 1, "partial item parents");
+        initialSnapshot.threads.emplace_back(model::ThreadIdentity{"partial-thread"});
+        initialSnapshot.turns.emplace_back(
+            model::TurnIdentity{"full-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData fullyScoped{model::ItemIdentity{"duplicate-item"},
+                                    model::ThreadIdentity{"adapter-thread"},
+                                    model::TurnIdentity{"full-turn"}};
+        fullyScoped.agentText = "alpha";
+        initialSnapshot.items.push_back(model::AgentMessageItem{std::move(fullyScoped)});
+        model::ItemData partiallyScoped{model::ItemIdentity{"duplicate-item"},
+                                        model::ThreadIdentity{"partial-thread"},
+                                        std::nullopt};
+        partiallyScoped.agentText = "bravo";
+        initialSnapshot.items.push_back(model::AgentMessageItem{std::move(partiallyScoped)});
+        initialPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(initialSnapshot));
+
+        std::string error;
+        const auto initial = buildCanonicalState(
+            adopter, initialPublication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const auto firstDescriptor = initial ? initial->itemContentDescriptor(
+                                                   typed::ThreadId{"adapter-thread"},
+                                                   typed::TurnId{"full-turn"},
+                                                   typed::ItemId{"duplicate-item"},
+                                                   client::ItemContentChannel::AgentText)
+                                             : std::nullopt;
+
+        core::PublishedState currentPublication = initialPublication;
+        currentPublication.revision = 2;
+        model::CanonicalSnapshot currentSnapshot = *initialPublication.snapshot;
+        std::get<model::AgentMessageItem>(currentSnapshot.items[1]).value.agentText = "bravo!";
+        currentPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(currentSnapshot));
+
+        model::ItemContentUpdatedOccurrence update{model::ItemIdentity{"duplicate-item"}};
+        update.threadId = model::ThreadIdentity{"partial-thread"};
+        update.channel = "agentText";
+        update.content = "bravo!";
+        update.appendHint = model::ItemContentAppendHint{5, "!", 0, true};
+        const std::array<core::Change, 1> changes{core::Change{std::move(update)}};
+        const auto current = initial ? buildPreparedCanonicalState(
+                                           adopter, currentPublication, initialPublication, changes, *initial, error)
+                                     : std::nullopt;
+        const auto stableFirstDescriptor = current ? current->itemContentDescriptor(
+                                                         typed::ThreadId{"adapter-thread"},
+                                                         typed::TurnId{"full-turn"},
+                                                         typed::ItemId{"duplicate-item"},
+                                                         client::ItemContentChannel::AgentText)
+                                                   : std::nullopt;
+        const auto items = current ? current->items() : std::span<const client::ItemState>{};
+        result.expectTrue(initial && current && error.empty() && items.size() == 2 &&
+                              items[0].agentText == std::optional<std::string>{"alpha"} &&
+                              items[1].threadId == std::optional<typed::ThreadId>{typed::ThreadId{"partial-thread"}} &&
+                              !items[1].turnId.has_value() &&
+                              items[1].agentText == std::optional<std::string>{"bravo!"} && firstDescriptor &&
+                              stableFirstDescriptor &&
+                              firstDescriptor->contentRevision == stableFirstDescriptor->contentRevision,
+                          "a verified append with a partial parent scope updates the exact duplicate item without aliasing the first "
+                          "same-ID item");
+    }
+
+    void testMetadataOnlyUpsertsPreserveContentRevisions(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState initialPublication;
+        initialPublication.revision = 10;
+        initialPublication.freshness = core::PublishedFreshness::Current;
+        initialPublication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot initialSnapshot = canonicalSnapshot(1, 1, "metadata upserts");
+        initialSnapshot.turns.emplace_back(
+            model::TurnIdentity{"metadata-turn"}, model::ThreadIdentity{"adapter-thread"});
+        for (const std::string_view id : {"item-upsert", "turn-upsert", "thread-upsert"}) {
+            model::ItemData item{model::ItemIdentity{std::string{id}},
+                                 model::ThreadIdentity{"adapter-thread"},
+                                 model::TurnIdentity{"metadata-turn"}};
+            item.summary = "before";
+            item.agentText = std::string{id} + " agent";
+            item.reasoningText = std::string{id} + " reasoning";
+            item.reasoningSummary = std::string{id} + " summary";
+            item.commandOutput = std::string{id} + " output";
+            initialSnapshot.items.push_back(model::AgentMessageItem{std::move(item)});
+        }
+        initialPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(initialSnapshot));
+
+        std::string error;
+        const auto initial = buildCanonicalState(
+            adopter, initialPublication, std::numeric_limits<std::size_t>::max(), 64, error);
+        std::array<std::array<std::optional<client::ItemContentDescriptor>, 4>, 3> before{};
+        const std::array<std::string_view, 3> itemIds{"item-upsert", "turn-upsert", "thread-upsert"};
+        if (initial) {
+            for (std::size_t itemIndex = 0; itemIndex < itemIds.size(); ++itemIndex) {
+                for (std::size_t channelIndex = 0; channelIndex < 4; ++channelIndex) {
+                    before[itemIndex][channelIndex] = initial->itemContentDescriptor(
+                        typed::ThreadId{"adapter-thread"},
+                        typed::TurnId{"metadata-turn"},
+                        typed::ItemId{std::string{itemIds[itemIndex]}},
+                        static_cast<client::ItemContentChannel>(channelIndex));
+                }
+            }
+        }
+
+        core::PublishedState currentPublication = initialPublication;
+        currentPublication.revision = 11;
+        model::CanonicalSnapshot currentSnapshot = *initialPublication.snapshot;
+        for (model::ThreadItem& value : currentSnapshot.items) {
+            std::get<model::AgentMessageItem>(value).value.summary = "after";
+        }
+        currentPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(currentSnapshot);
+
+        model::ItemUpsertedOccurrence itemUpdate{currentSnapshot.items[0]};
+        model::TurnUpsertedOccurrence turnUpdate{currentSnapshot.turns.front()};
+        turnUpdate.items.push_back(currentSnapshot.items[1]);
+        model::ThreadUpsertedOccurrence threadUpdate{currentSnapshot.threads.front()};
+        threadUpdate.items.push_back(currentSnapshot.items[2]);
+        const std::array<core::Change, 3> changes{
+            core::Change{std::move(itemUpdate)}, core::Change{std::move(turnUpdate)}, core::Change{std::move(threadUpdate)}};
+        const auto current = initial ? buildPreparedCanonicalState(
+                                           adopter, currentPublication, initialPublication, changes, *initial, error)
+                                     : std::nullopt;
+
+        bool exact = initial.has_value() && current.has_value() && error.empty();
+        for (std::size_t itemIndex = 0; exact && itemIndex < itemIds.size(); ++itemIndex) {
+            const client::ItemState* item = current->item(
+                typed::ThreadId{"adapter-thread"},
+                typed::TurnId{"metadata-turn"},
+                typed::ItemId{std::string{itemIds[itemIndex]}});
+            exact = item != nullptr && item->summary == std::optional<std::string>{"after"};
+            for (std::size_t channelIndex = 0; exact && channelIndex < 4; ++channelIndex) {
+                const auto after = current->itemContentDescriptor(
+                    typed::ThreadId{"adapter-thread"},
+                    typed::TurnId{"metadata-turn"},
+                    typed::ItemId{std::string{itemIds[itemIndex]}},
+                    static_cast<client::ItemContentChannel>(channelIndex));
+                exact = before[itemIndex][channelIndex].has_value() && after.has_value() &&
+                        before[itemIndex][channelIndex]->contentRevision == after->contentRevision;
+            }
+        }
+        result.expectTrue(
+            exact,
+            "item, turn, and thread metadata-only upserts preserve all unchanged per-channel content revisions");
+    }
+
     void testIndexedStateLookupsAndGroupedOrdering(tests::support::TestResult& result) {
         constexpr std::size_t ThreadCount = 128;
         constexpr std::size_t TurnsPerThread = 4;
@@ -1027,10 +1258,21 @@ namespace {
                                       frontend::SequenceNumber(9), frontend::SequenceNumber(9), {upsert}}})
                                   .accepted;
         const auto* upsertChange = findChange<client::ItemUpsertedChange>(harness.changes);
-        const client::ItemState* firstAfterUpsert = sdk.state().item(
+        const client::State upsertState = sdk.state();
+        const client::ItemState* firstAfterUpsert = upsertState.item(
             typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
-        const client::ItemState* secondAfterUpsert = sdk.state().item(
+        const client::ItemState* secondAfterUpsert = upsertState.item(
             typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
+        const auto beforeReplacement = upsertState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::AgentText);
+        const auto beforeReasoning = upsertState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::ReasoningText);
         result.expectTrue(
             synchronized && upserted && upsertChange && upsertChange->itemId == typed::ItemId{"item-1"} &&
                 upsertChange->threadId == std::optional<typed::ThreadId>{typed::ThreadId{"second-thread"}} &&
@@ -1046,10 +1288,21 @@ namespace {
                                       frontend::SequenceNumber(10), frontend::SequenceNumber(10), {content}}})
                                   .accepted;
         const auto* contentChange = findChange<client::ItemContentReplacedChange>(harness.changes);
-        const client::ItemState* firstAfterContent = sdk.state().item(
+        const client::State contentState = sdk.state();
+        const client::ItemState* firstAfterContent = contentState.item(
             typed::ThreadId{"adapter-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
-        const client::ItemState* secondAfterContent = sdk.state().item(
+        const client::ItemState* secondAfterContent = contentState.item(
             typed::ThreadId{"second-thread"}, typed::TurnId{"shared-turn"}, typed::ItemId{"item-1"});
+        const auto afterReplacement = contentState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::AgentText);
+        const auto afterReasoning = contentState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::ReasoningText);
         result.expectTrue(
             replaced && contentChange && contentChange->itemId == typed::ItemId{"item-1"} &&
                 contentChange->channel == client::ItemContentChannel::AgentText &&
@@ -1058,6 +1311,209 @@ namespace {
                 firstAfterContent->agentText == std::optional<std::string>{"first scoped item"} && secondAfterContent &&
                 secondAfterContent->agentText == std::optional<std::string>{"second streamed item"},
             "public item-content changes retain canonical thread/turn scope when bare item IDs repeat");
+
+        harness.changes.clear();
+        const frontend::FrontendEvent provider = providerEvent(11, 4);
+        const bool providerUpdated = connection
+                                         .receive(frontend::ServerMessage{frontend::EventBatch{
+                                             frontend::SequenceNumber(11), frontend::SequenceNumber(11), {provider}}})
+                                         .accepted;
+        const client::State providerState = sdk.state();
+        const auto afterProvider = providerState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::AgentText);
+        const auto reasoningAfterProvider = providerState.itemContentDescriptor(
+            typed::ThreadId{"second-thread"},
+            typed::TurnId{"shared-turn"},
+            typed::ItemId{"item-1"},
+            client::ItemContentChannel::ReasoningText);
+        result.expectTrue(
+            beforeReplacement && afterReplacement && afterProvider && beforeReplacement->present &&
+                afterReplacement->present && afterProvider->present &&
+                beforeReplacement->retainedUtf8Bytes == std::string_view{"second upserted item"}.size() &&
+                afterReplacement->retainedUtf8Bytes == std::string_view{"second streamed item"}.size() &&
+                beforeReplacement->retainedUtf8Bytes == afterReplacement->retainedUtf8Bytes &&
+                beforeReplacement->contentRevision != afterReplacement->contentRevision &&
+                afterReplacement->contentRevision == afterProvider->contentRevision && beforeReasoning && afterReasoning &&
+                reasoningAfterProvider && !beforeReasoning->present && beforeReasoning->retainedUtf8Bytes == 0 &&
+                beforeReasoning->contentRevision == afterReasoning->contentRevision &&
+                afterReasoning->contentRevision == reasoningAfterProvider->contentRevision && providerUpdated,
+            "content descriptors change the replaced equal-length channel only and remain stable across an unrelated publication");
+    }
+
+    void testVerifiedIncrementalItemPublication(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+        const bool snapshotAccepted = connection.receive(frontend::ServerMessage{welcome(1, true)}).accepted &&
+                                      connection.receive(frontend::ServerMessage{expandedAppendItemSnapshot(1)}).accepted;
+        const client::State synchronizingState = sdk.state();
+        const bool synchronized = snapshotAccepted &&
+                                  connection.receive(frontend::ServerMessage{
+                                      frontend::SyncComplete{frontend::SequenceNumber{1}}})
+                                      .accepted;
+        const client::State initial = sdk.state();
+        harness.changes.clear();
+
+        constexpr std::size_t AppendCount = 1'024;
+        const std::string delta{"x\"\n\\"};
+        std::uint64_t baseBytes = 4;
+        bool accepted = synchronized;
+        bool exactChanges = synchronized;
+        for (std::size_t index = 0; index < AppendCount && accepted; ++index) {
+            frontend::FrontendEvent append = appendItemContentEvent(index + 2, baseBytes, delta);
+            accepted = connection
+                           .receive(frontend::ServerMessage{frontend::EventBatch{
+                               append.sequence, append.sequence, {std::move(append)}}})
+                           .accepted;
+            if (!accepted || harness.changes.empty()) {
+                exactChanges = false;
+                break;
+            }
+            const auto* change = std::get_if<client::ItemContentAppendedChange>(&harness.changes.back());
+            exactChanges = exactChanges && change != nullptr && change->itemId == typed::ItemId{"append-item"} &&
+                           change->channel == client::ItemContentChannel::AgentText &&
+                           change->baseContentBytes == baseBytes && change->discardPrefixBytes == 0 &&
+                           change->delta == delta;
+            baseBytes += delta.size();
+        }
+
+        const client::State current = sdk.state();
+        const auto initialDescriptor = initial.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::AgentText);
+        const auto synchronizingDescriptor = synchronizingState.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::AgentText);
+        const auto currentDescriptor = current.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::AgentText);
+        const auto initialReasoningDescriptor = initial.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::ReasoningText);
+        const auto currentReasoningDescriptor = current.itemContentDescriptor(
+            typed::ThreadId{"adapter-thread"},
+            typed::TurnId{"append-turn"},
+            typed::ItemId{"append-item"},
+            client::ItemContentChannel::ReasoningText);
+        const client::ItemState* initialItem = initial.item("append-item");
+        const client::ItemState* currentItem = current.item("append-item");
+        std::string expected = "seed";
+        expected.reserve(static_cast<std::size_t>(baseBytes));
+        for (std::size_t index = 0; index < AppendCount; ++index) {
+            expected += delta;
+        }
+        std::string accountingError;
+        const bool exactAccounting = client::detail::CanonicalStateBuilder::verifyAccounting(
+            client::detail::ClientTestAccess::stateStorage(current), accountingError);
+        result.expectTrue(accepted && exactChanges && harness.changes.size() == AppendCount && synchronizingDescriptor &&
+                              initialDescriptor && currentDescriptor && synchronizingDescriptor->present && initialDescriptor->present &&
+                              currentDescriptor->present &&
+                              synchronizingDescriptor->contentRevision == initialDescriptor->contentRevision &&
+                              initialDescriptor->retainedUtf8Bytes == 4 && currentDescriptor->retainedUtf8Bytes == baseBytes &&
+                              initialDescriptor->contentRevision != currentDescriptor->contentRevision &&
+                              initialReasoningDescriptor && currentReasoningDescriptor && !initialReasoningDescriptor->present &&
+                              initialReasoningDescriptor->retainedUtf8Bytes == 0 &&
+                              initialReasoningDescriptor->contentRevision == currentReasoningDescriptor->contentRevision && initialItem &&
+                              currentItem &&
+                              initialItem->agentText == std::optional<std::string>{"seed"} &&
+                              currentItem->agentText == std::optional<std::string>{expected} && exactAccounting,
+                          "verified content appends publish exact deltas, preserve prior immutable State, and retain byte-exact accounting: " +
+                              accountingError);
+    }
+
+    void testRollingPersistentTextReleasesDeadPrefixes(tests::support::TestResult& result) {
+        constexpr std::size_t WindowBytes = 4U * 1024U * 1024U;
+        constexpr std::size_t StepBytes = 512U * 1024U;
+        frontend::detail::PersistentText current =
+            frontend::detail::PersistentText::from(std::string(WindowBytes, 'a'));
+        const frontend::detail::PersistentText original = current;
+        const std::string delta(StepBytes, 'b');
+        std::size_t maximumBackingBytes = current.backingBytesForTesting();
+        bool appended = true;
+        for (std::size_t index = 0; index < 24 && appended; ++index) {
+            auto next = current.appended(StepBytes, delta);
+            appended = next.has_value();
+            if (next) {
+                current = std::move(*next);
+                maximumBackingBytes = std::max(maximumBackingBytes, current.backingBytesForTesting());
+            }
+        }
+        result.expectTrue(appended && current.size() == WindowBytes &&
+                              maximumBackingBytes <= WindowBytes * 2 &&
+                              original.materialize() == std::string(WindowBytes, 'a'),
+                          "rolling persistent content remains O(retained window) while an older immutable view remains exact");
+    }
+
+    void testPersistentTextBranchesFromSharedTail(tests::support::TestResult& result) {
+        const frontend::detail::PersistentText base = frontend::detail::PersistentText::from("base");
+        const auto first = base.appended(0, "-first");
+        const auto second = base.appended(0, "-second");
+        result.expectTrue(first && second && base.materialize() == "base" &&
+                              first->materialize() == "base-first" && second->materialize() == "base-second",
+                          "independent derivations from one persistent-text tail retain disjoint immutable ranges");
+    }
+
+    void testVerifiedRollingCommandPublication(tests::support::TestResult& result) {
+        PublicHarness harness;
+        client::Client sdk(publicOptions(), harness.callbacks());
+        harness.sdk = &sdk;
+        client::Connection connection = sdk.openConnection(harness.transport());
+        connection.transportConnected();
+        std::string content(model::MaximumCommandOutputOverflowV2Bytes, 'c');
+        frontend::Welcome rollingWelcome = welcome(1);
+        rollingWelcome.extensions["projection"]["itemContentUpdateMode"] = "append-v2";
+        const bool synchronized = connection.receive(frontend::ServerMessage{std::move(rollingWelcome)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{expandedRollingCommandSnapshot(1, content)}).accepted &&
+                                  connection.receive(frontend::ServerMessage{
+                                      frontend::SyncComplete{frontend::SequenceNumber{1}}})
+                                      .accepted;
+        const client::State initial = sdk.state();
+        harness.changes.clear();
+        frontend::FrontendEvent append{
+            frontend::SequenceNumber{2},
+            "item.content.updated",
+            {{"threadId", "adapter-thread"},
+             {"turnId", "append-turn"},
+             {"itemId", "append-item"},
+             {"channel", "commandOutput"},
+             {"content", ""},
+             {"contentDelta", "tail"},
+             {"baseContentBytes", static_cast<std::uint64_t>(content.size())},
+             {"discardPrefixBytes", std::uint64_t{4}},
+             {"contentTruncated", true},
+             {"droppedContentBytes", std::uint64_t{4}}}};
+        const bool accepted = synchronized &&
+                              connection.receive(frontend::ServerMessage{frontend::EventBatch{
+                                  append.sequence, append.sequence, {std::move(append)}}})
+                                  .accepted;
+        const client::State current = sdk.state();
+        const client::ItemState* oldItem = initial.item("append-item");
+        const client::ItemState* currentItem = current.item("append-item");
+        std::string accountingError;
+        const bool exactAccounting = client::detail::CanonicalStateBuilder::verifyAccounting(
+            client::detail::ClientTestAccess::stateStorage(current), accountingError);
+        const auto* change = harness.changes.size() == 1
+                                 ? std::get_if<client::ItemContentAppendedChange>(&harness.changes.front())
+                                 : nullptr;
+        result.expectTrue(accepted && oldItem && currentItem && oldItem->commandOutput == std::optional<std::string>{content} &&
+                              currentItem->commandOutput == std::optional<std::string>{content.substr(4) + "tail"} &&
+                              change && change->channel == client::ItemContentChannel::CommandOutput &&
+                              change->discardPrefixBytes == 4 && exactAccounting,
+                          "verified append-v2 rolling command output preserves old State and exact incremental accounting: " +
+                              accountingError);
     }
 
     void testTurnChangeDoesNotResolveToSiblingAfterSameBatchRemoval(tests::support::TestResult& result) {
@@ -1255,7 +1711,9 @@ namespace {
         bool currentCommitted = false;
         std::vector<std::string> diagnostics;
         core::ClientCallbacks callbacks;
-        callbacks.prepareStatePublication = [&prepared](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        callbacks.prepareStatePublication = [&prepared](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             ++prepared;
             if (candidate.freshness == core::PublishedFreshness::Current) {
                 return core::ClientError{core::ErrorOrigin::Protocol,
@@ -1316,7 +1774,9 @@ namespace {
         std::size_t staleRejections = 0;
         std::size_t emptyStaleCommits = 0;
         core::ClientCallbacks callbacks;
-        callbacks.prepareStatePublication = [&staleRejections](const core::PublishedState& candidate) -> std::optional<core::ClientError> {
+        callbacks.prepareStatePublication = [&staleRejections](const core::StatePublicationPreparation& preparation)
+            -> std::optional<core::ClientError> {
+            const core::PublishedState& candidate = preparation.publication;
             if (candidate.freshness == core::PublishedFreshness::Stale && candidate.snapshot) {
                 ++staleRejections;
                 return core::ClientError{core::ErrorOrigin::Protocol,
@@ -1373,8 +1833,14 @@ int main() {
     testExecutionConfigurationPublicState(result);
     testCanonicalLookupIdentityPreflight(result);
     testScopedItemIdentities(result);
+    testPartialScopeDuplicateUsesExactAppendIdentity(result);
+    testMetadataOnlyUpsertsPreserveContentRevisions(result);
     testIndexedStateLookupsAndGroupedOrdering(result);
     testScopedItemChanges(result);
+    testVerifiedIncrementalItemPublication(result);
+    testRollingPersistentTextReleasesDeadPrefixes(result);
+    testPersistentTextBranchesFromSharedTail(result);
+    testVerifiedRollingCommandPublication(result);
     testTurnChangeDoesNotResolveToSiblingAfterSameBatchRemoval(result);
     testHybridExpandedPublicationRetainsLegacyItems(result);
     testPublicClientCoreAdapter(result);

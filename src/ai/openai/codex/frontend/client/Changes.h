@@ -59,6 +59,15 @@ namespace ai::openai::codex::frontend::client {
         std::optional<typed::ThreadId> threadId;
         std::optional<typed::TurnId> turnId;
     };
+    struct ItemContentAppendedChange {
+        typed::ItemId itemId;
+        ItemContentChannel channel = ItemContentChannel::AgentText;
+        std::optional<typed::ThreadId> threadId;
+        std::optional<typed::TurnId> turnId;
+        std::uint64_t baseContentBytes = 0;
+        std::uint64_t discardPrefixBytes = 0;
+        std::string delta;
+    };
     struct PendingRequestsUpdatedChange {};
     struct AccountUpdatedChange {};
     struct ModelsUpdatedChange {};
@@ -102,6 +111,7 @@ namespace ai::openai::codex::frontend::client {
                                 ThreadRemovedChange,
                                 TurnUpsertedChange,
                                 ItemUpsertedChange,
+                                ItemContentAppendedChange,
                                 ItemContentReplacedChange,
                                 PendingRequestsUpdatedChange,
                                 AccountUpdatedChange,

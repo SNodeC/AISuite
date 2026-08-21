@@ -53,7 +53,7 @@ namespace ai::openai::codex {
     struct ClientInfo {
         std::string name = "aisuite";
         std::string title = "AISuite";
-        std::string version = "0.4.0";
+        std::string version = "0.5.0";
     };
 
     struct StateChange {

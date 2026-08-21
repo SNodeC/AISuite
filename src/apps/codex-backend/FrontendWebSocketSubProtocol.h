@@ -9,6 +9,7 @@
 #define APPS_CODEX_BACKEND_FRONTENDWEBSOCKETSUBPROTOCOL_H
 
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "apps/codex-backend/RetainedDeliveryRetryBackoff.h"
 #include "web/websocket/server/SubProtocol.h"
 
 #include <cstddef>
@@ -42,7 +43,7 @@ namespace apps::codex_backend {
 
         ai::openai::codex::frontend::OutboundDeliveryStatus
         sendOutbound(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
-        bool scheduleDeliveryRetry() noexcept;
+        bool scheduleDeliveryRetry(std::size_t outstandingWriterBytes) noexcept;
         void serviceClosed(std::string reason) noexcept;
         void closeBounded(std::uint16_t status, const char* reason) noexcept;
         void detachFrontend(std::string reason) noexcept;
@@ -56,6 +57,7 @@ namespace apps::codex_backend {
         bool inputBlocked = false;
         bool closeStarted = false;
         bool deliveryRetryScheduled = false;
+        RetainedDeliveryRetryBackoff deliveryRetryBackoff;
     };
 
 } // namespace apps::codex_backend

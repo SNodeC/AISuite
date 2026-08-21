@@ -2,6 +2,7 @@
 
 #include "ai/openai/codex/frontend/internal/server/BackendProjection.h"
 #include "ai/openai/codex/frontend/internal/server/ServerCore.h"
+#include "ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h"
 #include "support/TestResult.h"
 
 #include <algorithm>
@@ -1290,26 +1291,38 @@ namespace {
         server::ServerCore core(backend, std::move(options));
         core.start();
 
+        struct SynchronizationOutcome {
+            bool synchronized = false;
+            model::detail::SnapshotPipelineInstrumentation instrumentation;
+        };
         const auto synchronize = [&](std::vector<frontend::FrontendCapability> capabilities,
                                      std::vector<frontend::ServerMessage>& messages) {
+            model::detail::resetSnapshotPipelineInstrumentation();
             const auto connection = core.openConnection({}, collect(messages));
             frontend::Hello hello;
             hello.capabilities = std::move(capabilities);
-            return connection && core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted();
+            const bool synchronized = connection && core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted();
+            return SynchronizationOutcome{synchronized, model::detail::snapshotPipelineInstrumentation()};
         };
         std::vector<frontend::ServerMessage> legacyMessages;
         std::vector<frontend::ServerMessage> domainsMessages;
         std::vector<frontend::ServerMessage> itemsMessages;
         std::vector<frontend::ServerMessage> pendingMessages;
         std::vector<frontend::ServerMessage> allMessages;
-        const bool synchronized = synchronize({}, legacyMessages) &&
-                                  synchronize({frontend::FrontendCapability::CompleteBackendDomains}, domainsMessages) &&
-                                  synchronize({frontend::FrontendCapability::CompleteThreadItems}, itemsMessages) &&
-                                  synchronize({frontend::FrontendCapability::DedicatedPendingRequests}, pendingMessages) &&
-                                  synchronize({frontend::FrontendCapability::CompleteBackendDomains,
-                                               frontend::FrontendCapability::CompleteThreadItems,
-                                               frontend::FrontendCapability::DedicatedPendingRequests},
-                                              allMessages);
+        const SynchronizationOutcome legacySync = synchronize({}, legacyMessages);
+        const SynchronizationOutcome domainsSync =
+            synchronize({frontend::FrontendCapability::CompleteBackendDomains}, domainsMessages);
+        const SynchronizationOutcome itemsSync =
+            synchronize({frontend::FrontendCapability::CompleteThreadItems}, itemsMessages);
+        const SynchronizationOutcome pendingSync =
+            synchronize({frontend::FrontendCapability::DedicatedPendingRequests}, pendingMessages);
+        const SynchronizationOutcome allSync = synchronize({frontend::FrontendCapability::CompleteBackendDomains,
+                                                             frontend::FrontendCapability::CompleteThreadItems,
+                                                             frontend::FrontendCapability::DedicatedPendingRequests},
+                                                            allMessages);
+        const bool synchronized =
+            legacySync.synchronized && domainsSync.synchronized && itemsSync.synchronized && pendingSync.synchronized &&
+            allSync.synchronized;
         const auto snapshotState = [](const std::vector<frontend::ServerMessage>& messages) -> const frontend::Json* {
             const auto* snapshot = messages.size() > 1 ? std::get_if<frontend::Snapshot>(&messages[1]) : nullptr;
             return snapshot ? &snapshot->state : nullptr;
@@ -1329,8 +1342,74 @@ namespace {
                                  pending->at("pendingRequests").at(0).contains("kind");
         const bool allExpanded = all && all->contains("provider") && all->at("items").at(0).contains("type") &&
                                  all->at("pendingRequests").at(0).contains("kind");
-        result.expectTrue(synchronized && legacyOnly && domainsOnly && itemsOnly && pendingOnly && allExpanded,
-                          "complete domains, complete ThreadItems, and dedicated pending requests compose independently in snapshots");
+        const bool representationWorkIsSelected =
+            legacySync.instrumentation.legacyStateBuilds == 1 && legacySync.instrumentation.expandedStateBuilds == 0 &&
+            legacySync.instrumentation.filteredProjections == 1 && legacySync.instrumentation.passThroughProjections == 0 &&
+            domainsSync.instrumentation.legacyStateBuilds == 1 && domainsSync.instrumentation.expandedStateBuilds == 1 &&
+            domainsSync.instrumentation.filteredProjections == 1 && domainsSync.instrumentation.passThroughProjections == 0 &&
+            itemsSync.instrumentation.legacyStateBuilds == 1 && itemsSync.instrumentation.expandedStateBuilds == 1 &&
+            itemsSync.instrumentation.filteredProjections == 1 && itemsSync.instrumentation.passThroughProjections == 0 &&
+            pendingSync.instrumentation.legacyStateBuilds == 1 && pendingSync.instrumentation.expandedStateBuilds == 1 &&
+            pendingSync.instrumentation.filteredProjections == 1 && pendingSync.instrumentation.passThroughProjections == 0 &&
+            allSync.instrumentation.legacyStateBuilds == 0 && allSync.instrumentation.expandedStateBuilds == 1 &&
+            allSync.instrumentation.filteredProjections == 1 && allSync.instrumentation.passThroughProjections == 0;
+        const auto counts = [](const model::detail::SnapshotPipelineInstrumentation& value) {
+            return std::to_string(value.legacyStateBuilds) + "/" + std::to_string(value.expandedStateBuilds) + "/" +
+                   std::to_string(value.filteredProjections) + "/" + std::to_string(value.passThroughProjections);
+        };
+        result.expectTrue(
+            synchronized && legacyOnly && domainsOnly && itemsOnly && pendingOnly && allExpanded && representationWorkIsSelected,
+            "complete domains, complete ThreadItems, and dedicated pending requests compose independently in snapshots [legacy/expanded/filtered/pass=" +
+                counts(legacySync.instrumentation) + "," + counts(domainsSync.instrumentation) + "," +
+                counts(itemsSync.instrumentation) + "," + counts(pendingSync.instrumentation) + "," +
+                counts(allSync.instrumentation) + "]");
+    }
+
+    void testTrustedExpandedSnapshotFastPath(tests::support::TestResult& result) {
+        Backend backend;
+        model::ItemData command{model::ItemIdentity{"trusted-command"}};
+        command.commandOutput = "private command output";
+        command.location = model::SafeDetail::fromJson(frontend::Json{{"cwd", "/private/workspace"}});
+        command.safeDetails = model::SafeDetail::fromJson(frontend::Json{{"cwd", "/private/workspace"}, {"stdout", "private"}});
+        backend.state.items.emplace_back(model::CommandExecutionItem{std::move(command)});
+        const model::CanonicalSnapshot original = backend.state;
+
+        server::ServerCoreOptions options;
+        options.authenticator = [](const frontend::FrontendPeerContext&, const frontend::AuthenticationCredential&) {
+            frontend::FrontendPrincipal principal;
+            principal.id = "trusted-snapshot-principal";
+            principal.profile = "local";
+            principal.scopes.assign(frontend::LocalTrustedScopes.begin(), frontend::LocalTrustedScopes.end());
+            return frontend::AuthenticationResult{frontend::AuthenticationSuccess{std::move(principal)}};
+        };
+        server::ServerCore core(backend, std::move(options));
+        core.start();
+
+        std::vector<frontend::ServerMessage> messages;
+        const auto connection = core.openConnection({}, collect(messages));
+        frontend::Hello hello;
+        hello.capabilities = {frontend::FrontendCapability::CompleteBackendDomains,
+                              frontend::FrontendCapability::CompleteThreadItems,
+                              frontend::FrontendCapability::DedicatedPendingRequests,
+                              frontend::FrontendCapability::ScopeProjectedState};
+        model::detail::resetSnapshotPipelineInstrumentation();
+        const bool synchronized = connection && core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted();
+        const model::detail::SnapshotPipelineInstrumentation instrumentation =
+            model::detail::snapshotPipelineInstrumentation();
+        const auto* snapshot = messages.size() > 1 ? std::get_if<frontend::Snapshot>(&messages[1]) : nullptr;
+        const frontend::Json* item = snapshot && snapshot->state.contains("items") && snapshot->state.at("items").size() == 1
+                                         ? &snapshot->state.at("items").front()
+                                         : nullptr;
+        result.expectTrue(
+            synchronized && snapshot && item && item->value("commandOutput", "") == "private command output" &&
+                item->contains("location") && item->at("location").value("cwd", "") == "/private/workspace" &&
+                instrumentation.passThroughProjections == 1 && instrumentation.filteredProjections == 0 &&
+                instrumentation.legacyStateBuilds == 0 && instrumentation.expandedStateBuilds == 1 && backend.state == original,
+            "a fully authorized expanded client encodes the immutable canonical source once without legacy or projection copies [legacy/expanded/filtered/pass=" +
+                std::to_string(instrumentation.legacyStateBuilds) + "/" +
+                std::to_string(instrumentation.expandedStateBuilds) + "/" +
+                std::to_string(instrumentation.filteredProjections) + "/" +
+                std::to_string(instrumentation.passThroughProjections) + "]");
     }
 
     void testLegacyOnlyPerConnectionContainment(tests::support::TestResult& result) {
@@ -3493,6 +3572,7 @@ int main() {
     testInlineObserverBatchCoalescing(result);
     testTerminalItemKeepsInitialUpsertOrder(result);
     testIndependentSnapshotCapabilities(result);
+    testTrustedExpandedSnapshotFastPath(result);
     testLegacyOnlyPerConnectionContainment(result);
     testSessionAndControllerJournal(result);
     testExactBackendOccurrenceIdentity(result);

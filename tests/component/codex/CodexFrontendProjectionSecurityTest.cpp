@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 
 #include "ai/openai/codex/frontend/internal/model/Projection.h"
+#include "ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h"
 #include "support/TestResult.h"
 
 #include <algorithm>
@@ -344,6 +345,51 @@ namespace {
                               observedConfiguration.value("model", "") == "gpt-5.6",
                           "execution settings retain cwd and instructions only for frontends with the corresponding authority");
     }
+
+    void testSnapshotPipelineBoundaries(tests::support::TestResult& result) {
+        model::ProjectionAuthority authority;
+        model::CanonicalSnapshot source = itemSnapshot(frontend::ThreadItemKind::CommandExecution);
+        const model::CanonicalSnapshot original = source;
+        const auto trusted = projectionContext(
+            std::vector<frontend::FrontendScope>(frontend::LocalTrustedScopes.begin(), frontend::LocalTrustedScopes.end()));
+        const auto observer = projectionContext({frontend::FrontendScope::Observe});
+
+        model::detail::resetSnapshotPipelineInstrumentation();
+        const auto observed = authority.projectSnapshot(source, observer);
+        const model::detail::SnapshotPipelineInstrumentation observedInstrumentation =
+            model::detail::snapshotPipelineInstrumentation();
+        const bool observedOutputHidden =
+            observed && !model::itemData(observed.value().items.front()).commandOutput.has_value();
+        result.expectTrue(!authority.snapshotCanPassThrough(source, observer) && authority.snapshotCanPassThrough(source, trusted) &&
+                              observedOutputHidden && source == original && observedInstrumentation.filteredProjections == 1 &&
+                              observedInstrumentation.passThroughProjections == 0 &&
+                              observedInstrumentation.expandedStateBuilds == 0 && observedInstrumentation.legacyStateBuilds == 0,
+                          "snapshot projection filters restricted observers without mutating or pre-encoding the canonical source");
+
+        model::CanonicalSnapshot malformed = source;
+        model::ItemData& malformedItem = std::visit([](auto& value) -> model::ItemData& { return value.value; }, malformed.items.front());
+        ++malformedItem.commandOutputOverflowV2->baseContentBytes;
+        const std::vector<frontend::FrontendCapability> expandedCapabilities{
+            frontend::FrontendCapability::CompleteBackendDomains,
+            frontend::FrontendCapability::CompleteThreadItems,
+            frontend::FrontendCapability::DedicatedPendingRequests};
+        model::detail::resetSnapshotPipelineInstrumentation();
+        const auto trustedProjection = authority.projectSnapshot(malformed, trusted);
+        const model::detail::SnapshotPipelineInstrumentation afterProjection =
+            model::detail::snapshotPipelineInstrumentation();
+        const auto encoded = trustedProjection
+                                 ? model::encodeProjectedSnapshot(trustedProjection.value(),
+                                                                  expandedCapabilities,
+                                                                  model::ItemContentWireMode::AppendV2)
+                                 : model::ModelResult<frontend::Snapshot>{
+                                       model::ModelError{model::ModelErrorCode::InvalidShape, "/", "projection failed"}};
+        const model::detail::SnapshotPipelineInstrumentation afterEncoding =
+            model::detail::snapshotPipelineInstrumentation();
+        result.expectTrue(trustedProjection && afterProjection.filteredProjections == 1 &&
+                              afterProjection.expandedStateBuilds == 0 && !encoded && afterEncoding.expandedStateBuilds == 1 &&
+                              afterEncoding.legacyStateBuilds == 0,
+                          "the single final expanded encoder remains the authoritative malformed-state validation boundary");
+    }
 }
 
 int main() {
@@ -354,5 +400,6 @@ int main() {
     testLegacyCommandOutputScopeMatrix(result);
     testGeneratedOccurrenceAuthority(result);
     testExecutionConfigurationAuthority(result);
+    testSnapshotPipelineBoundaries(result);
     return result.processResult();
 }

@@ -407,8 +407,8 @@ def validate_shape(baseline: dict[str, Any], source_dir: pathlib.Path) -> None:
             fail(f"public target mapping drifted: {imported}")
         if (
             row.get("targetType") != "SHARED_LIBRARY"
-            or row.get("version") != "0.4.0"
-            or row.get("soversion") != 5
+            or row.get("version") != "0.5.0"
+            or row.get("soversion") != 6
             or row.get("installedPackageExportFile") != "lib/cmake/AISuite/AISuiteTargets.cmake"
         ):
             fail(f"public target ABI/package metadata drifted: {imported}")

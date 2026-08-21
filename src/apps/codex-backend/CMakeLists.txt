@@ -25,6 +25,7 @@ add_library(
     FrontendWebSecurity.h
     ReferenceInvocationPolicy.cpp
     ReferenceInvocationPolicy.h
+    RetainedDeliveryRetryBackoff.h
     UnixPeerCredentials.cpp
     UnixPeerCredentials.h
 )
@@ -65,6 +66,7 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET)
         FrontendWebApplication.h
         FrontendWebSocketSubProtocol.cpp
         FrontendWebSocketSubProtocol.h
+        RetainedDeliveryRetryBackoff.h
     )
     target_include_directories(
         codex-backend-web-adapter

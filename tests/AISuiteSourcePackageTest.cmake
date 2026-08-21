@@ -82,6 +82,7 @@ foreach(required
     src/ai/openai/codex/frontend/detail/EventRepresentation.h
     src/ai/openai/codex/frontend/detail/GeneratedSchemaValidator.cpp
     src/ai/openai/codex/frontend/detail/GeneratedSchemaValidator.h
+    src/ai/openai/codex/frontend/detail/PersistentText.h
     src/ai/openai/codex/frontend/internal/model/Journal.cpp
     src/ai/openai/codex/frontend/internal/model/Journal.h
     src/ai/openai/codex/frontend/internal/model/Model.cpp
@@ -90,6 +91,7 @@ foreach(required
     src/ai/openai/codex/frontend/internal/model/Occurrence.h
     src/ai/openai/codex/frontend/internal/model/Projection.cpp
     src/ai/openai/codex/frontend/internal/model/Projection.h
+    src/ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h
     src/ai/openai/codex/frontend/internal/server/BackendProjection.cpp
     src/ai/openai/codex/frontend/internal/server/BackendProjection.h
     src/ai/openai/codex/frontend/internal/server/ServerCore.cpp
@@ -114,6 +116,7 @@ foreach(required
     src/ai/openai/codex/frontend/client/detail/OperationCodecs.h
     src/apps/codex-backend/Configuration.cpp
     src/apps/codex-backend/FrontendStreamSocketContext.cpp
+    src/apps/codex-backend/RetainedDeliveryRetryBackoff.h
     src/apps/codex-backend/FrontendWebApplication.h
     src/apps/codex-backend/FrontendWebApplication.cpp
     src/apps/codex-backend/FrontendWebSecurity.cpp
@@ -175,6 +178,7 @@ foreach(required
     tests/component/codex/CodexFrontendClientCoreOperationTest.cpp
     tests/component/codex/CodexFrontendClientCoreStateTest.cpp
     tests/component/codex/CodexFrontendClientCoreCapacityTest.cpp
+    tests/component/codex/CodexFrontendDeliveryRetryBackoffTest.cpp
     tests/component/codex/CodexFrontendDifferentialComparison.h
     tests/component/codex/CodexFrontendDifferentialCoverageGuardTest.py
     tests/component/codex/CodexFrontendDifferentialMutationProbe.cpp

@@ -39,8 +39,7 @@ int main() {
                           serviceDefaults.maximumInboundMessageBytes == frontend::DefaultFrontendMaximumInboundMessageBytes &&
                           frontend::DefaultFrontendMaximumInboundMessageBytes == 8U * 1024U * 1024U &&
                           serviceDefaults.maxOutboundBytesPerConnection ==
-                              frontend::DefaultFrontendMaximumProviderResponseBytes +
-                                  frontend::DefaultFrontendMaximumReplayBytes,
+                              frontend::DefaultFrontendServiceMaxOutboundBytes,
                       "FrontendService retains its independent protocol resource limits");
     result.expectTrue(app::SocketFrontendOptions{}.maximumFrameSize == frontend::DefaultFrontendMaximumInboundMessageBytes &&
                           app::DEFAULT_MAXIMUM_OUTBOUND_BYTES ==
@@ -93,7 +92,7 @@ int main() {
     result.expectTrue(
         streamContext.find("case core::socket::stream::QueueResult::Queued:") != std::string::npos &&
             streamContext.find("case core::socket::stream::QueueResult::WouldExceedLimit:") != std::string::npos &&
-            streamContext.find("scheduleDeliveryRetry()") != std::string::npos &&
+            streamContext.find("scheduleDeliveryRetry(writerBytes)") != std::string::npos &&
             streamContext.find("OutboundDeliveryStatus::Backpressured") != std::string::npos,
         "stream transport distinguishes accepted, temporarily backpressured, and terminal SNode.C queue outcomes");
     result.expectTrue(unixCredentials.find("net::un::peerCredentials(") != std::string::npos &&

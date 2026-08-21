@@ -425,23 +425,28 @@ namespace ai::openai::codex::frontend::internal::model {
                         if (utf8CharacterPrefixLength(hint.delta, 16U * 1024U) != hint.delta.size()) {
                             return false;
                         }
-                        std::string verifiedContent = *update.content;
-                        if (hint.sourceVerified && overflowEnabled) {
-                            verifiedContent.append(update.overflowV1->suffix);
-                        }
                         if (hint.discardPrefixBytes > hint.baseContentBytes) {
                             return false;
                         }
                         const std::uint64_t retainedBaseBytes = hint.baseContentBytes - hint.discardPrefixBytes;
-                        if (retainedBaseBytes > verifiedContent.size() ||
-                            hint.delta.size() != verifiedContent.size() - static_cast<std::size_t>(retainedBaseBytes)) {
-                            return false;
-                        }
                         const std::size_t maximumBytes = update.channel == std::optional<std::string>{"commandOutput"} &&
                                                                  itemContentMode == ItemContentWireMode::AppendV2
                                                              ? MaximumCommandOutputOverflowV2Bytes
                                                              : MaximumItemContentOverflowV1Bytes;
-                        return verifiedContent.size() <= maximumBytes &&
+                        if (retainedBaseBytes > maximumBytes || hint.delta.size() > maximumBytes - retainedBaseBytes) {
+                            return false;
+                        }
+                        // BackendProjection sets sourceVerified only after it
+                        // checked the exact bounded authoritative channel.
+                        // Repeating that proof here would copy/scan the whole
+                        // growing content once per recipient and fragment.
+                        if (hint.sourceVerified) {
+                            return true;
+                        }
+                        const std::string_view verifiedContent = *update.content;
+                        return retainedBaseBytes <= verifiedContent.size() &&
+                               hint.delta.size() == verifiedContent.size() - static_cast<std::size_t>(retainedBaseBytes) &&
+                               verifiedContent.size() <= maximumBytes &&
                                utf8CharacterPrefixLength(verifiedContent, verifiedContent.size()) == verifiedContent.size() &&
                                verifiedContent.compare(
                                    static_cast<std::size_t>(retainedBaseBytes), hint.delta.size(), hint.delta) == 0;
@@ -1083,7 +1088,7 @@ namespace ai::openai::codex::frontend::internal::model {
 
         bool turnIdentityIsUniqueToThread(std::span<const TurnState> retained,
                                           std::span<const TurnState> replacements,
-                                          std::span<const ThreadItem> retainedItems,
+                                          const PersistentThreadItems& retainedItems,
                                           std::span<const ThreadItem> replacementItems,
                                           std::span<const LegacyItemCompatibility> retainedLegacyItems,
                                           const ThreadIdentity& threadId,
@@ -1101,7 +1106,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 }
                 return true;
             };
-            const auto inspectItems = [&](std::span<const ThreadItem> items) {
+            const auto inspectItems = [&](const auto& items) {
                 return std::none_of(items.begin(), items.end(), [&](const ThreadItem& item) {
                     const ItemData& data = itemData(item);
                     return data.turnId == std::optional<TurnIdentity>{turnId} && data.threadId.has_value() &&
@@ -1159,7 +1164,7 @@ namespace ai::openai::codex::frontend::internal::model {
             ItemData& replacementData = mutableItemData(replacement);
             const std::size_t sourceIndex =
                 itemSourceIndex(snapshot, replacementData).value_or(snapshot.items.size() + snapshot.legacyItems.size());
-            std::erase_if(snapshot.items, [&](const ThreadItem& item) {
+            snapshot.items.eraseIf([&](const ThreadItem& item) {
                 return sameItemIdentity(itemData(item), replacementData);
             });
             std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
@@ -1174,7 +1179,7 @@ namespace ai::openai::codex::frontend::internal::model {
             normalizeItemSourceOrder(snapshot);
             const std::size_t sourceIndex =
                 itemSourceIndex(snapshot, replacement.value).value_or(snapshot.items.size() + snapshot.legacyItems.size());
-            std::erase_if(snapshot.items, [&](const ThreadItem& item) {
+            snapshot.items.eraseIf([&](const ThreadItem& item) {
                 return sameItemIdentity(itemData(item), replacement.value);
             });
             std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
@@ -1246,7 +1251,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     insertionIndex = std::min(insertionIndex, item.sourceIndex);
                 }
             }
-            std::erase_if(snapshot.items, [&](const ThreadItem& item) {
+            snapshot.items.eraseIf([&](const ThreadItem& item) {
                 return affected(itemData(item));
             });
             std::erase_if(snapshot.legacyItems, [&](const LegacyItemCompatibility& item) {
@@ -2156,7 +2161,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     }
                     ThreadUpsertedOccurrence update{std::move(decoded.threads.front())};
                     update.turns = std::move(decoded.turns);
-                    update.items = std::move(decoded.items);
+                    update.items = std::move(decoded.items).releaseVector();
                     update.replaceDescendants = true;
                     return update;
                 }
@@ -2178,7 +2183,7 @@ namespace ai::openai::codex::frontend::internal::model {
                         fail(OccurrenceErrorCode::InvalidPayload, "/data/turn", "legacy turn projection is incomplete");
                     }
                     TurnUpsertedOccurrence update{std::move(decoded.turns.front())};
-                    update.items = std::move(decoded.items);
+                    update.items = std::move(decoded.items).releaseVector();
                     update.replaceItems = true;
                     return update;
                 }
@@ -2461,18 +2466,18 @@ namespace ai::openai::codex::frontend::internal::model {
                             upsertItem(reduced, update.item);
                         } else if constexpr (std::is_same_v<Update, ItemContentUpdatedOccurrence>) {
                             reduced.itemsPresent = true;
-                            const auto foundById =
-                                std::find_if(reduced.items.begin(), reduced.items.end(), [&](const ThreadItem& value) {
-                                    return itemData(value).id == update.itemId;
-                                });
-                            const auto found = std::find_if(reduced.items.begin(), reduced.items.end(), [&](const ThreadItem& value) {
-                                const ItemData& item = itemData(value);
-                                return item.id == update.itemId && (!update.threadId.has_value() || item.threadId == update.threadId) &&
-                                       (!update.turnId.has_value() || item.turnId == update.turnId);
-                            });
-                            if (found == reduced.items.end()) {
-                                if (foundById != reduced.items.end()) {
-                                    const ItemData& target = itemData(*foundById);
+                            // Content overlays preserve identity/parent/kind.
+                            // Locate the target through that stable metadata so
+                            // a streaming append never materializes or copies
+                            // the accumulated content merely for validation.
+                            const PersistentThreadItems& retainedItems = reduced.items;
+                            const PersistentThreadItems::ItemLookup lookup =
+                                retainedItems.lookup(update.itemId, update.threadId, update.turnId);
+                            const std::optional<std::size_t> foundById = lookup.firstById;
+                            const std::optional<std::size_t> found = lookup.scoped;
+                            if (!found) {
+                                if (foundById) {
+                                    const ItemData& target = itemData(retainedItems.metadataAt(*foundById));
                                     if (update.threadId.has_value() && target.threadId != update.threadId) {
                                         fail(OccurrenceErrorCode::InvalidPayload,
                                              "/threadId",
@@ -2486,7 +2491,8 @@ namespace ai::openai::codex::frontend::internal::model {
                                 }
                                 fail(OccurrenceErrorCode::InvalidPayload, "/itemId", "item content target is missing");
                             }
-                            const ItemData& target = itemData(*found);
+                            const ThreadItem& targetItem = retainedItems.metadataAt(*found);
+                            const ItemData& target = itemData(targetItem);
                             if (update.threadId.has_value() && target.threadId != update.threadId) {
                                 fail(OccurrenceErrorCode::InvalidPayload,
                                      "/threadId",
@@ -2497,7 +2503,81 @@ namespace ai::openai::codex::frontend::internal::model {
                                      "/turnId",
                                      "item content parent turn does not match the target item");
                             }
-                            std::visit(
+                            const bool commandItem = std::holds_alternative<CommandExecutionItem>(targetItem) ||
+                                                     std::holds_alternative<FileChangeItem>(targetItem);
+                            std::optional<PersistentThreadItems::ContentChannel> persistentChannel;
+                            std::size_t persistentMaximum = 0;
+                            const bool validAppendDelta =
+                                update.appendHint &&
+                                utf8CharacterPrefixLength(update.appendHint->delta, update.appendHint->delta.size()) ==
+                                    update.appendHint->delta.size();
+                            const bool legacyAppendNeedsNoTrim =
+                                update.appendHint && update.appendHint->discardPrefixBytes == 0 &&
+                                update.appendHint->baseContentBytes <= 16'384 &&
+                                update.appendHint->delta.size() <=
+                                    16'384 - static_cast<std::size_t>(update.appendHint->baseContentBytes);
+                            if (update.appendWireRepresentation && update.appendHint &&
+                                update.channel == std::optional<std::string>{"agentText"}) {
+                                persistentChannel = PersistentThreadItems::ContentChannel::AgentText;
+                                persistentMaximum = MaximumItemContentOverflowV1Bytes;
+                            } else if (update.appendWireRepresentation && update.appendHint &&
+                                       validAppendDelta && legacyAppendNeedsNoTrim &&
+                                       update.channel == std::optional<std::string>{"reasoningText"}) {
+                                persistentChannel = PersistentThreadItems::ContentChannel::ReasoningText;
+                                persistentMaximum = 16'384;
+                            } else if (update.appendWireRepresentation && update.appendHint &&
+                                       validAppendDelta && legacyAppendNeedsNoTrim &&
+                                       update.channel == std::optional<std::string>{"reasoningSummary"}) {
+                                persistentChannel = PersistentThreadItems::ContentChannel::ReasoningSummary;
+                                persistentMaximum = 16'384;
+                            } else if (update.appendWireRepresentation && update.appendHint &&
+                                       update.channel == std::optional<std::string>{"commandOutput"}) {
+                                if (update.extendedCommandOutputWireRepresentation && !commandItem) {
+                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                         "/channel",
+                                         "append-v2 command output targets an unrelated item kind");
+                                }
+                                if (update.extendedCommandOutputWireRepresentation ||
+                                    (validAppendDelta && legacyAppendNeedsNoTrim)) {
+                                    persistentChannel = PersistentThreadItems::ContentChannel::CommandOutput;
+                                    persistentMaximum = update.extendedCommandOutputWireRepresentation
+                                                            ? MaximumCommandOutputOverflowV2Bytes
+                                                            : 16'384;
+                                }
+                            }
+
+                            if (persistentChannel) {
+                                const ItemContentAppendHint& hint = *update.appendHint;
+                                if (utf8CharacterPrefixLength(hint.delta, hint.delta.size()) != hint.delta.size()) {
+                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                         "/contentDelta",
+                                         "item content append delta is invalid UTF-8");
+                                }
+                                if (hint.discardPrefixBytes != 0 &&
+                                    *persistentChannel != PersistentThreadItems::ContentChannel::CommandOutput) {
+                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                         "/discardPrefixBytes",
+                                         "item content discard is invalid for the retained canonical content");
+                                }
+                                if (!reduced.items.appendContent(*found,
+                                                                 *persistentChannel,
+                                                                 hint.baseContentBytes,
+                                                                 hint.discardPrefixBytes,
+                                                                 hint.delta,
+                                                                 update.contentTruncatedKnown,
+                                                                 update.truncation.truncated,
+                                                                 update.droppedContentBytesKnown,
+                                                                 update.truncation.droppedBytes,
+                                                                 persistentMaximum)) {
+                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                         "/contentDelta",
+                                         "item content append does not match the retained canonical content");
+                                }
+                            } else {
+                                // Replacement/fallback access is intentionally
+                                // the only path that materializes the target.
+                                ThreadItem replacementItem = retainedItems.at(*found);
+                                std::visit(
                                 [&](auto& item) {
                                     using Item = std::decay_t<decltype(item)>;
                                     constexpr bool CommandOutputItem = std::is_same_v<Item, CommandExecutionItem> ||
@@ -2608,7 +2688,9 @@ namespace ai::openai::codex::frontend::internal::model {
                                                 : baseDropped + additionalDropped;
                                     }
                                 },
-                                *found);
+                                    replacementItem);
+                                reduced.items.replace(*found, std::move(replacementItem));
+                            }
                         } else if constexpr (std::is_same_v<Update, PendingRequestsUpdatedOccurrence>) {
                             reduced.pendingRequestsPresent = true;
                             if (update.completeProjection) {

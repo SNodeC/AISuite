@@ -17,6 +17,7 @@
 
 namespace ai::openai::codex::frontend::internal::client {
     struct PublishedState;
+    struct StatePublicationPreparation;
 }
 
 namespace ai::openai::codex::frontend::client::detail {
@@ -37,6 +38,18 @@ namespace ai::openai::codex::frontend::client::detail {
               std::size_t maximumRetainedDiagnostics,
               std::string& error,
               CanonicalStateBuildFailure* failure = nullptr) noexcept;
+
+        [[nodiscard]] static std::optional<std::shared_ptr<const StateStorage>>
+        build(const internal::client::StatePublicationPreparation& preparation,
+              const std::shared_ptr<const StateStorage>& previous,
+              std::size_t maximumBytes,
+              std::size_t maximumRetainedDiagnostics,
+              std::string& error,
+              CanonicalStateBuildFailure* failure = nullptr) noexcept;
+
+        // Expensive reference serialization belongs only in focused parity
+        // tests, never in the publication hot path.
+        [[nodiscard]] static bool verifyAccounting(const std::shared_ptr<const StateStorage>& state, std::string& error) noexcept;
     };
 
 } // namespace ai::openai::codex::frontend::client::detail

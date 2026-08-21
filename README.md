@@ -146,8 +146,8 @@ headers, `GeneratedProtocol.h` and `Security.h`; A1.7b replaces
 `BackendAdapter.h` with `FrontendService.h` and provides no public alias.
 The A1.7c-1 SDK adds 33 installed headers, so the inventory is 29 main + 7
 backend + 9 frontend + 33 frontend-client = 78 total. Project version is
-`0.4.0`; removing duplicate public `ReplacementCache` result graphs from
-`BackendState` moves the Codex libraries to SOVERSION 5 while leaving Frontend
+`0.5.0`; structurally shared item content and verified incremental public-state
+publication move the Codex libraries to SOVERSION 6 while leaving Frontend
 Protocol v1 unchanged.
 See the
 [A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the

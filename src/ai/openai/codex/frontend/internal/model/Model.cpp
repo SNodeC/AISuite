@@ -10,6 +10,7 @@
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/GeneratedProtocol.h"
 #include "ai/openai/codex/frontend/Protocol.h"
+#include "ai/openai/codex/frontend/internal/model/SnapshotPipelineInstrumentation.h"
 
 #include <algorithm>
 #include <array>
@@ -4059,80 +4060,108 @@ namespace ai::openai::codex::frontend::internal::model {
                                                   SnapshotRepresentationSelection selection,
                                                   ItemContentWireMode itemContentMode) noexcept {
         try {
-            auto legacy = encodeLegacySnapshot(snapshot);
-            CanonicalSnapshot represented = snapshot;
+            const bool needsLegacy = !selection.expandedDomains || !selection.expandedItems || !selection.expandedPendingRequests;
+            const bool needsExpanded = selection.expandedDomains || selection.expandedItems || selection.expandedPendingRequests;
+            Json legacyState;
+            if (needsLegacy) {
+                detail::recordLegacyStateBuild();
+                auto legacy = encodeLegacySnapshot(snapshot);
+                if (!legacy) {
+                    return legacy.error();
+                }
+                legacyState = std::move(legacy).value().state;
+            }
+
+            Json expandedState;
             const auto accountOmission = [](TruncationMetadata& truncation, const std::string& path) {
                 truncation.truncated = true;
                 const std::size_t current = truncation.omittedEntries.value_or(0);
                 truncation.omittedEntries = current == std::numeric_limits<std::size_t>::max() ? current : current + 1;
                 truncation.omittedPaths.push_back(path);
             };
-            if (selection.expandedItems) {
-                for (const LegacyItemCompatibility& item : represented.legacyItems) {
-                    accountOmission(represented.truncation, item.omissionPath);
+
+            if (needsExpanded) {
+                detail::recordExpandedStateBuild();
+                const bool accountLegacyItems = selection.expandedItems && !snapshot.legacyItems.empty();
+                const bool accountLegacyPending = selection.expandedPendingRequests && !snapshot.legacyPendingRequests.empty();
+                std::optional<CanonicalSnapshot> represented;
+                const CanonicalSnapshot* expandedSource = &snapshot;
+                if (accountLegacyItems || accountLegacyPending) {
+                    represented.emplace(snapshot);
+                    expandedSource = &*represented;
                 }
-            }
-            if (selection.expandedPendingRequests) {
-                for (const LegacyPendingRequestCompatibility& request : represented.legacyPendingRequests) {
-                    accountOmission(represented.truncation, request.omissionPath);
-                }
-            }
-            auto expanded = encodeSnapshot(represented, itemContentMode);
-            if (!legacy) {
-                return legacy.error();
-            }
-            if (!expanded) {
-                return expanded.error();
-            }
-            const auto expandedWire = Codec::encodeExpandedSnapshot(expanded.value());
-            if (!expandedWire) {
-                return ModelError{
-                    ModelErrorCode::InvalidShape, "/state", "expanded snapshot encoding failed: " + expandedWire.error().message};
-            }
-            if (!expandedWire.value().contains("state")) {
-                return ModelError{ModelErrorCode::InvalidShape, "/state", "expanded snapshot encoding omitted state"};
-            }
-            const Json& expandedState = expandedWire.value().at("state");
-            Json state = selection.expandedDomains ? expandedState : legacy.value().state;
-            if (selection.expandedItems) {
-                state["items"] = expandedState.value("items", Json::array());
-            } else if (selection.expandedDomains) {
-                std::vector<std::pair<std::size_t, Json>> orderedItems;
-                Json knownItems = metadataCompatibleItems(expandedState.value("items", Json::array()));
-                std::size_t fallbackIndex = 0;
-                for (Json& item : knownItems) {
-                    std::size_t index = fallbackIndex++;
-                    const auto id = optionalString(item, "id");
-                    if (id.has_value()) {
-                        const auto known = std::find_if(snapshot.items.begin(), snapshot.items.end(), [&](const ThreadItem& value) {
-                            return itemData(value).id.value() == *id;
-                        });
-                        if (known != snapshot.items.end()) {
-                            index = itemData(*known).sourceIndex.value_or(index);
-                        }
+                if (accountLegacyItems) {
+                    for (const LegacyItemCompatibility& item : represented->legacyItems) {
+                        accountOmission(represented->truncation, item.omissionPath);
                     }
-                    orderedItems.emplace_back(index, std::move(item));
                 }
-                for (const LegacyItemCompatibility& item : snapshot.legacyItems) {
-                    orderedItems.emplace_back(item.sourceIndex, metadataCompatibleItem(item));
+                if (accountLegacyPending) {
+                    for (const LegacyPendingRequestCompatibility& request : represented->legacyPendingRequests) {
+                        accountOmission(represented->truncation, request.omissionPath);
+                    }
                 }
-                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
-                    return left.first < right.first;
-                });
-                state["items"] = Json::array();
-                for (auto& [index, item] : orderedItems) {
-                    (void) index;
-                    state["items"].push_back(std::move(item));
+                auto expanded = encodeSnapshot(*expandedSource, itemContentMode);
+                if (!expanded) {
+                    return expanded.error();
+                }
+                auto expandedWire = Codec::encodeExpandedSnapshot(expanded.value());
+                if (!expandedWire) {
+                    return ModelError{
+                        ModelErrorCode::InvalidShape, "/state", "expanded snapshot encoding failed: " + expandedWire.error().message};
+                }
+                Json expandedEnvelope = std::move(expandedWire).value();
+                if (!expandedEnvelope.contains("state")) {
+                    return ModelError{ModelErrorCode::InvalidShape, "/state", "expanded snapshot encoding omitted state"};
+                }
+                expandedState = std::move(expandedEnvelope.at("state"));
+            }
+
+            Json state = selection.expandedDomains ? std::move(expandedState) : std::move(legacyState);
+            if (selection.expandedItems && !selection.expandedDomains) {
+                auto items = expandedState.find("items");
+                state["items"] = items == expandedState.end() ? Json::array() : std::move(*items);
+            } else if (selection.expandedDomains) {
+                if (!selection.expandedItems) {
+                    std::vector<std::pair<std::size_t, Json>> orderedItems;
+                    Json knownItems = metadataCompatibleItems(state.value("items", Json::array()));
+                    std::size_t fallbackIndex = 0;
+                    for (Json& item : knownItems) {
+                        std::size_t index = fallbackIndex++;
+                        const auto id = optionalString(item, "id");
+                        if (id.has_value()) {
+                            const auto known = std::find_if(snapshot.items.begin(), snapshot.items.end(), [&](const ThreadItem& value) {
+                                return itemData(value).id.value() == *id;
+                            });
+                            if (known != snapshot.items.end()) {
+                                index = itemData(*known).sourceIndex.value_or(index);
+                            }
+                        }
+                        orderedItems.emplace_back(index, std::move(item));
+                    }
+                    for (const LegacyItemCompatibility& item : snapshot.legacyItems) {
+                        orderedItems.emplace_back(item.sourceIndex, metadataCompatibleItem(item));
+                    }
+                    std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const auto& left, const auto& right) {
+                        return left.first < right.first;
+                    });
+                    state["items"] = Json::array();
+                    for (auto& [index, item] : orderedItems) {
+                        (void) index;
+                        state["items"].push_back(std::move(item));
+                    }
                 }
             }
-            if (selection.expandedPendingRequests) {
-                state["pendingRequests"] = expandedState.value("pendingRequests", Json::array());
+            if (selection.expandedPendingRequests && !selection.expandedDomains) {
+                auto pending = expandedState.find("pendingRequests");
+                state["pendingRequests"] = pending == expandedState.end() ? Json::array() : std::move(*pending);
             } else if (selection.expandedDomains) {
-                Json pending = legacy.value().state.value("pendingRequests", Json::array());
-                if (pending.empty()) {
-                    state.erase("pendingRequests");
-                } else {
-                    state["pendingRequests"] = std::move(pending);
+                if (!selection.expandedPendingRequests) {
+                    Json pending = legacyState.value("pendingRequests", Json::array());
+                    if (pending.empty()) {
+                        state.erase("pendingRequests");
+                    } else {
+                        state["pendingRequests"] = std::move(pending);
+                    }
                 }
             }
             Json extensions = snapshot.extensions.json();

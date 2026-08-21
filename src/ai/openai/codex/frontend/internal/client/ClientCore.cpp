@@ -1213,10 +1213,14 @@ namespace ai::openai::codex::frontend::internal::client {
                                  const std::optional<std::string>& projectionFingerprint,
                                  std::optional<model::FrontendSequence> retainedReplayThrough,
                                  std::optional<model::FrontendSequence> lastSynchronizationBatchSequence,
+                                 bool byteCapacityPreparedExternally,
                                  std::string& error) noexcept {
             if (retainedEntityCount(snapshot) > limits.maximumRetainedEntities) {
                 error = "decoded frontend state exceeds its retained-entity limit";
                 return false;
+            }
+            if (byteCapacityPreparedExternally) {
+                return true;
             }
             const auto measured = measurePublishedStateBytes(snapshot,
                                                              revision,
@@ -1771,19 +1775,23 @@ namespace ai::openai::codex::frontend::internal::client {
                      RepresentationMode representation,
                      std::optional<model::FrontendSequence> synchronizedThrough,
                      bool emitCursor,
-                     bool reportPreparationFailure = true) noexcept;
+                     bool reportPreparationFailure = true,
+                     std::span<const Change> changes = {}) noexcept;
         [[nodiscard]] std::shared_ptr<const PublishedState>
         commitSnapshotPublication(model::CanonicalSnapshot snapshot,
                                   PublishedFreshness freshness,
                                   RepresentationMode representation,
                                   std::optional<model::FrontendSequence> synchronizedThrough,
-                                  bool reportPreparationFailure = true) noexcept;
+                                  bool reportPreparationFailure = true,
+                                  std::span<const Change> changes = {}) noexcept;
         void notifyPublication(const std::shared_ptr<const PublishedState>& publication, bool emitCursor) noexcept;
         bool
         publishMetadata(PublishedFreshness freshness, bool reportPreparationFailure = true, bool notifyPublicationCallback = true) noexcept;
         bool publishBoundedEmptyStale(bool notifyPublicationCallback = true) noexcept;
         [[nodiscard]] std::uint64_t nextPublicationRevision() const noexcept;
-        bool commitPublication(std::shared_ptr<const PublishedState> candidate, bool reportPreparationFailure = true) noexcept;
+        bool commitPublication(std::shared_ptr<const PublishedState> candidate,
+                               bool reportPreparationFailure = true,
+                               std::span<const Change> changes = {}) noexcept;
         [[nodiscard]] std::shared_ptr<const PublishedState> makeRetainedStateStale(bool notifyCallbacks = true) noexcept;
         void requestTransportClose(PhysicalGeneration generation, std::string_view reason) noexcept;
         void failConnection(ClientError error, std::string_view closeReason, bool requestTransportClose, bool reportError = true) noexcept;
@@ -1951,7 +1959,9 @@ namespace ai::openai::codex::frontend::internal::client {
         return published->revision == std::numeric_limits<std::uint64_t>::max() ? published->revision : published->revision + 1;
     }
 
-    bool ClientCore::Impl::commitPublication(std::shared_ptr<const PublishedState> candidate, bool reportPreparationFailure) noexcept {
+    bool ClientCore::Impl::commitPublication(std::shared_ptr<const PublishedState> candidate,
+                                             bool reportPreparationFailure,
+                                             std::span<const Change> changes) noexcept {
         if (published->revision == std::numeric_limits<std::uint64_t>::max()) {
             const ClientError exhaustion = localError(ClientErrorCode::StateCapacityExceeded, "frontend state revision exhausted");
             if (reportPreparationFailure) {
@@ -1986,7 +1996,7 @@ namespace ai::openai::codex::frontend::internal::client {
         if (callbacks.prepareStatePublication) {
             std::optional<ClientError> preparationError;
             try {
-                preparationError = callbacks.prepareStatePublication(*candidate);
+                preparationError = callbacks.prepareStatePublication(StatePublicationPreparation{*candidate, *published, changes});
             } catch (...) {
                 preparationError =
                     localError(ClientErrorCode::StateCapacityExceeded, "public frontend State preparation threw before canonical commit");
@@ -2043,7 +2053,8 @@ namespace ai::openai::codex::frontend::internal::client {
                                                 PublishedFreshness freshness,
                                                 RepresentationMode representation,
                                                 std::optional<model::FrontendSequence> synchronizedThrough,
-                                                bool reportPreparationFailure) noexcept {
+                                                bool reportPreparationFailure,
+                                                std::span<const Change> changes) noexcept {
         try {
             auto next = std::make_shared<PublishedState>();
             next->revision = nextPublicationRevision();
@@ -2054,7 +2065,7 @@ namespace ai::openai::codex::frontend::internal::client {
             next->session = session;
             next->projectionFingerprint = activeProjectionFingerprint;
             next->snapshot = std::make_shared<const model::CanonicalSnapshot>(std::move(snapshot));
-            if (!commitPublication(std::move(next), reportPreparationFailure)) {
+            if (!commitPublication(std::move(next), reportPreparationFailure, changes)) {
                 return {};
             }
             return published;
@@ -2096,9 +2107,11 @@ namespace ai::openai::codex::frontend::internal::client {
                                    RepresentationMode representation,
                                    std::optional<model::FrontendSequence> synchronizedThrough,
                                    bool emitCursor,
-                                   bool reportPreparationFailure) noexcept {
+                                   bool reportPreparationFailure,
+                                   std::span<const Change> changes) noexcept {
         std::shared_ptr<const PublishedState> publication =
-            commitSnapshotPublication(std::move(snapshot), freshness, representation, synchronizedThrough, reportPreparationFailure);
+            commitSnapshotPublication(
+                std::move(snapshot), freshness, representation, synchronizedThrough, reportPreparationFailure, changes);
         if (!publication) {
             return false;
         }
@@ -2755,6 +2768,7 @@ namespace ai::openai::codex::frontend::internal::client {
                                  activeProjectionFingerprint,
                                  capacityRetainedReplayThrough,
                                  std::nullopt,
+                                 options.publicationPreparationEnforcesByteCapacity,
                                  capacityError)) {
             ClientError error =
                 protocolError(ClientErrorCode::StateCapacityExceeded, std::move(capacityError), ErrorCode::CapacityExceeded);
@@ -3008,7 +3022,19 @@ namespace ai::openai::codex::frontend::internal::client {
             for (const model::OccurrencePayload& payload : mergedOccurrence->expandedPayloads()) {
                 std::visit(
                     [&changes](const auto& value) {
-                        changes.emplace_back(value);
+                        using Value = std::remove_cvref_t<decltype(value)>;
+                        if constexpr (std::is_same_v<Value, model::ItemContentUpdatedOccurrence>) {
+                            model::ItemContentUpdatedOccurrence verified = value;
+                            if (verified.appendWireRepresentation && verified.appendHint) {
+                                // applyCanonicalOccurrence above proved the
+                                // base/discard/delta transform against the
+                                // retained canonical channel.
+                                verified.appendHint->sourceVerified = true;
+                            }
+                            changes.emplace_back(std::move(verified));
+                        } else {
+                            changes.emplace_back(value);
+                        }
                     },
                     payload);
             }
@@ -3059,6 +3085,7 @@ namespace ai::openai::codex::frontend::internal::client {
             activeProjectionFingerprint,
             synchronizing ? synchronization->representedThrough : std::nullopt,
             synchronizing ? std::optional<model::FrontendSequence>{model::FrontendSequence(batch.toSequence)} : std::nullopt,
+            options.publicationPreparationEnforcesByteCapacity,
             capacityError);
     }
 
@@ -3142,7 +3169,9 @@ namespace ai::openai::codex::frontend::internal::client {
                              PublishedFreshness::Synchronizing,
                              representation,
                              synchronization->representedThrough,
-                             false)) {
+                             false,
+                             true,
+                             changes)) {
                     return;
                 }
                 if (!continues(generation, ConnectionState::Synchronizing) || !synchronization.has_value()) {
@@ -3155,7 +3184,7 @@ namespace ai::openai::codex::frontend::internal::client {
         }
         if (applied != 0) {
             const model::FrontendSequence sequence = candidate->sequence;
-            if (!publish(std::move(*candidate), PublishedFreshness::Current, representation, sequence, false)) {
+            if (!publish(std::move(*candidate), PublishedFreshness::Current, representation, sequence, false, true, changes)) {
                 return;
             }
             if (!continues(generation, ConnectionState::Ready)) {
@@ -3250,6 +3279,7 @@ namespace ai::openai::codex::frontend::internal::client {
                                  activeProjectionFingerprint,
                                  std::nullopt,
                                  std::nullopt,
+                                 options.publicationPreparationEnforcesByteCapacity,
                                  capacityError)) {
             failConnection(protocolError(ClientErrorCode::StateCapacityExceeded, std::move(capacityError), ErrorCode::CapacityExceeded),
                            "frontend ready-state capacity exceeded",
