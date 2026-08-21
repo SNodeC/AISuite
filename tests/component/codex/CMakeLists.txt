@@ -1487,6 +1487,10 @@ target_compile_definitions(
     CodexA11ItemCodecTest
     PRIVATE CODEX_A1_FIXTURE_ROOT="${PROJECT_SOURCE_DIR}/tools/codex/app-server-fixtures/0.144.6"
 )
+set_tests_properties(
+    CodexA11ItemCodecTest
+    PROPERTIES TIMEOUT 30
+)
 
 snodec_add_test(CodexBackendReducerTest CodexBackendReducerTest.cpp)
 target_link_libraries(
