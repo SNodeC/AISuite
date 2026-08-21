@@ -33,8 +33,6 @@ namespace apps::codex_backend {
         constexpr std::size_t WebSocketFramePayloadBytes = 16U * 1024U;
         constexpr std::size_t MaximumServerFrameHeaderBytes = 4;
 
-        const utils::Timeval DeliveryRetryDelay(0.005);
-
         std::optional<std::size_t> boundedWebSocketMessageBytes(std::size_t payloadBytes) noexcept {
             const std::size_t frameCount = payloadBytes == 0 ? 1 : (payloadBytes - 1) / WebSocketFramePayloadBytes + 1;
             if (frameCount > (std::numeric_limits<std::size_t>::max() - payloadBytes) / MaximumServerFrameHeaderBytes) {
@@ -74,6 +72,7 @@ namespace apps::codex_backend {
     }
 
     void FrontendWebSocketSubProtocol::onConnected() {
+        deliveryRetryBackoff.reset();
         try {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             frontendConnection = service.openConnection(peer,
@@ -142,6 +141,7 @@ namespace apps::codex_backend {
 
     void FrontendWebSocketSubProtocol::onDisconnected() {
         deliveryRetryScheduled = false;
+        deliveryRetryBackoff.reset();
         detachFrontend("frontend WebSocket disconnected");
     }
 
@@ -183,7 +183,8 @@ namespace apps::codex_backend {
                 return OutboundDeliveryStatus::Closed;
             }
             if (writerBytes > applicationLimit - message.compactJson.size() || writerBytes > writerLimit - *frameBytes) {
-                return scheduleDeliveryRetry() ? OutboundDeliveryStatus::Backpressured : OutboundDeliveryStatus::Closed;
+                return scheduleDeliveryRetry(writerBytes) ? OutboundDeliveryStatus::Backpressured
+                                                          : OutboundDeliveryStatus::Closed;
             }
 
             // The exact aggregate byte admission was decided above. This
@@ -193,24 +194,27 @@ namespace apps::codex_backend {
                 case core::socket::stream::QueueResult::Queued:
                     break;
                 case core::socket::stream::QueueResult::WouldExceedLimit:
-                    return scheduleDeliveryRetry() ? OutboundDeliveryStatus::Backpressured : OutboundDeliveryStatus::Closed;
+                    return scheduleDeliveryRetry(writerBytes) ? OutboundDeliveryStatus::Backpressured
+                                                              : OutboundDeliveryStatus::Closed;
                 case core::socket::stream::QueueResult::Closed:
                 case core::socket::stream::QueueResult::ShutdownInProgress:
                     return OutboundDeliveryStatus::Closed;
             }
 
             sendMessage(message.compactJson);
+            deliveryRetryBackoff.recordAccepted();
             return OutboundDeliveryStatus::Accepted;
         } catch (...) {
             return OutboundDeliveryStatus::Closed;
         }
     }
 
-    bool FrontendWebSocketSubProtocol::scheduleDeliveryRetry() noexcept {
+    bool FrontendWebSocketSubProtocol::scheduleDeliveryRetry(std::size_t outstandingWriterBytes) noexcept {
         if (deliveryRetryScheduled || closeStarted || !lifetime) {
             return deliveryRetryScheduled && !closeStarted;
         }
         deliveryRetryScheduled = true;
+        const std::size_t delayMilliseconds = deliveryRetryBackoff.recordBackpressure(outstandingWriterBytes);
         const std::weak_ptr<Lifetime> weakLifetime = lifetime;
         try {
             static_cast<void>(core::timer::Timer::singleshotTimer(
@@ -225,7 +229,7 @@ namespace apps::codex_backend {
                         subProtocol.frontendConnection.resumeDelivery();
                     }
                 },
-                DeliveryRetryDelay));
+                utils::Timeval(static_cast<double>(delayMilliseconds) / 1000.0)));
             return true;
         } catch (...) {
             deliveryRetryScheduled = false;
@@ -248,6 +252,7 @@ namespace apps::codex_backend {
         inputBlocked = true;
         closeStarted = true;
         deliveryRetryScheduled = false;
+        deliveryRetryBackoff.reset();
         inbound.clear();
         try {
             sendClose(status, reason, std::char_traits<char>::length(reason));
@@ -264,6 +269,7 @@ namespace apps::codex_backend {
     void FrontendWebSocketSubProtocol::detachFrontend(std::string reason) noexcept {
         inputBlocked = true;
         deliveryRetryScheduled = false;
+        deliveryRetryBackoff.reset();
         if (lifetime) {
             lifetime->subProtocol = nullptr;
         }

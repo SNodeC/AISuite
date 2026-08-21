@@ -24,12 +24,6 @@
 
 namespace apps::codex_backend {
 
-    namespace {
-
-        const utils::Timeval DeliveryRetryDelay(0.005);
-
-    } // namespace
-
     using ai::openai::codex::frontend::internal::transport::JsonLineFramer;
     using ai::openai::codex::frontend::CodecError;
     using ai::openai::codex::frontend::ErrorCode;
@@ -55,6 +49,7 @@ namespace apps::codex_backend {
     }
 
     void FrontendStreamSocketContext::onConnected() {
+        deliveryRetryBackoff.reset();
         try {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             frontendConnection =
@@ -81,6 +76,7 @@ namespace apps::codex_backend {
         inputBlocked = true;
         disconnecting = true;
         deliveryRetryScheduled = false;
+        deliveryRetryBackoff.reset();
         if (lifetime) {
             lifetime->context = nullptr;
         }
@@ -152,10 +148,11 @@ namespace apps::codex_backend {
             // remains the authoritative final admission check.
             const std::size_t totalQueued = socketConnection->getTotalQueued();
             const std::size_t totalSent = socketConnection->getTotalSent();
+            const std::size_t writerBytes = totalQueued >= totalSent ? totalQueued - totalSent : 0;
             if (totalQueued >= totalSent) {
-                const std::size_t writerBytes = totalQueued - totalSent;
                 if (writerBytes > DEFAULT_MAXIMUM_OUTBOUND_BYTES - frameBytes) {
-                    return scheduleDeliveryRetry() ? OutboundDeliveryStatus::Backpressured : OutboundDeliveryStatus::Closed;
+                    return scheduleDeliveryRetry(writerBytes) ? OutboundDeliveryStatus::Backpressured
+                                                              : OutboundDeliveryStatus::Closed;
                 }
             }
 
@@ -163,6 +160,7 @@ namespace apps::codex_backend {
             frame.push_back('\n');
             switch (socketConnection->trySendToPeer(frame)) {
                 case core::socket::stream::QueueResult::Queued:
+                    deliveryRetryBackoff.recordAccepted();
                     return OutboundDeliveryStatus::Accepted;
                 case core::socket::stream::QueueResult::WouldExceedLimit:
                     // Retain the exact ServerCore head until the bounded
@@ -172,7 +170,8 @@ namespace apps::codex_backend {
                     if (socketConnection->getTotalQueued() == socketConnection->getTotalSent()) {
                         return OutboundDeliveryStatus::Closed;
                     }
-                    return scheduleDeliveryRetry() ? OutboundDeliveryStatus::Backpressured : OutboundDeliveryStatus::Closed;
+                    return scheduleDeliveryRetry(writerBytes) ? OutboundDeliveryStatus::Backpressured
+                                                              : OutboundDeliveryStatus::Closed;
                 case core::socket::stream::QueueResult::Closed:
                 case core::socket::stream::QueueResult::ShutdownInProgress:
                     return OutboundDeliveryStatus::Closed;
@@ -183,11 +182,12 @@ namespace apps::codex_backend {
         return OutboundDeliveryStatus::Closed;
     }
 
-    bool FrontendStreamSocketContext::scheduleDeliveryRetry() noexcept {
+    bool FrontendStreamSocketContext::scheduleDeliveryRetry(std::size_t outstandingWriterBytes) noexcept {
         if (deliveryRetryScheduled || disconnecting || !lifetime) {
             return deliveryRetryScheduled && !disconnecting;
         }
         deliveryRetryScheduled = true;
+        const std::size_t delayMilliseconds = deliveryRetryBackoff.recordBackpressure(outstandingWriterBytes);
         const std::weak_ptr<Lifetime> weakLifetime = lifetime;
         try {
             static_cast<void>(core::timer::Timer::singleshotTimer(
@@ -202,7 +202,7 @@ namespace apps::codex_backend {
                         context.frontendConnection.resumeDelivery();
                     }
                 },
-                DeliveryRetryDelay));
+                utils::Timeval(static_cast<double>(delayMilliseconds) / 1000.0)));
             return true;
         } catch (...) {
             deliveryRetryScheduled = false;
@@ -218,6 +218,7 @@ namespace apps::codex_backend {
         inputBlocked = true;
         disconnecting = true;
         deliveryRetryScheduled = false;
+        deliveryRetryBackoff.reset();
         try {
             shutdownRead();
             shutdownWrite();

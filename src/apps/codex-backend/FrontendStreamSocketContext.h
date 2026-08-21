@@ -11,6 +11,7 @@
 #include "ai/openai/codex/frontend/FrontendService.h"
 #include "ai/openai/codex/frontend/internal/transport/JsonLineFramer.h"
 #include "apps/codex-backend/Configuration.h"
+#include "apps/codex-backend/RetainedDeliveryRetryBackoff.h"
 #include "core/socket/stream/SocketContext.h"
 
 #include <cstddef>
@@ -51,7 +52,7 @@ namespace apps::codex_backend {
 
         ai::openai::codex::frontend::OutboundDeliveryStatus
         send(const ai::openai::codex::frontend::OutboundMessage& message) noexcept;
-        [[nodiscard]] bool scheduleDeliveryRetry() noexcept;
+        [[nodiscard]] bool scheduleDeliveryRetry(std::size_t outstandingWriterBytes) noexcept;
         void serviceClosed(std::string reason) noexcept;
         void rejectFrame(ai::openai::codex::frontend::ErrorCode code, std::string message) noexcept;
 
@@ -64,6 +65,7 @@ namespace apps::codex_backend {
         bool inputBlocked = false;
         bool disconnecting = false;
         bool deliveryRetryScheduled = false;
+        RetainedDeliveryRetryBackoff deliveryRetryBackoff;
 
         friend struct detail::FrontendStreamSocketContextTestAccess;
     };

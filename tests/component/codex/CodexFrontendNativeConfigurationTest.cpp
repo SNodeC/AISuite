@@ -92,7 +92,7 @@ int main() {
     result.expectTrue(
         streamContext.find("case core::socket::stream::QueueResult::Queued:") != std::string::npos &&
             streamContext.find("case core::socket::stream::QueueResult::WouldExceedLimit:") != std::string::npos &&
-            streamContext.find("scheduleDeliveryRetry()") != std::string::npos &&
+            streamContext.find("scheduleDeliveryRetry(writerBytes)") != std::string::npos &&
             streamContext.find("OutboundDeliveryStatus::Backpressured") != std::string::npos,
         "stream transport distinguishes accepted, temporarily backpressured, and terminal SNode.C queue outcomes");
     result.expectTrue(unixCredentials.find("net::un::peerCredentials(") != std::string::npos &&

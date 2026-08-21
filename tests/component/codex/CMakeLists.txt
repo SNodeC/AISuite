@@ -1992,6 +1992,21 @@ set_tests_properties(
 )
 
 snodec_add_test(
+    CodexFrontendDeliveryRetryBackoffTest CodexFrontendDeliveryRetryBackoffTest.cpp
+)
+target_include_directories(
+    CodexFrontendDeliveryRetryBackoffTest PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
+target_link_libraries(
+    CodexFrontendDeliveryRetryBackoffTest PRIVATE snodec-test-support
+)
+target_compile_features(CodexFrontendDeliveryRetryBackoffTest PRIVATE cxx_std_20)
+set_tests_properties(
+    CodexFrontendDeliveryRetryBackoffTest
+    PROPERTIES LABELS "component;ai;openai;codex;frontend;transport;backpressure" TIMEOUT 5
+)
+
+snodec_add_test(
     CodexFrontendReferenceAuthenticationTest
     CodexFrontendReferenceAuthenticationTest.cpp
     ${PROJECT_SOURCE_DIR}/src/apps/codex-backend/ReferenceAuthentication.cpp

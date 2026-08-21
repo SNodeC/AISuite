@@ -116,6 +116,7 @@ foreach(required
     src/ai/openai/codex/frontend/client/detail/OperationCodecs.h
     src/apps/codex-backend/Configuration.cpp
     src/apps/codex-backend/FrontendStreamSocketContext.cpp
+    src/apps/codex-backend/RetainedDeliveryRetryBackoff.h
     src/apps/codex-backend/FrontendWebApplication.h
     src/apps/codex-backend/FrontendWebApplication.cpp
     src/apps/codex-backend/FrontendWebSecurity.cpp
@@ -177,6 +178,7 @@ foreach(required
     tests/component/codex/CodexFrontendClientCoreOperationTest.cpp
     tests/component/codex/CodexFrontendClientCoreStateTest.cpp
     tests/component/codex/CodexFrontendClientCoreCapacityTest.cpp
+    tests/component/codex/CodexFrontendDeliveryRetryBackoffTest.cpp
     tests/component/codex/CodexFrontendDifferentialComparison.h
     tests/component/codex/CodexFrontendDifferentialCoverageGuardTest.py
     tests/component/codex/CodexFrontendDifferentialMutationProbe.cpp
