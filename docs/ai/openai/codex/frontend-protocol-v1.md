@@ -96,9 +96,9 @@ inventory is 29 main, seven backend, and nine frontend headers, or 45 total.
 A1.7b replaces `frontend/BackendAdapter.h` with
 `frontend/FrontendService.h` and installs no compatibility alias, so that
 inventory does not change.
-Project version is `0.5.0`; all Codex libraries use SOVERSION 6 after adding
-structurally shared item content and verified incremental public-state
-publication. The protocol identity and protocol version remain unchanged;
+Project version is `0.6.0`; all Codex libraries use SOVERSION 7 after adding
+the explicit authoritative `thread.read` state effect to the public C++
+surface. The protocol identity and protocol version remain unchanged;
 negotiated append-v2 projection carries complete
 retained command output in bounded base64 chunks without enlarging the frozen
 scalar fields or depending on JSON escape expansion. After the backend's
@@ -343,10 +343,14 @@ the App Server, or another frontend.
 
 ### Capability and method discovery
 
-A hello may add a `capabilities` array to request additive behavior. A welcome
-may add `capabilities`, `availableMethods`, `permittedMethods`, `serverVersion`,
-and `maximumInboundMessageBytes`. All five welcome fields and the hello field
-are optional, so an original v1 peer retains its existing bytes and behavior.
+A hello may add a `capabilities` array to request additive behavior and a
+positive `capabilityVocabularyVersion` declaring the newest closed capability
+name vocabulary the client can decode. A welcome may add `capabilities`,
+`availableMethods`, `permittedMethods`, `serverVersion`, and
+`maximumInboundMessageBytes`. All discovery fields remain optional. An older
+server ignores the additive vocabulary marker under v1's unknown-field rule;
+an unmarked older client receives no capability name introduced after the
+original vocabulary, so both upgrade directions retain the legacy path.
 The positive byte limit is the server's effective command-ingress limit for
 that connection; a client uses its configured conservative fallback when an
 older server omits it. Capability
@@ -357,7 +361,7 @@ advertisement contains three independent arrays:
 - `permitted`: the authenticated connection may negotiate the implemented
   mechanism.
 
-The 18 defined capability names are:
+The 19 defined capability names are:
 
 ```text
 method_discovery                 security_scopes
@@ -365,7 +369,8 @@ complete_provider_operations     complete_reverse_requests
 complete_backend_domains         conditional_filesystem
 conditional_command_execution    dedicated_pending_requests
 dedicated_notification_events    complete_thread_items
-authenticated_frontend           scope_projected_state
+thread_read_state_effects        authenticated_frontend
+scope_projected_state
 provider_lifecycle               multi_transport
 cpp_client_sdk                   typescript_client_sdk
 browser_ui                       qt_ui
@@ -385,19 +390,23 @@ provider_lifecycle
 
 The invocation-policy capabilities remain implemented when their methods are
 deployment-disabled; method activation is represented by `availableMethods`.
-Capability category and current truth are independent. The 13 entries above
-are static service mechanisms. `multi_transport` is the one conditional
+Capability category and current truth are independent. A1.7c adds
+`thread_read_state_effects` to the 13 A1.7b entries, so the current runtime has
+14 static service mechanisms. `multi_transport` is the one conditional
 topology capability: one declared transport family yields false and more than
 one yields true. Product capabilities are a third category. `cpp_client_sdk`
 is build-derived true when the AISuite C++ SDK product is enabled and built;
 `typescript_client_sdk`, `browser_ui`, and `qt_ui` remain false.
 
-The implemented total is therefore `13 + topology(0|1) + product(0|1)`, not
+The implemented total is therefore `14 + topology(0|1) + product(0|1)`, not
 one unconditional mechanism count. The SDK requests only the five v1
 representation selectors: `complete_backend_domains`,
 `dedicated_pending_requests`, `dedicated_notification_events`,
 `complete_thread_items`, and `scope_projected_state`. It observes mechanism,
 topology, and product facts without requesting them as representation choices.
+The current SDK sends `capabilityVocabularyVersion: 1`, observes
+`thread_read_state_effects` in Welcome, and opts in per eligible command instead
+of adding the mechanism name to its requested representation capabilities.
 
 For methods, `availableMethods` means implemented and deployment-enabled.
 `permittedMethods` further filters that set by the authenticated principal's
@@ -487,6 +496,71 @@ legacy commands require the controller role (**C**).
 | C | `request.authentication.respond` | required `pendingRequestId`, `accessToken`, `chatgptAccountId`; optional `chatgptPlanType` |
 | C | `request.unknown.respond` | required `pendingRequestId`, arbitrary JSON `result` |
 | C | `request.unknown.reject` | required `pendingRequestId`, signed-64 `code`, `message`; optional arbitrary JSON `data` |
+
+### Authoritative `thread.read` results
+
+The additive static capability `thread_read_state_effects` makes one narrow
+command result an explicit source of synchronized state. A capable client does
+not put this mechanism in its Hello capability request, because that array
+selects representation behavior. It positively marks
+`capabilityVocabularyVersion: 1`; an older server ignores that additive field,
+while a new server omits the new capability name from Welcome for an unmarked
+older client. After observing the mechanism in Welcome, the client adds the
+command-envelope extension
+`threadReadStateEffectVersion: 1` only to `thread.read` with
+`includeTurns: true`. Old servers therefore see the old command, and old
+clients continue to receive the legacy result path.
+
+A full read is requester-local in both modes. It never publishes the returned
+turns or items into BackendCore's shared State, never emits a global
+`thread.upserted`, and never advances another frontend's journal. Without the
+per-command extension, its bounded body is raw operation result data only and
+does not mutate synchronized client State.
+
+An opted-in success may include `stateEffect` with `scope: "thread"`, one of
+the authorities `merge`, `replace`, or `absent`, and bounded truncation
+metadata. Before sending that response, the server materializes every pending
+visible event in the same dispatch transaction. The ordered transport is the
+barrier: the client applies the effect transactionally to the immutable State
+that is current when it processes the response, publishes the replacement
+State, and only then invokes the operation completion callback. Applying the
+result does not advance the journal cursor, including when the first useful
+full read arrives while that cursor is still zero. The response is valid only
+at its exact observer fence. If an ordinary observer suffix overtakes the
+captured body, or capacity recovery must publish a newer Snapshot while
+materializing the pending prefix, the newer synchronized State remains
+authoritative and the server fails only the negotiated read instead of
+returning an older effect. A legacy raw result remains usable because it has no
+state effect. Ordinary observer overtake reports `conflict`; a Snapshot forced
+by bounded projection reports `capacity_exceeded`.
+
+- `replace` requires a structurally complete body with `fullyLoaded: true` and
+  atomically replaces the thread and all of its turns and items. Descendants
+  absent from the body are deleted.
+- `merge` requires an incomplete body with `fullyLoaded: false` and only
+  upserts the supplied structure. It never deletes an absent descendant, but
+  it does downgrade an older complete local cache to `fullyLoaded: false` so
+  omitted middle descendants cannot be mistaken for complete history.
+- `absent` carries no thread body and removes the thread. The server emits it
+  only when the provider reports the exact recognized authoritative
+  missing-thread signature for the requested thread ID. Generic or ambiguous
+  provider errors and retention-driven omission must never be interpreted as
+  absence.
+
+`truncation.sourcePartial` records that the captured source was already partial,
+whether because the provider omitted descendants or requester-local retention
+limits reduced the capture before wire-size bounding.
+`truncation.responseTruncated` is true exactly when bounding the response
+omitted turns or items, whose counts are carried separately. Either condition
+requires `merge`. Content-only truncation does not make the topology partial
+and therefore does not prevent `replace`; the affected item metadata remains
+responsible for exposing its own dropped-byte count and truncation. A result
+without `stateEffect` remains observable but cannot mutate the synchronized
+client State. For an opted-in complete read, the client validates the wire
+result without copying its full body, consumes that body exactly once into
+canonical State, and completes the public `ThreadReadResult` with `threadId`
+and `stateEffect`; callers read the published body from `Client::state()`.
+Legacy and non-authoritative reads retain their nested result body unchanged.
 
 An approval `decision` is exactly one of `accept`, `acceptForSession`,
 `decline`, or `cancel`. A user-input `answers` array contains objects with a

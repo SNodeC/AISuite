@@ -138,6 +138,7 @@ namespace ai::openai::codex::frontend::generated {
         DedicatedPendingRequests,
         DedicatedNotificationEvents,
         CompleteThreadItems,
+        ThreadReadStateEffects,
         AuthenticatedFrontend,
         ScopeProjectedState,
         ProviderLifecycle,
@@ -949,7 +950,7 @@ namespace ai::openai::codex::frontend::generated {
         {MethodId::WindowsSandboxSetupStart, "windowsSandbox.setupStart", MethodCategory::ProviderOperation, false, WindowsSandboxSetupStartRegistryKeys, "", "WindowsSandboxSetupStart", "", "#/$defs/WindowsSandboxSetupStartParams", "#/$defs/WindowsSandboxSetupStartResult", "WindowsSandboxSetupStartResponse", WindowsSandboxSetupStartParameterFields, WindowsSandboxSetupStartRequiredParameterFields, "DedicatedFrontendMethod", "ControllerRequiredApproved", WindowsSandboxSetupStartScopes, true, true, true, true, false, false, false, false, "additive_v1", "complete_provider_operations", "A1.7b", "static"},
     }};
 
-    inline constexpr std::array<CapabilityMetadata, 18> AllCapabilities{{
+    inline constexpr std::array<CapabilityMetadata, 19> AllCapabilities{{
         {Capability::MethodDiscovery, "method_discovery", CapabilityCategory::StaticMechanism, true, true},
         {Capability::SecurityScopes, "security_scopes", CapabilityCategory::StaticMechanism, true, true},
         {Capability::CompleteProviderOperations, "complete_provider_operations", CapabilityCategory::StaticMechanism, true, true},
@@ -960,6 +961,7 @@ namespace ai::openai::codex::frontend::generated {
         {Capability::DedicatedPendingRequests, "dedicated_pending_requests", CapabilityCategory::StaticMechanism, true, true},
         {Capability::DedicatedNotificationEvents, "dedicated_notification_events", CapabilityCategory::StaticMechanism, true, true},
         {Capability::CompleteThreadItems, "complete_thread_items", CapabilityCategory::StaticMechanism, true, true},
+        {Capability::ThreadReadStateEffects, "thread_read_state_effects", CapabilityCategory::StaticMechanism, true, true},
         {Capability::AuthenticatedFrontend, "authenticated_frontend", CapabilityCategory::StaticMechanism, true, true},
         {Capability::ScopeProjectedState, "scope_projected_state", CapabilityCategory::StaticMechanism, true, true},
         {Capability::ProviderLifecycle, "provider_lifecycle", CapabilityCategory::StaticMechanism, true, true},
@@ -1412,7 +1414,7 @@ namespace ai::openai::codex::frontend::generated {
     static_assert(PrivilegedProviderMethodCount == 22);
     static_assert(ConditionalProviderMethodCount == 15);
     static_assert(ParameterSensitiveProviderMethodCount == 1);
-    static_assert(ImplementedMechanismCapabilityCount == 13);
+    static_assert(ImplementedMechanismCapabilityCount == 14);
     static_assert(ReviewedIdentityCount == 234);
     static_assert(AllNotificationProjections.size() == 68);
     static_assert(AllThreadItemProjections.size() == 18);

@@ -260,6 +260,68 @@ namespace {
                           "copy-preserving occurrence reduction leaves its source unchanged");
     }
 
+    void testAuthoritativeThreadMoveApplication(tests::support::TestResult& result) {
+        model::ThreadUpsertedOccurrence update{model::ThreadState{model::ThreadIdentity{"move-thread"}}};
+        update.replaceDescendants = true;
+        update.thread.title = std::string(256, 'h');
+
+        model::TurnState turn{model::TurnIdentity{"move-turn"}, model::ThreadIdentity{"move-thread"}};
+        turn.status = std::string(256, 't');
+        update.turns.push_back(std::move(turn));
+
+        model::ItemData item{model::ItemIdentity{"move-item"}, model::ThreadIdentity{"move-thread"}, model::TurnIdentity{"move-turn"}};
+        item.agentText = std::string(256, 'i');
+        item.sourceIndex = 0;
+        update.items.emplace_back(model::AgentMessageItem{std::move(item)});
+
+        model::LegacyItemCompatibility legacy{
+            model::ItemData{
+                model::ItemIdentity{"move-future-item"}, model::ThreadIdentity{"move-thread"}, model::TurnIdentity{"move-turn"}},
+            "future_item",
+            1,
+            "/thread/turns/0/items/1",
+        };
+        legacy.value.summary = std::string(256, 'l');
+        legacy.value.sourceIndex = 1;
+        update.legacyItems.push_back(std::move(legacy));
+
+        auto identity = occurrenceIdentity(32, "move-authoritative-thread");
+        identity.threadId = model::ThreadIdentity{"move-thread"};
+        auto occurrence = model::makeOccurrence(std::move(identity), std::move(update));
+        if (!occurrence) {
+            result.expectTrue(false, "const authoritative thread application preserves its retained payload storage");
+            result.expectTrue(false, "rvalue authoritative thread application transfers its retained payload storage");
+            return;
+        }
+
+        const auto* retained = std::get_if<model::ThreadUpsertedOccurrence>(&occurrence.value().expandedPayloads().front());
+        const char* threadStorage = retained != nullptr ? retained->thread.title->data() : nullptr;
+        const char* turnStorage = retained != nullptr ? retained->turns.front().status->data() : nullptr;
+        const char* itemStorage = retained != nullptr ? model::itemData(retained->items.front()).agentText->data() : nullptr;
+        const char* legacyStorage = retained != nullptr ? retained->legacyItems.front().value.summary->data() : nullptr;
+
+        model::CanonicalSnapshot copiedCandidate;
+        const auto copied = model::applyOccurrence(copiedCandidate, occurrence.value());
+        const auto* retainedAfterCopy = std::get_if<model::ThreadUpsertedOccurrence>(&occurrence.value().expandedPayloads().front());
+        result.expectTrue(copied && retainedAfterCopy != nullptr && retainedAfterCopy->thread.title->data() == threadStorage &&
+                              retainedAfterCopy->turns.front().status->data() == turnStorage &&
+                              model::itemData(retainedAfterCopy->items.front()).agentText->data() == itemStorage &&
+                              retainedAfterCopy->legacyItems.front().value.summary->data() == legacyStorage &&
+                              copiedCandidate.threads.front().title->data() != threadStorage &&
+                              copiedCandidate.turns.front().status->data() != turnStorage &&
+                              model::itemData(copiedCandidate.items.front()).agentText->data() != itemStorage &&
+                              copiedCandidate.legacyItems.front().value.summary->data() != legacyStorage,
+                          "const authoritative thread application preserves its retained payload storage");
+
+        model::CanonicalSnapshot movedCandidate;
+        const auto moved = model::applyOccurrence(movedCandidate, std::move(occurrence).value());
+        result.expectTrue(moved && movedCandidate.threads.front().title->data() == threadStorage &&
+                              movedCandidate.turns.front().status->data() == turnStorage &&
+                              model::itemData(movedCandidate.items.front()).agentText->data() == itemStorage &&
+                              movedCandidate.legacyItems.front().value.summary->data() == legacyStorage,
+                          "rvalue authoritative thread application transfers its retained payload storage");
+    }
+
     void testItemOrderingAndAuthorityMigration(tests::support::TestResult& result) {
         model::CanonicalSnapshot state;
         state.items.push_back(knownItem("first", 0));
@@ -1713,6 +1775,7 @@ int main() {
     testLegacyExtensionWireShape(result);
     testGeneratedMultiFamilyGroup(result);
     testInPlaceAndCopyPreservingReduction(result);
+    testAuthoritativeThreadMoveApplication(result);
     testItemContentPresence(result);
     testNegotiatedItemContentAppend(result);
     testItemOrderingAndAuthorityMigration(result);

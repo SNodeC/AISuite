@@ -976,8 +976,20 @@ namespace ai::openai::codex::backend {
             target = amount > std::numeric_limits<std::size_t>::max() - target ? std::numeric_limits<std::size_t>::max() : target + amount;
         }
 
+        std::string_view freshnessName(Freshness freshness) noexcept {
+            switch (freshness) {
+                case Freshness::Unknown:
+                    return "unknown";
+                case Freshness::Current:
+                    return "current";
+                case Freshness::Stale:
+                    return "stale";
+            }
+            return "unknown";
+        }
+
         Json sourceStampJson(const SourceStamp& stamp) {
-            return Json{{"generation", stamp.generation}, {"freshness", static_cast<unsigned>(stamp.freshness)}};
+            return Json{{"generation", stamp.generation}, {"freshness", std::string(freshnessName(stamp.freshness))}};
         }
 
         template <typename T>
@@ -1005,20 +1017,56 @@ namespace ai::openai::codex::backend {
                                {"truncationBeforeProjection", false}}};
         }
 
-        Json itemSnapshotJson(const ItemSnapshot& item) {
-            auto [commandOutput, commandOutputOverflow] = commandOutputAccountingValue(item.commandOutput);
+        Json userMessageAccountingData(const UserMessageSnapshot& message) {
+            Json content = Json::array();
+            for (const std::string& text : message.textParts) {
+                content.push_back(Json{{"type", "text"}, {"text", text}});
+            }
+            if (content.empty() && !message.text.empty()) {
+                content.push_back(Json{{"type", "text"}, {"text", message.text}});
+            }
+            const auto retainedBytes = static_cast<std::uint64_t>(content.dump().size());
+            const auto retainedItems = static_cast<std::uint64_t>(content.size());
+            std::uint64_t originalBytes = std::max(message.originalContentBytes, retainedBytes);
+            const std::uint64_t originalItems = std::max(message.originalContentItems, retainedItems);
+            if (message.textTruncated && originalBytes == retainedBytes &&
+                originalBytes != std::numeric_limits<std::uint64_t>::max()) {
+                ++originalBytes;
+            }
+            return Json{{"clientId", message.clientId ? Json(*message.clientId) : Json(nullptr)},
+                        {"content", std::move(content)},
+                        {"textTruncated", message.textTruncated},
+                        {"contentTruncated", originalBytes > retainedBytes || originalItems > retainedItems},
+                        {"originalContentBytes", originalBytes},
+                        {"retainedContentBytes", retainedBytes},
+                        {"originalContentItems", originalItems},
+                        {"retainedContentItems", retainedItems}};
+        }
+
+        bool isFrontendV1MetadataOnlyItem(std::string_view type) noexcept {
+            return type == "collabAgentToolCall" || type == "contextCompaction" || type == "enteredReviewMode" ||
+                   type == "exitedReviewMode" || type == "hookPrompt" || type == "imageGeneration" || type == "imageView" ||
+                   type == "plan" || type == "sleep" || type == "subAgentActivity";
+        }
+
+        enum class SnapshotAccountingForm { SharedSnapshot, RawThreadRead };
+
+        Json sharedItemSnapshotJson(const ItemSnapshot& item) {
+            auto [projectedCommandOutput, commandOutputOverflow] = commandOutputAccountingValue(item.commandOutput);
+            Json frontendData = item.userMessage ? userMessageAccountingData(*item.userMessage) : item.data;
             Json encoded{{"id", item.id},
                          {"type", item.type},
                          {"status", item.status},
                          {"agentText", item.agentText},
                          {"reasoningText", item.reasoningText},
                          {"reasoningSummary", item.reasoningSummary},
-                         {"commandOutput", std::move(commandOutput)},
+                         {"commandOutput", std::move(projectedCommandOutput)},
                          {"droppedContentBytes", item.droppedContentBytes},
                          {"contentTruncated", item.contentTruncated},
-                         {"data", item.data},
+                         {"data", std::move(frontendData)},
                          {"extensions", item.extensions},
-                         {"stamp", sourceStampJson(item.stamp)},
+                         {"generation", item.stamp.generation},
+                         {"freshness", std::string(freshnessName(item.stamp.freshness))},
                          {"connectionInvalidated", item.connectionInvalidated}};
             if (!commandOutputOverflow.is_null()) {
                 encoded["aisuiteCommandOutputOverflowV2"] = std::move(commandOutputOverflow);
@@ -1032,17 +1080,56 @@ namespace ai::openai::codex::backend {
             if (item.userMessage) {
                 encoded["userMessage"] = Json{{"clientId", item.userMessage->clientId ? Json(*item.userMessage->clientId) : Json(nullptr)},
                                                 {"text", item.userMessage->text},
+                                                {"textParts", item.userMessage->textParts},
                                                 {"textTruncated", item.userMessage->textTruncated},
                                                 {"contentTruncated", item.userMessage->contentTruncated},
                                                 {"originalContentBytes", item.userMessage->originalContentBytes},
                                                 {"retainedContentBytes", item.userMessage->retainedContentBytes},
                                                 {"originalContentItems", item.userMessage->originalContentItems},
                                                 {"retainedContentItems", item.userMessage->retainedContentItems}};
+                // The canonical backend also retains the provider data object.
+                // It is not part of user-message wire data, but including it
+                // keeps the shared snapshot accountant conservative for both
+                // backend retention and frontend sidecars.
+                encoded["accountingSourceData"] = item.data;
             }
             return encoded;
         }
 
-        Json turnSnapshotJson(const TurnSnapshot& turn) {
+        Json rawThreadReadItemSnapshotJson(const ItemSnapshot& item) {
+            Json frontendData = isFrontendV1MetadataOnlyItem(item.type)
+                                    ? Json::object({{"codexType", item.type}})
+                                : item.userMessage ? userMessageAccountingData(*item.userMessage)
+                                                   : item.data;
+            Json encoded{{"id", item.id},
+                         {"type", item.type},
+                         {"status", item.status},
+                         {"agentText", item.agentText},
+                         {"reasoningText", item.reasoningText},
+                         {"reasoningSummary", item.reasoningSummary},
+                         {"commandOutput", item.commandOutput},
+                         {"droppedContentBytes", item.droppedContentBytes},
+                         {"contentTruncated", item.contentTruncated},
+                         {"data", std::move(frontendData)},
+                         {"extensions", item.extensions},
+                         {"generation", item.stamp.generation},
+                         {"freshness", std::string(freshnessName(item.stamp.freshness))},
+                         {"connectionInvalidated", item.connectionInvalidated}};
+            if (item.startedAtMs) {
+                encoded["startedAtMs"] = *item.startedAtMs;
+            }
+            if (item.completedAtMs) {
+                encoded["completedAtMs"] = *item.completedAtMs;
+            }
+            return encoded;
+        }
+
+        Json itemSnapshotJson(const ItemSnapshot& item, SnapshotAccountingForm form) {
+            return form == SnapshotAccountingForm::RawThreadRead ? rawThreadReadItemSnapshotJson(item)
+                                                                  : sharedItemSnapshotJson(item);
+        }
+
+        Json turnSnapshotJson(const TurnSnapshot& turn, SnapshotAccountingForm form) {
             Json encoded{{"id", turn.id},
                          {"threadId", turn.threadId},
                          {"status", turn.status},
@@ -1059,22 +1146,32 @@ namespace ai::openai::codex::backend {
                 encoded["tokenUsage"] = *turn.tokenUsage;
             }
             if (turn.plan) {
-                Json plan{{"steps", Json::array()}, {"totalSteps", turn.plan->totalSteps}, {"truncated", turn.plan->truncated}};
+                Json plan{{"steps", Json::array()},
+                          {"statuses", Json::array()},
+                          {"totalSteps", turn.plan->totalSteps},
+                          {"truncated", turn.plan->truncated}};
                 if (turn.plan->explanation) {
                     plan["explanation"] = *turn.plan->explanation;
                 }
                 for (const TurnPlanStepState& step : turn.plan->steps) {
-                    plan["steps"].push_back({{"step", step.step}, {"status", step.status.value}});
+                    plan["steps"].push_back(step.step);
+                    plan["statuses"].push_back(step.status.value);
                 }
                 encoded["plan"] = std::move(plan);
             }
+            if (turn.effectiveExecutionConfiguration) {
+                encoded["effectiveExecutionConfiguration"] = *turn.effectiveExecutionConfiguration;
+            }
+            if (turn.effectiveExecutionConfigurationProvenance) {
+                encoded["effectiveExecutionConfigurationProvenance"] = *turn.effectiveExecutionConfigurationProvenance;
+            }
             for (const ItemSnapshot& item : turn.items) {
-                encoded["items"].push_back(itemSnapshotJson(item));
+                encoded["items"].push_back(itemSnapshotJson(item, form));
             }
             return encoded;
         }
 
-        Json threadSnapshotJson(const ThreadSnapshot& thread) {
+        Json threadSnapshotJson(const ThreadSnapshot& thread, SnapshotAccountingForm form) {
             Json encoded{{"id", thread.id},
                          {"fullyLoaded", thread.fullyLoaded},
                          {"turns", Json::array()},
@@ -1087,9 +1184,11 @@ namespace ai::openai::codex::backend {
                            {"receivedAudioBytes", thread.realtime.receivedAudioBytes},
                            {"droppedAudioBytes", thread.realtime.droppedAudioBytes},
                            {"transcriptTruncated", thread.realtime.transcriptTruncated},
-                           {"stamp", sourceStampJson(thread.realtime.stamp)}}}};
+                           {"sourceGeneration", thread.realtime.stamp.generation},
+                           {"sourceFreshness", std::string(freshnessName(thread.realtime.stamp.freshness))}}}};
             if (thread.realtime.lastError) {
                 encoded["realtime"]["lastError"] = *thread.realtime.lastError;
+                encoded["realtime"]["errorDetailsOmitted"] = false;
             }
             if (thread.realtime.sessionId) {
                 encoded["realtime"]["sessionId"] = *thread.realtime.sessionId;
@@ -1111,10 +1210,13 @@ namespace ai::openai::codex::backend {
             assign("modelProvider", thread.modelProvider);
             assign("preview", thread.preview);
             assign("status", thread.status);
+            assign("ephemeral", thread.ephemeral);
+            assign("archived", thread.archived);
+            assign("executionConfiguration", thread.executionConfiguration);
             assign("createdAt", thread.createdAt);
             assign("updatedAt", thread.updatedAt);
             for (const TurnSnapshot& turn : thread.turns) {
-                encoded["turns"].push_back(turnSnapshotJson(turn));
+                encoded["turns"].push_back(turnSnapshotJson(turn, form));
             }
             return encoded;
         }
@@ -1241,7 +1343,7 @@ namespace ai::openai::codex::backend {
                     encoded["threadList"]["backwardsCursor"] = *snapshot.threadList.backwardsCursor;
                 }
                 for (const ThreadSnapshot& thread : snapshot.threads) {
-                    encoded["threads"].push_back(threadSnapshotJson(thread));
+                    encoded["threads"].push_back(threadSnapshotJson(thread, SnapshotAccountingForm::SharedSnapshot));
                 }
                 for (const PendingRequestSnapshot& pending : snapshot.pendingRequests) {
                     encoded["pendingRequests"].push_back(pendingSnapshotJson(pending));
@@ -1659,7 +1761,7 @@ namespace ai::openai::codex::backend {
 
         std::size_t itemRemovalCredit(const ItemSnapshot& item) noexcept {
             try {
-                return conservativeRemovalCredit(itemSnapshotJson(item));
+                return conservativeRemovalCredit(itemSnapshotJson(item, SnapshotAccountingForm::SharedSnapshot));
             } catch (...) {
                 return 1;
             }
@@ -1667,7 +1769,7 @@ namespace ai::openai::codex::backend {
 
         std::size_t turnRemovalCredit(const TurnSnapshot& turn) noexcept {
             try {
-                return conservativeRemovalCredit(turnSnapshotJson(turn));
+                return conservativeRemovalCredit(turnSnapshotJson(turn, SnapshotAccountingForm::SharedSnapshot));
             } catch (...) {
                 return 1;
             }
@@ -1675,7 +1777,7 @@ namespace ai::openai::codex::backend {
 
         std::size_t threadRemovalCredit(const ThreadSnapshot& thread) noexcept {
             try {
-                return conservativeRemovalCredit(threadSnapshotJson(thread));
+                return conservativeRemovalCredit(threadSnapshotJson(thread, SnapshotAccountingForm::SharedSnapshot));
             } catch (...) {
                 return 1;
             }
@@ -1967,6 +2069,7 @@ namespace ai::openai::codex::backend {
                 // snapshot after every omission.
                 if (estimatedBytes > limit) {
                     for (ThreadSnapshot& thread : snapshot.threads) {
+                        bool descendantsOmitted = false;
                         for (TurnSnapshot& turn : thread.turns) {
                             std::vector<ItemSnapshot> retained;
                             retained.reserve(turn.items.size());
@@ -1976,11 +2079,15 @@ namespace ai::openai::codex::backend {
                                     applyRemovalCredit(estimatedBytes, itemRemovalCredit(item));
                                     saturatingAddSize(snapshot.capacity.omittedItems);
                                     recordOmission();
+                                    descendantsOmitted = true;
                                 } else {
                                     retained.push_back(std::move(item));
                                 }
                             }
                             turn.items = std::move(retained);
+                        }
+                        if (descendantsOmitted) {
+                            thread.fullyLoaded = false;
                         }
                     }
                     estimatedBytes = accountedSnapshotBytes(snapshot);
@@ -1988,19 +2095,25 @@ namespace ai::openai::codex::backend {
 
                 if (estimatedBytes > limit) {
                     for (ThreadSnapshot& thread : snapshot.threads) {
+                        bool descendantsOmitted = false;
                         std::vector<TurnSnapshot> retained;
                         retained.reserve(thread.turns.size());
                         for (TurnSnapshot& turn : thread.turns) {
-                            if (estimatedBytes > limit && !snapshotTurnIsActive(turn) && !referenced.turns.contains({thread.id, turn.id})) {
+                            if (estimatedBytes > limit && !snapshotTurnIsActive(turn) &&
+                                !referenced.turns.contains({thread.id, turn.id})) {
                                 applyRemovalCredit(estimatedBytes, turnRemovalCredit(turn));
                                 saturatingAddSize(snapshot.capacity.omittedTurns);
                                 saturatingAddSize(snapshot.capacity.omittedItems, turn.items.size());
                                 recordOmission();
+                                descendantsOmitted = true;
                             } else {
                                 retained.push_back(std::move(turn));
                             }
                         }
                         thread.turns = std::move(retained);
+                        if (descendantsOmitted) {
+                            thread.fullyLoaded = false;
+                        }
                     }
                     estimatedBytes = accountedSnapshotBytes(snapshot);
                 }
@@ -2662,6 +2775,19 @@ namespace ai::openai::codex::backend {
         }
         boundSnapshot(snapshot, state.capacity.limits.maxSnapshotBytes);
         return snapshot;
+    }
+
+    std::optional<ThreadSnapshot> makeThreadSnapshot(const BackendState& state, const typed::ThreadId& id) {
+        const auto thread = state.threads.find(id.value);
+        return thread == state.threads.end() ? std::nullopt : std::optional<ThreadSnapshot>{snapshotThread(id, thread->second)};
+    }
+
+    std::size_t threadSnapshotSizeBytes(const ThreadSnapshot& snapshot) noexcept {
+        try {
+            return threadSnapshotJson(snapshot, SnapshotAccountingForm::RawThreadRead).dump().size();
+        } catch (...) {
+            return std::numeric_limits<std::size_t>::max();
+        }
     }
 
     std::size_t snapshotSizeBytes(const Snapshot& snapshot) noexcept {

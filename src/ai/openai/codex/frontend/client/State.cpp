@@ -4007,28 +4007,37 @@ namespace ai::openai::codex::frontend::client {
                 }
             };
 
+            const auto markCurrentItemChanged = [&](std::size_t currentIndex) {
+                if (currentIndex >= currentItems.items.size() || currentIndex >= currentItems.contentRevisions.size()) {
+                    return;
+                }
+                const ItemState& after = currentItems.items[currentIndex];
+                const std::optional<std::string_view> threadId =
+                    after.threadId ? std::optional<std::string_view>{after.threadId->value} : std::nullopt;
+                const std::optional<std::string_view> turnId =
+                    after.turnId ? std::optional<std::string_view>{after.turnId->value} : std::nullopt;
+                const auto previousIndex = exactItemIndex(previousItems, threadId, turnId, after.id.value);
+                if (!previousIndex || *previousIndex >= previousItems.items.size()) {
+                    currentItems.contentRevisions[currentIndex].fill(current.revision);
+                    return;
+                }
+                const ItemState& before = previous.itemAt(*previousIndex);
+                for (std::size_t channelIndex = 0; channelIndex < 4; ++channelIndex) {
+                    const auto channel = static_cast<ItemContentChannel>(channelIndex);
+                    if (itemContent(before, channel) != itemContent(after, channel)) {
+                        currentItems.contentRevisions[currentIndex][channelIndex] = current.revision;
+                    }
+                }
+            };
+
             const auto markUpsertedItem = [&](const canonical::ItemData& item) {
                 const std::optional<std::string_view> threadId =
                     item.threadId ? std::optional<std::string_view>{item.threadId->value()} : std::nullopt;
                 const std::optional<std::string_view> turnId =
                     item.turnId ? std::optional<std::string_view>{item.turnId->value()} : std::nullopt;
                 const auto currentIndex = exactItemIndex(currentItems, threadId, turnId, item.id.value());
-                const auto previousIndex = exactItemIndex(previousItems, threadId, turnId, item.id.value());
-                if (!currentIndex || *currentIndex >= currentItems.items.size() ||
-                    *currentIndex >= currentItems.contentRevisions.size()) {
-                    return;
-                }
-                if (!previousIndex || *previousIndex >= previousItems.items.size()) {
-                    currentItems.contentRevisions[*currentIndex].fill(current.revision);
-                    return;
-                }
-                const ItemState& before = previous.itemAt(*previousIndex);
-                const ItemState& after = currentItems.items[*currentIndex];
-                for (std::size_t channelIndex = 0; channelIndex < 4; ++channelIndex) {
-                    const auto channel = static_cast<ItemContentChannel>(channelIndex);
-                    if (itemContent(before, channel) != itemContent(after, channel)) {
-                        currentItems.contentRevisions[*currentIndex][channelIndex] = current.revision;
-                    }
+                if (currentIndex) {
+                    markCurrentItemChanged(*currentIndex);
                 }
             };
 
@@ -4053,6 +4062,13 @@ namespace ai::openai::codex::frontend::client {
                 } else if (const auto* thread = std::get_if<canonical::ThreadUpsertedOccurrence>(&change)) {
                     for (const canonical::ThreadItem& value : thread->items) {
                         markUpsertedItem(canonical::itemData(value));
+                    }
+                } else if (const auto* threadRead = std::get_if<canonical_client::ThreadReadUpsertedChange>(&change)) {
+                    for (std::size_t index = 0; index < currentItems.items.size(); ++index) {
+                        const ItemState& item = currentItems.items[index];
+                        if (item.threadId && item.threadId->value == threadRead->threadId.value()) {
+                            markCurrentItemChanged(index);
+                        }
                     }
                 }
             }

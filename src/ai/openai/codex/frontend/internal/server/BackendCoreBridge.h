@@ -70,6 +70,9 @@ namespace ai::openai::codex::frontend::internal::server {
         coalesceItemContentEvents(std::span<const backend::SequencedBackendEvent> events) noexcept;
         [[nodiscard]] static bool itemContentSnapshotIsAhead(backend::SequenceNumber eventSequence,
                                                              backend::SequenceNumber snapshotSequence) noexcept;
+        [[nodiscard]] static Json boundedThreadReadResult(const typed::ThreadId& id,
+                                                          const std::optional<backend::ThreadSnapshot>& source,
+                                                          std::size_t maximumBytes);
     };
 
 } // namespace ai::openai::codex::frontend::internal::server

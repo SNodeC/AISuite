@@ -139,6 +139,11 @@
             "resumeAfter": {
               "$ref": "#/$defs/UInt64"
             },
+            "capabilityVocabularyVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
             "capabilities": {
               "type": "array",
               "items": {
@@ -1040,6 +1045,9 @@
                 },
                 "params": {
                   "$ref": "#/$defs/ThreadReadParams"
+                },
+                "threadReadStateEffectVersion": {
+                  "const": 1
                 }
               }
             },
@@ -2369,6 +2377,51 @@
       },
       "additionalProperties": true
     },
+    "ThreadReadStateEffect": {
+      "type": "object",
+      "required": [
+        "scope",
+        "authority",
+        "truncation"
+      ],
+      "properties": {
+        "scope": {
+          "const": "thread"
+        },
+        "authority": {
+          "enum": [
+            "merge",
+            "replace",
+            "absent"
+          ]
+        },
+        "truncation": {
+          "type": "object",
+          "required": [
+            "sourcePartial",
+            "responseTruncated",
+            "responseOmittedTurns",
+            "responseOmittedItems"
+          ],
+          "properties": {
+            "sourcePartial": {
+              "type": "boolean"
+            },
+            "responseTruncated": {
+              "type": "boolean"
+            },
+            "responseOmittedTurns": {
+              "$ref": "#/$defs/UInt64"
+            },
+            "responseOmittedItems": {
+              "$ref": "#/$defs/UInt64"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "PendingRequestState": {
       "type": "object",
       "required": [
@@ -3469,6 +3522,28 @@
               "$ref": "#/$defs/ThreadState"
             }
           },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "stateEffect"
+                ],
+                "maxProperties": 512,
+                "propertyNames": {
+                  "$ref": "#/$defs/SafePropertyName"
+                }
+              },
+              {
+                "required": [
+                  "threadId"
+                ],
+                "maxProperties": 512,
+                "propertyNames": {
+                  "$ref": "#/$defs/SafePropertyName"
+                }
+              }
+            ]
+          },
           "additionalProperties": {
             "$ref": "#/$defs/SafeDetailValue"
           },
@@ -3486,6 +3561,91 @@
             "threadId": {
               "type": "string",
               "minLength": 1
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "stateEffect"
+                ],
+                "maxProperties": 512,
+                "propertyNames": {
+                  "$ref": "#/$defs/SafePropertyName"
+                }
+              },
+              {
+                "required": [
+                  "thread"
+                ],
+                "maxProperties": 512,
+                "propertyNames": {
+                  "$ref": "#/$defs/SafePropertyName"
+                }
+              }
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/SafeDetailValue"
+          },
+          "maxProperties": 512,
+          "propertyNames": {
+            "$ref": "#/$defs/SafePropertyName"
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "thread",
+            "stateEffect"
+          ],
+          "properties": {
+            "thread": {
+              "$ref": "#/$defs/ThreadState"
+            },
+            "stateEffect": {
+              "$ref": "#/$defs/ThreadReadStateEffect"
+            }
+          },
+          "not": {
+            "required": [
+              "threadId"
+            ],
+            "maxProperties": 512,
+            "propertyNames": {
+              "$ref": "#/$defs/SafePropertyName"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/SafeDetailValue"
+          },
+          "maxProperties": 512,
+          "propertyNames": {
+            "$ref": "#/$defs/SafePropertyName"
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "threadId",
+            "stateEffect"
+          ],
+          "properties": {
+            "threadId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "stateEffect": {
+              "$ref": "#/$defs/ThreadReadStateEffect"
+            }
+          },
+          "not": {
+            "required": [
+              "thread"
+            ],
+            "maxProperties": 512,
+            "propertyNames": {
+              "$ref": "#/$defs/SafePropertyName"
             }
           },
           "additionalProperties": {
@@ -32168,6 +32328,7 @@
         "dedicated_pending_requests",
         "dedicated_notification_events",
         "complete_thread_items",
+        "thread_read_state_effects",
         "authenticated_frontend",
         "scope_projected_state",
         "provider_lifecycle",

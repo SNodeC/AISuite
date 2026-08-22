@@ -331,7 +331,33 @@ namespace ai::openai::codex::frontend::client::detail {
     }
 
     std::optional<ThreadReadResult> decodeThreadReadResult(const frontend::Json& value, std::string& error) noexcept {
-        return decodeProjectedThreadResult(value, error);
+        std::optional<ProjectedThreadResult> projected = decodeProjectedThreadResult(value, error);
+        if (!projected) {
+            return std::nullopt;
+        }
+        ThreadReadResult result;
+        result.threadId = std::move(projected->threadId);
+        result.thread = std::move(projected->thread);
+        if (const auto effect = value.find("stateEffect"); effect != value.end()) {
+            result.stateEffect = frontend::decodeThreadReadStateEffect(*effect, error);
+            if (!result.stateEffect) {
+                return std::nullopt;
+            }
+            // Modern authoritative reads are consumed into Client::state()
+            // before the public completion runs. Their completion therefore
+            // carries only threadId + stateEffect. A retained legacy body is
+            // still checked against the advertised authority here.
+            const bool retainedBodyContradictsAuthority =
+                result.thread && !frontend::threadReadStateEffectAuthorityMatchesPayload(
+                                     result.stateEffect->authority,
+                                     std::optional<bool>{result.thread->state.fullyLoaded});
+            if (retainedBodyContradictsAuthority) {
+                error = "frontend thread-read result contradicts its state authority";
+                return std::nullopt;
+            }
+        }
+        error.clear();
+        return result;
     }
 
     std::optional<ThreadListResult> decodeThreadListResult(const frontend::Json& value, std::string& error) noexcept {

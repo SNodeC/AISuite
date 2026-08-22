@@ -57,6 +57,7 @@ namespace {
             bool sensitive = false;
             std::optional<generated::MethodId> method;
             std::optional<std::string> requestId;
+            frontend::Json extensions = frontend::Json::object();
         };
 
         std::vector<Sent> outbound;
@@ -74,6 +75,7 @@ namespace {
                         if (const auto* command = std::get_if<generated::DefinedCommand>(&message.value)) {
                             sent.method = generated::commandMethod(command->parameters);
                             sent.requestId = command->requestId;
+                            sent.extensions = command->extensions;
                         }
                         if (sent.command && onCommandSend) {
                             onCommandSend(message);
@@ -102,14 +104,20 @@ namespace {
         return result;
     }
 
-    frontend::CapabilityAdvertisement capabilities() {
+    frontend::CapabilityAdvertisement capabilities(bool threadReadStateEffects = true) {
         std::vector<frontend::FrontendCapability> defined;
         for (const auto& metadata : generated::AllCapabilities) {
             if (metadata.defined) {
                 defined.push_back(static_cast<frontend::FrontendCapability>(metadata.id));
             }
         }
-        return {defined, defined, defined, frontend::Json::object()};
+        std::vector<frontend::FrontendCapability> implemented = defined;
+        std::vector<frontend::FrontendCapability> permitted = defined;
+        if (!threadReadStateEffects) {
+            std::erase(implemented, frontend::FrontendCapability::ThreadReadStateEffects);
+            std::erase(permitted, frontend::FrontendCapability::ThreadReadStateEffects);
+        }
+        return {std::move(defined), std::move(implemented), std::move(permitted), frontend::Json::object()};
     }
 
     frontend::Snapshot emptySnapshot() {
@@ -118,7 +126,7 @@ namespace {
         return {frontend::SequenceNumber(0), encoded.value().at("state")};
     }
 
-    frontend::Welcome welcome(std::string sessionId = "operation-session") {
+    frontend::Welcome welcome(std::string sessionId = "operation-session", bool threadReadStateEffects = true) {
         return {std::move(sessionId),
                 frontend::SessionRole::Controller,
                 frontend::SequenceNumber(0),
@@ -136,18 +144,68 @@ namespace {
                                          "mcp_invoke",
                                          "sensitive_response",
                                          "unknown_request_response"})}},
-                capabilities(),
+                capabilities(threadReadStateEffects),
                 methods(),
                 methods()};
     }
 
-    core::PhysicalGeneration ready(core::ClientCore& client, Harness& harness) {
+    core::PhysicalGeneration ready(core::ClientCore& client, Harness& harness, bool threadReadStateEffects = true) {
         const core::PhysicalGeneration generation = *client.attach(harness.transport());
         client.transportConnected(generation);
-        (void) client.receive(generation, frontend::ServerMessage{welcome()});
+        (void) client.receive(generation, frontend::ServerMessage{welcome("operation-session", threadReadStateEffects)});
         (void) client.receive(generation, frontend::ServerMessage{emptySnapshot()});
         (void) client.receive(generation, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(0)}});
         return generation;
+    }
+
+    frontend::Snapshot threadSnapshot(frontend::SequenceNumber sequence,
+                                      std::string threadId,
+                                      bool fullyLoaded,
+                                      std::vector<std::string> turnIds) {
+        model::CanonicalSnapshot state;
+        state.sequence = model::FrontendSequence(sequence);
+        model::ThreadState thread{model::ThreadIdentity{threadId}};
+        thread.fullyLoaded = fullyLoaded;
+        state.threads.push_back(std::move(thread));
+        for (std::string& turnId : turnIds) {
+            model::TurnState turn{model::TurnIdentity{std::move(turnId)}, model::ThreadIdentity{threadId}};
+            turn.status = "completed";
+            turn.terminal = true;
+            state.turns.push_back(std::move(turn));
+        }
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(model::encodeSnapshot(state).value());
+        return {sequence, encoded.value().at("state")};
+    }
+
+    frontend::Json threadBody(std::string_view threadId, bool fullyLoaded, std::initializer_list<std::string_view> turnIds) {
+        frontend::Json turns = frontend::Json::array();
+        for (std::string_view turnId : turnIds) {
+            turns.push_back(frontend::Json{{"id", turnId},
+                                           {"threadId", threadId},
+                                           {"status", "completed"},
+                                           {"active", false},
+                                           {"terminal", true},
+                                           {"items", frontend::Json::array()},
+                                           {"extensions", frontend::Json::object()}});
+        }
+        return frontend::Json{{"id", threadId},
+                              {"fullyLoaded", fullyLoaded},
+                              {"turns", std::move(turns)},
+                              {"extensions", frontend::Json::object()}};
+    }
+
+    frontend::Json stateEffect(std::string_view authority,
+                               bool sourcePartial = false,
+                               std::uint64_t omittedTurns = 0,
+                               std::uint64_t omittedItems = 0) {
+        const bool responseTruncated = omittedTurns != 0 || omittedItems != 0;
+        return frontend::Json{{"scope", "thread"},
+                              {"authority", authority},
+                              {"truncation",
+                               frontend::Json{{"sourcePartial", sourcePartial},
+                                              {"responseTruncated", responseTruncated},
+                                              {"responseOmittedTurns", omittedTurns},
+                                              {"responseOmittedItems", omittedItems}}}};
     }
 
     void testAllGeneratedOperations(tests::support::TestResult& result) {
@@ -745,6 +803,309 @@ namespace {
                           "a deferred synchronization that completes synchronously drains the ordinary command queued by its completion "
                           "before the outer receive returns");
     }
+
+    void testThreadReadStateEffects(tests::support::TestResult& result) {
+        Harness harness;
+        std::vector<core::StateUpdate> updates;
+        std::size_t cursorAdvances = 0;
+        bool updateObservedBeforeCompletion = false;
+        core::ClientCallbacks callbacks;
+        callbacks.onStateUpdated = [&updates](const core::StateUpdate& update) {
+            updates.push_back(update);
+        };
+        callbacks.onCursorAdvanced = [&cursorAdvances](model::FrontendSequence) {
+            ++cursorAdvances;
+        };
+        core::ClientCore client(clientOptions(), std::move(callbacks));
+        const core::PhysicalGeneration generation = ready(client, harness);
+        const bool seeded = client.receive(
+            generation,
+            frontend::ServerMessage{threadSnapshot(frontend::SequenceNumber(1), "thread-effect", true, {"old-turn"})});
+        updates.clear();
+        const std::size_t cursorsBeforeEffects = cursorAdvances;
+
+        const auto submitRead = [&](std::function<void(const core::OperationResult&)> completion = {}) {
+            return client.submit(generated::makeParameters(generated::MethodId::ThreadRead,
+                                                           frontend::Json{{"threadId", "thread-effect"}, {"includeTurns", true}}),
+                                 std::move(completion));
+        };
+
+        std::size_t completions = 0;
+        bool authoritativeCompletionIsMetadataOnly = false;
+        const core::Submission replace = submitRead([&](const core::OperationResult& completion) {
+            ++completions;
+            if (completion.value) {
+                const frontend::Json& value = std::visit(
+                    [](const auto& result) -> const frontend::Json& {
+                        return result.value;
+                    },
+                    *completion.value);
+                authoritativeCompletionIsMetadataOnly = value.value("threadId", std::string{}) == "thread-effect" &&
+                                                        value.contains("stateEffect") && !value.contains("thread");
+            }
+            updateObservedBeforeCompletion = !updates.empty() && updates.back().cause == core::UpdateCause::CommandStateEffect &&
+                                             client.state()->turn("new-turn") != nullptr &&
+                                             client.state()->turn("old-turn") == nullptr && completion.succeeded();
+        });
+        const bool optedIn = replace && harness.outbound.back().extensions.value("threadReadStateEffectVersion", 0) == 1;
+        const frontend::Json replaceResult{{"thread", threadBody("thread-effect", true, {"new-turn"})},
+                                           {"stateEffect", stateEffect("replace")}};
+        const bool replaceAccepted = replace && client.receive(
+                                                    generation,
+                                                    frontend::ServerMessage{frontend::Response::success(*replace.requestId, replaceResult)});
+        const model::ThreadState* replacedThread = client.state()->thread("thread-effect");
+        const bool replacementApplied = replacedThread != nullptr && replacedThread->fullyLoaded &&
+                                        client.state()->turn("new-turn") != nullptr && client.state()->turn("old-turn") == nullptr;
+        const auto* replacementChange = updates.size() == 1 && updates.front().changes.size() == 1
+                                            ? std::get_if<core::ThreadReadUpsertedChange>(&updates.front().changes.front())
+                                            : nullptr;
+        const bool replacementChangeIsIdentityOnly =
+            replacementChange != nullptr && replacementChange->threadId == model::ThreadIdentity{"thread-effect"};
+
+        updates.clear();
+        const core::Submission merge = submitRead();
+        const frontend::Json mergeResult{{"thread", threadBody("thread-effect", false, {"merged-turn"})},
+                                         {"stateEffect", stateEffect("merge", true)}};
+        const bool mergeAccepted = merge && client.receive(
+                                                generation,
+                                                frontend::ServerMessage{frontend::Response::success(*merge.requestId, mergeResult)});
+        const model::ThreadState* mergedThread = client.state()->thread("thread-effect");
+        const bool mergeApplied = mergedThread != nullptr && !mergedThread->fullyLoaded &&
+                                  client.state()->turn("new-turn") != nullptr && client.state()->turn("merged-turn") != nullptr;
+        const auto* mergeChange = updates.size() == 1 && updates.front().changes.size() == 1
+                                      ? std::get_if<core::ThreadReadUpsertedChange>(&updates.front().changes.front())
+                                      : nullptr;
+        const bool mergeChangeIsIdentityOnly =
+            mergeChange != nullptr && mergeChange->threadId == model::ThreadIdentity{"thread-effect"};
+
+        updates.clear();
+        const core::Submission absent = submitRead();
+        const frontend::Json absentResult{{"threadId", "thread-effect"},
+                                          {"stateEffect", stateEffect("absent")}};
+        const bool absentAccepted = absent && client.receive(
+                                                  generation,
+                                                  frontend::ServerMessage{frontend::Response::success(*absent.requestId, absentResult)});
+        const bool absentPublished = client.state()->thread("thread-effect") == nullptr &&
+                                     client.state()->turn("new-turn") == nullptr &&
+                                     updates.size() == 1 && updates.front().cause == core::UpdateCause::CommandStateEffect &&
+                                     std::holds_alternative<model::ThreadRemovedOccurrence>(updates.front().changes.front());
+
+        updates.clear();
+        const core::Submission repeatedAbsent = submitRead();
+        const bool repeatedAbsentAccepted = repeatedAbsent && client.receive(
+                                                              generation,
+                                                              frontend::ServerMessage{frontend::Response::success(
+                                                                  *repeatedAbsent.requestId, absentResult)});
+        const bool missingRemovalStillPublished = updates.size() == 1 &&
+                                                  std::holds_alternative<model::ThreadRemovedOccurrence>(
+                                                      updates.front().changes.front());
+
+        result.expectTrue(seeded && optedIn && replaceAccepted && replacementApplied && replacementChangeIsIdentityOnly &&
+                              updateObservedBeforeCompletion &&
+                              authoritativeCompletionIsMetadataOnly &&
+                              mergeAccepted && mergeApplied && mergeChangeIsIdentityOnly && absentAccepted && absentPublished &&
+                              repeatedAbsentAccepted &&
+                              missingRemovalStillPublished && completions == 1 && cursorAdvances == cursorsBeforeEffects,
+                          "negotiated thread.read state effects publish replacement, downgrade a full cache on partial merge while "
+                          "preserving descendants, retain only an identity change, and publish idempotent absence before completion "
+                          "without advancing the journal cursor");
+
+        Harness legacyHarness;
+        core::ClientCore legacyClient(clientOptions());
+        const core::PhysicalGeneration legacyGeneration = ready(legacyClient, legacyHarness, false);
+        const std::uint64_t legacyRevision = legacyClient.state()->revision;
+        std::optional<core::OperationResult> legacyCompletion;
+        const core::Submission legacy = legacyClient.submit(
+            generated::makeParameters(generated::MethodId::ThreadRead,
+                                      frontend::Json{{"threadId", "legacy-thread"}, {"includeTurns", true}}),
+            [&legacyCompletion](const core::OperationResult& completion) {
+                legacyCompletion = completion;
+            });
+        const bool legacyDidNotOptIn = legacy &&
+                                        !legacyHarness.outbound.back().extensions.contains("threadReadStateEffectVersion");
+        const frontend::Json legacyResult{{"thread", threadBody("legacy-thread", true, {"legacy-turn"})}};
+        const bool legacyAccepted = legacy && legacyClient.receive(
+                                                  legacyGeneration,
+                                                  frontend::ServerMessage{frontend::Response::success(
+                                                      *legacy.requestId, legacyResult)});
+        const bool legacyCompletionRetainedBody = legacyCompletion && legacyCompletion->value &&
+                                                  std::visit(
+                                                      [](const auto& result) {
+                                                          return result.value.contains("thread") &&
+                                                                 !result.value.contains("stateEffect");
+                                                      },
+                                                      *legacyCompletion->value);
+        result.expectTrue(legacyDidNotOptIn && legacyAccepted && legacyCompletion.has_value() && legacyCompletion->succeeded() &&
+                              legacyCompletionRetainedBody && legacyClient.state()->revision == legacyRevision,
+                          "a peer that does not advertise thread-read effects retains the full legacy result without state mutation");
+
+        const auto rejectsMalformedEffect = [&](frontend::Json malformedResult, bool advertiseEffect = true) {
+            Harness malformedHarness;
+            core::ClientCore malformedClient(clientOptions());
+            const core::PhysicalGeneration malformedGeneration = ready(malformedClient, malformedHarness, advertiseEffect);
+            (void) malformedClient.receive(
+                malformedGeneration,
+                frontend::ServerMessage{threadSnapshot(frontend::SequenceNumber(1), "thread-effect", false, {})});
+            std::optional<core::OperationResult> malformedCompletion;
+            const core::Submission malformed = malformedClient.submit(
+                generated::makeParameters(generated::MethodId::ThreadRead,
+                                          frontend::Json{{"threadId", "thread-effect"}, {"includeTurns", true}}),
+                [&malformedCompletion](const core::OperationResult& completion) {
+                    malformedCompletion = completion;
+                });
+            const bool accepted = malformed && malformedClient.receive(
+                                                   malformedGeneration,
+                                                   frontend::ServerMessage{frontend::Response::success(
+                                                       *malformed.requestId, std::move(malformedResult))});
+            return !accepted && malformedCompletion.has_value() && malformedCompletion->error.has_value() &&
+                   malformedCompletion->error->clientCode == core::ClientErrorCode::ResponseTypeMismatch &&
+                   malformedClient.connectionState() == core::ConnectionState::Disconnected;
+        };
+
+        const bool mismatchedTargetRejected = rejectsMalformedEffect(
+            frontend::Json{{"thread", threadBody("different-thread", true, {})},
+                           {"stateEffect", stateEffect("replace")}});
+        const bool incompleteReplacementRejected = rejectsMalformedEffect(
+            frontend::Json{{"thread", threadBody("thread-effect", false, {})},
+                           {"stateEffect", stateEffect("replace")}});
+        const bool completeMergeRejected = rejectsMalformedEffect(
+            frontend::Json{{"thread", threadBody("thread-effect", true, {})},
+                           {"stateEffect", stateEffect("merge", true)}});
+        const bool unnegotiatedEffectRejected = rejectsMalformedEffect(
+            frontend::Json{{"thread", threadBody("thread-effect", true, {})},
+                           {"stateEffect", stateEffect("replace")}},
+            false);
+        const bool authorityBodyMismatchRejected = rejectsMalformedEffect(
+            frontend::Json{{"thread", threadBody("thread-effect", false, {})},
+                           {"stateEffect", stateEffect("absent")}});
+        result.expectTrue(mismatchedTargetRejected && incompleteReplacementRejected && completeMergeRejected &&
+                              unnegotiatedEffectRejected && authorityBodyMismatchRejected,
+                          "thread.read state effects reject target, completeness, negotiation, and authority/body contradictions");
+
+        Harness divergedHarness;
+        core::ClientCore divergedClient(clientOptions());
+        const core::PhysicalGeneration divergedGeneration = ready(divergedClient, divergedHarness);
+        (void) divergedClient.receive(
+            divergedGeneration,
+            frontend::ServerMessage{threadSnapshot(frontend::SequenceNumber(1), "thread-effect", false, {})});
+        std::optional<core::OperationResult> divergedCompletion;
+        const core::Submission diverged = divergedClient.submit(
+            generated::makeParameters(generated::MethodId::ThreadRead,
+                                      frontend::Json{{"threadId", "thread-effect"}, {"includeTurns", true}}),
+            [&divergedCompletion](const core::OperationResult& completion) {
+                divergedCompletion = completion;
+            });
+        frontend::FrontendEvent unrelated{frontend::SequenceNumber(2),
+                                          "thread.upserted",
+                                          frontend::Json{{"thread", {{"id", "unrelated-thread"}}}}};
+        const bool unrelatedAccepted = diverged && divergedClient.receive(
+                                                       divergedGeneration,
+                                                       frontend::ServerMessage{frontend::EventBatch{
+                                                           unrelated.sequence, unrelated.sequence, {std::move(unrelated)}}});
+        frontend::Json orderedResult{{"thread", threadBody("thread-effect", true, {})},
+                                     {"stateEffect", stateEffect("replace")}};
+        const bool orderedAccepted = unrelatedAccepted && divergedClient.receive(
+                                                             divergedGeneration,
+                                                             frontend::ServerMessage{frontend::Response::success(
+                                                                 *diverged.requestId, std::move(orderedResult))});
+        result.expectTrue(orderedAccepted && divergedCompletion.has_value() && divergedCompletion->succeeded() &&
+                              divergedClient.connectionState() == core::ConnectionState::Ready &&
+                              divergedClient.state()->visibleSequence == model::FrontendSequence(2) &&
+                              divergedClient.state()->thread("unrelated-thread") != nullptr &&
+                              divergedClient.state()->thread("thread-effect") != nullptr &&
+                              divergedClient.state()->thread("thread-effect")->fullyLoaded,
+                          "a thread.read response applies to the State current after every earlier ordered semantic event");
+    }
+
+    void testThreadReadStateEffectPublicationGuards(tests::support::TestResult& result) {
+        {
+            core::ClientOptions options = clientOptions();
+            options.limits.maximumRetainedEntities = 1;
+            Harness harness;
+            core::ClientCore client(std::move(options));
+            const core::PhysicalGeneration generation = ready(client, harness);
+            const bool seeded = client.receive(
+                generation,
+                frontend::ServerMessage{threadSnapshot(frontend::SequenceNumber(1), "bounded-thread", false, {})});
+            std::optional<core::OperationResult> completion;
+            const core::Submission read = client.submit(
+                generated::makeParameters(generated::MethodId::ThreadRead,
+                                          frontend::Json{{"threadId", "bounded-thread"}, {"includeTurns", true}}),
+                [&completion](const core::OperationResult& value) {
+                    completion = value;
+                });
+            frontend::Json oversizedResult{
+                {"thread", threadBody("bounded-thread", true, {"capacity-turn"})},
+                {"stateEffect", stateEffect("replace")}};
+            const bool accepted = read && client.receive(
+                                                   generation,
+                                                   frontend::ServerMessage{frontend::Response::success(
+                                                       *read.requestId, std::move(oversizedResult))});
+            result.expectTrue(seeded && !accepted && completion.has_value() && completion->error.has_value() &&
+                                  completion->error->clientCode == core::ClientErrorCode::StateCapacityExceeded &&
+                                  completion->error->protocolCode == frontend::ErrorCode::CapacityExceeded &&
+                                  client.connectionState() == core::ConnectionState::Disconnected &&
+                                  client.state()->turn("capacity-turn") == nullptr && harness.closeReasons.size() == 1,
+                              "a thread.read state effect passes through canonical retained-state capacity before publication");
+        }
+
+        {
+            Harness harness;
+            core::ClientCore* client = nullptr;
+            bool closeOnEffectPublication = false;
+            bool effectPublicationObserved = false;
+            std::size_t commandStateUpdates = 0;
+            std::size_t protocolMessages = 0;
+            core::ClientCallbacks callbacks;
+            callbacks.onStatePublished = [&](const std::shared_ptr<const core::PublishedState>& state) {
+                if (!closeOnEffectPublication || state->turn("callback-close-turn") == nullptr) {
+                    return;
+                }
+                closeOnEffectPublication = false;
+                effectPublicationObserved = true;
+                client->close("thread.read state publication callback closed");
+            };
+            callbacks.onStateUpdated = [&commandStateUpdates](const core::StateUpdate& update) {
+                commandStateUpdates += update.cause == core::UpdateCause::CommandStateEffect ? 1U : 0U;
+            };
+            callbacks.onProtocolMessage = [&protocolMessages](const frontend::ServerMessage&) {
+                ++protocolMessages;
+            };
+            core::ClientCore guardedClient(clientOptions(), std::move(callbacks));
+            client = &guardedClient;
+            const core::PhysicalGeneration generation = ready(guardedClient, harness);
+            const bool seeded = guardedClient.receive(
+                generation,
+                frontend::ServerMessage{threadSnapshot(frontend::SequenceNumber(1), "callback-close-thread", false, {})});
+            commandStateUpdates = 0;
+            protocolMessages = 0;
+            std::optional<core::OperationResult> completion;
+            const core::Submission read = guardedClient.submit(
+                generated::makeParameters(generated::MethodId::ThreadRead,
+                                          frontend::Json{{"threadId", "callback-close-thread"}, {"includeTurns", true}}),
+                [&completion](const core::OperationResult& value) {
+                    completion = value;
+                });
+            closeOnEffectPublication = true;
+            frontend::Json replacement{
+                {"thread", threadBody("callback-close-thread", true, {"callback-close-turn"})},
+                {"stateEffect", stateEffect("replace")}};
+            const bool accepted = read && guardedClient.receive(
+                                                   generation,
+                                                   frontend::ServerMessage{frontend::Response::success(
+                                                       *read.requestId, std::move(replacement))});
+            result.expectTrue(seeded && !accepted && effectPublicationObserved &&
+                                  guardedClient.connectionState() == core::ConnectionState::Closed &&
+                                  guardedClient.state()->freshness == core::PublishedFreshness::Stale &&
+                                  guardedClient.state()->turn("callback-close-turn") != nullptr && commandStateUpdates == 0 &&
+                                  protocolMessages == 0 && completion.has_value() && completion->error.has_value() &&
+                                  completion->error->clientCode == core::ClientErrorCode::Closed &&
+                                  completion->generation == generation && guardedClient.pendingOperationCount() == 0 &&
+                                  harness.closeReasons ==
+                                      std::vector<std::string>{"thread.read state publication callback closed"},
+                              "closing from thread.read state publication retires its response continuation exactly once");
+        }
+    }
 } // namespace
 
 int main() {
@@ -759,5 +1120,7 @@ int main() {
     testDirectSendLifecycleInvalidation(result);
     testDirectSendSynchronousSynchronization(result);
     testDeferredSynchronousSynchronizationDrain(result);
+    testThreadReadStateEffects(result);
+    testThreadReadStateEffectPublicationGuards(result);
     return result.processResult();
 }

@@ -122,7 +122,8 @@ Arbitrary bounded user, model, tool, reasoning, notice, diagnostic,
 process-output, and command-output text remains potentially sensitive and is
 protected by the same mandatory per-principal projection.
 
-The service implements 13 static mechanism capabilities. `multi_transport` is
+The service implements 14 static mechanism capabilities, including the
+additive `thread_read_state_effects` operation contract. `multi_transport` is
 a separate conditional topology capability and is advertised only when more
 than one transport family is declared. A1.7c-1 adds the build-derived product
 capability `cpp_client_sdk`; it is independent of listener topology and is not
@@ -146,9 +147,9 @@ headers, `GeneratedProtocol.h` and `Security.h`; A1.7b replaces
 `BackendAdapter.h` with `FrontendService.h` and provides no public alias.
 The A1.7c-1 SDK adds 33 installed headers, so the inventory is 29 main + 7
 backend + 9 frontend + 33 frontend-client = 78 total. Project version is
-`0.5.0`; structurally shared item content and verified incremental public-state
-publication move the Codex libraries to SOVERSION 6 while leaving Frontend
-Protocol v1 unchanged.
+`0.6.0`; the explicit authoritative `thread.read` state effect changes the
+public C++ API/ABI and moves the Codex libraries to SOVERSION 7 while leaving
+the Frontend Protocol v1 identity unchanged.
 See the
 [A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
 [A1.6b backend completion](docs/ai/openai/codex/a1-6b-backend-completeness.md),

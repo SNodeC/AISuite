@@ -88,6 +88,11 @@ namespace ai::openai::codex::frontend {
 
         [[nodiscard]] static CodecResult<Json> encodeClient(const ClientMessage& message) noexcept;
         [[nodiscard]] static CodecResult<Json> encodeDefinedCommand(const generated::DefinedCommand& command) noexcept;
+        // Validates a result in place without materializing the generated
+        // result wrapper. This is used when a large authoritative result is
+        // consumed directly into canonical State instead of being returned a
+        // second time through the operation-completion value.
+        [[nodiscard]] static CodecResult<bool> validateDefinedResult(generated::MethodId method, const Json& result) noexcept;
         [[nodiscard]] static CodecResult<generated::CompleteCommandResult> decodeDefinedResult(generated::MethodId method,
                                                                                                const Json& result) noexcept;
         [[nodiscard]] static CodecResult<Json> encodeDefinedResult(const generated::CompleteCommandResult& result) noexcept;

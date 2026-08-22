@@ -110,6 +110,9 @@ namespace ai::openai::codex::frontend::internal::server {
         std::uint64_t connectionGeneration = 0;
         std::string requestId;
         generated::MethodId method = generated::MethodId::ControllerAcquire;
+        std::uint32_t threadReadStateEffectVersion = 0;
+        bool threadReadIncludesTurns = false;
+        std::optional<std::string> threadReadTarget;
 
         bool operator==(const CommandToken&) const = default;
     };
@@ -331,6 +334,11 @@ namespace ai::openai::codex::frontend::internal::server {
                                                                                AuthenticationFailureCode failure) noexcept;
 
         [[nodiscard]] bool complete(BackendCompletion completion) noexcept;
+        // A full thread.read result is requester-local cache population.
+        // Materialize prior semantic events, then validate and queue the
+        // response in one dispatch transaction; ordered transport is its
+        // state barrier.
+        [[nodiscard]] bool completeThreadRead(BackendCompletion completion) noexcept;
         [[nodiscard]] OccurrenceStageResult stageGroup(OccurrenceCoalescingKey key,
                                                        model::OccurrenceDraft occurrence,
                                                        OccurrenceFlushUrgency urgency = OccurrenceFlushUrgency::Deferred) noexcept;

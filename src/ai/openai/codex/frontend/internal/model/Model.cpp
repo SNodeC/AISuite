@@ -3178,6 +3178,118 @@ namespace ai::openai::codex::frontend::internal::model {
             return std::nullopt;
         }
 
+        std::optional<std::vector<std::string>> legacyUserMessageTextParts(const Json& data) {
+            const auto content = data.find("content");
+            if (content == data.end() || !content->is_array()) {
+                return std::nullopt;
+            }
+
+            std::vector<std::string> parts;
+            parts.reserve(content->size());
+            for (std::size_t index = 0; index < content->size(); ++index) {
+                const Json& entry = content->at(index);
+                if (!entry.is_object() || optionalString(entry, "type") != std::optional<std::string>{"text"}) {
+                    continue;
+                }
+                const auto value = entry.find("text");
+                if (value == entry.end() || !value->is_string()) {
+                    fail(ModelErrorCode::InvalidShape,
+                         "/state/threads/turns/items/data/content/" + std::to_string(index),
+                         "legacy user-message text content must contain a string");
+                }
+                parts.push_back(value->get<std::string>());
+            }
+            return parts;
+        }
+
+        std::optional<UserMessageProjection> legacyUserMessageProjection(const Json& data) {
+            const auto clientId = data.find("clientId");
+            const auto contentTruncated = data.find("contentTruncated");
+            const std::optional<std::uint64_t> originalBytes = optionalUnsigned(data, "originalContentBytes");
+            const std::optional<std::uint64_t> retainedBytes = optionalUnsigned(data, "retainedContentBytes");
+            const std::optional<std::uint64_t> originalItems = optionalUnsigned(data, "originalContentItems");
+            const std::optional<std::uint64_t> retainedItems = optionalUnsigned(data, "retainedContentItems");
+            if (clientId == data.end() || (!clientId->is_null() && !clientId->is_string()) ||
+                contentTruncated == data.end() || !contentTruncated->is_boolean() || !originalBytes || !retainedBytes ||
+                !originalItems || !retainedItems || *retainedBytes > *originalBytes || *retainedItems > *originalItems) {
+                return std::nullopt;
+            }
+
+            std::optional<std::vector<std::string>> textParts = legacyUserMessageTextParts(data);
+            const auto textMember = data.find("text");
+            if (textMember != data.end() && !textMember->is_string()) {
+                return std::nullopt;
+            }
+            std::optional<std::string> text =
+                textMember != data.end() ? std::optional<std::string>{textMember->get<std::string>()} : std::nullopt;
+            if (textMember == data.end() && textParts.has_value()) {
+                text.emplace();
+                for (std::size_t index = 0; index < textParts->size(); ++index) {
+                    if (index != 0) {
+                        text->append("\n\n");
+                    }
+                    text->append(textParts->at(index));
+                }
+            }
+            if (!text.has_value()) {
+                return std::nullopt;
+            }
+
+            const auto textTruncated = data.find("textTruncated");
+            if (textTruncated != data.end() && !textTruncated->is_boolean()) {
+                return std::nullopt;
+            }
+            // The legacy content form historically synthesized this flag only
+            // while it synthesized text from a content array.
+            if (textTruncated == data.end() && !textParts.has_value()) {
+                return std::nullopt;
+            }
+
+            UserMessageProjection result;
+            if (clientId->is_string()) {
+                result.clientId = clientId->get<std::string>();
+            }
+            result.text = std::move(*text);
+            if (textParts.has_value()) {
+                result.textParts = std::move(*textParts);
+            }
+            result.textTruncated = textTruncated != data.end() ? textTruncated->get<bool>() : false;
+            result.contentTruncated = contentTruncated->get<bool>();
+            result.originalContentBytes = *originalBytes;
+            result.retainedContentBytes = *retainedBytes;
+            result.originalContentItems = *originalItems;
+            result.retainedContentItems = *retainedItems;
+            return result;
+        }
+
+        Json normalizeLegacyUserMessageData(Json data) {
+            const std::optional<std::vector<std::string>> parts = legacyUserMessageTextParts(data);
+            if (!parts.has_value()) {
+                return data;
+            }
+
+            if (!data.contains("text")) {
+                std::string text;
+                for (std::size_t index = 0; index < parts->size(); ++index) {
+                    if (index != 0) {
+                        text.append("\n\n");
+                    }
+                    text.append(parts->at(index));
+                }
+                data["text"] = std::move(text);
+            }
+            if (!data.contains("textTruncated")) {
+                data["textTruncated"] = false;
+            }
+            // `content` is the frozen legacy multipart wire, while the
+            // expanded model reserves `data.content` for a string.  Keep the
+            // derived typed text in the expanded projection and restore the
+            // ordered multipart representation from the untouched legacy
+            // snapshot after decoding.
+            data.erase("content");
+            return data;
+        }
+
         Json normalizeLegacyItem(Json item, std::optional<std::string> threadId, std::optional<std::string> turnId) {
             const Json data = item.value("data", Json::object());
             const auto kindName = optionalString(item, "type");
@@ -3186,6 +3298,9 @@ namespace ai::openai::codex::frontend::internal::model {
                 fail(ModelErrorCode::UnsupportedDiscriminator, "/state/threads/turns/items/type", "legacy item type is unsupported");
             }
             item["type"] = *type;
+            if (*type == toString(ThreadItemKind::UserMessage)) {
+                item["data"] = normalizeLegacyUserMessageData(data);
+            }
             if (!item.contains("threadId") && threadId.has_value()) {
                 item["threadId"] = *threadId;
             }
@@ -3410,36 +3525,150 @@ namespace ai::openai::codex::frontend::internal::model {
             return result;
         }
 
+        struct LegacyItemCompatibilityOptions {
+            bool flattenExtensions = false;
+            bool retainDataDetails = true;
+        };
+
+        const Json* legacyItemMember(const Json& item, std::string_view name, bool flattenExtensions) {
+            const auto direct = item.find(name);
+            if (direct != item.end()) {
+                return &*direct;
+            }
+            if (!flattenExtensions) {
+                return nullptr;
+            }
+            const auto extensions = item.find("extensions");
+            if (extensions == item.end() || !extensions->is_object()) {
+                return nullptr;
+            }
+            const auto nested = extensions->find(name);
+            return nested != extensions->end() ? &*nested : nullptr;
+        }
+
+        std::optional<std::string>
+        legacyItemString(const Json& item, std::string_view name, bool flattenExtensions) {
+            const Json* value = legacyItemMember(item, name, flattenExtensions);
+            if (value == nullptr || value->is_null() || !value->is_string()) {
+                return std::nullopt;
+            }
+            return value->get<std::string>();
+        }
+
+        std::optional<std::uint64_t>
+        legacyItemUnsigned(const Json& item, std::string_view name, bool flattenExtensions) {
+            const Json* value = legacyItemMember(item, name, flattenExtensions);
+            if (value == nullptr) {
+                return std::nullopt;
+            }
+            if (value->is_number_unsigned()) {
+                return value->get<std::uint64_t>();
+            }
+            if (value->is_number_integer()) {
+                const std::int64_t signedValue = value->get<std::int64_t>();
+                if (signedValue >= 0) {
+                    return static_cast<std::uint64_t>(signedValue);
+                }
+            }
+            return std::nullopt;
+        }
+
+        std::optional<std::int64_t>
+        legacyItemSigned(const Json& item, std::string_view name, bool flattenExtensions) {
+            const Json* value = legacyItemMember(item, name, flattenExtensions);
+            return value != nullptr && value->is_number_integer() ? std::optional<std::int64_t>{value->get<std::int64_t>()}
+                                                                  : std::nullopt;
+        }
+
+        bool legacyItemBoolean(const Json& item, std::string_view name, bool fallback, bool flattenExtensions) {
+            const Json* value = legacyItemMember(item, name, flattenExtensions);
+            return value != nullptr ? value->get<bool>() : fallback;
+        }
+
+        template <typename Identity>
+        Identity legacyItemRequiredIdentity(const Json& item,
+                                            std::string_view name,
+                                            const std::string& path,
+                                            bool flattenExtensions) {
+            const Json* value = legacyItemMember(item, name, flattenExtensions);
+            if (value == nullptr || !value->is_string()) {
+                fail(ModelErrorCode::InvalidIdentifier, path + "/" + std::string(name), "required identifier is missing");
+            }
+            std::optional<Identity> identity = Identity::parse(value->get<std::string>());
+            if (!identity.has_value()) {
+                fail(ModelErrorCode::InvalidIdentifier, path + "/" + std::string(name), "identifier is invalid");
+            }
+            return std::move(*identity);
+        }
+
+        template <typename KnownNames>
+        Json legacyFlattenedItemUnknownMembers(const Json& item, const KnownNames& known) {
+            Json result = Json::object();
+            const auto retain = [&](const std::string& name, const Json& value) {
+                const bool recognized = std::ranges::any_of(known, [&](std::string_view knownName) {
+                    return name == knownName;
+                });
+                const bool safeClassification = normalizedKey(name) == "issecret" && value.is_boolean();
+                if (!recognized && (safeClassification || !SafeDetail::isSecretKey(name))) {
+                    result[name] = value;
+                }
+            };
+            if (!item.is_object()) {
+                return result;
+            }
+            for (auto member = item.begin(); member != item.end(); ++member) {
+                if (member.key() != "extensions") {
+                    retain(member.key(), member.value());
+                }
+            }
+            const auto extensions = item.find("extensions");
+            if (extensions != item.end() && extensions->is_object()) {
+                for (auto member = extensions->begin(); member != extensions->end(); ++member) {
+                    // normalizeLegacyItem() removed the wrapper before
+                    // flattening, so a nested member also named "extensions"
+                    // was retained rather than shadowed by that wrapper.
+                    if (member.key() == "extensions" || !item.contains(member.key())) {
+                        retain(member.key(), member.value());
+                    }
+                }
+            }
+            scrubLegacyCompatibilityDetail(result);
+            return result;
+        }
+
+        Json legacyFlattenedItemUnknownMembers(const Json& item, std::initializer_list<std::string_view> known) {
+            return legacyFlattenedItemUnknownMembers<std::initializer_list<std::string_view>>(item, known);
+        }
+
         LegacyItemCompatibility legacyItemCompatibility(const Json& item,
                                                          const std::optional<std::string>& parentThreadId,
                                                          const std::optional<std::string>& parentTurnId,
                                                          std::size_t sourceIndex,
-                                                         std::string path) {
-            const auto discriminator = optionalString(item, "type");
-            ItemData data(requiredIdentity<ItemIdentity>(item, "id", path),
-                          optionalIdentity<ThreadIdentity>(optionalString(item, "threadId").has_value()
-                                                               ? optionalString(item, "threadId")
-                                                               : parentThreadId,
+                                                         std::string path,
+                                                         LegacyItemCompatibilityOptions options = {}) {
+            const auto discriminator = legacyItemString(item, "type", options.flattenExtensions);
+            const std::optional<std::string> threadId = legacyItemString(item, "threadId", options.flattenExtensions);
+            const std::optional<std::string> turnId = legacyItemString(item, "turnId", options.flattenExtensions);
+            ItemData data(legacyItemRequiredIdentity<ItemIdentity>(item, "id", path, options.flattenExtensions),
+                          optionalIdentity<ThreadIdentity>(threadId.has_value() ? threadId : parentThreadId,
                                                            path + "/threadId"),
-                          optionalIdentity<TurnIdentity>(optionalString(item, "turnId").has_value()
-                                                             ? optionalString(item, "turnId")
-                                                             : parentTurnId,
+                          optionalIdentity<TurnIdentity>(turnId.has_value() ? turnId : parentTurnId,
                                                          path + "/turnId"));
-            data.status = optionalString(item, "status");
-            data.summary = optionalString(item, "summary");
-            if (const auto location = item.find("location"); location != item.end()) {
+            data.status = legacyItemString(item, "status", options.flattenExtensions);
+            data.summary = legacyItemString(item, "summary", options.flattenExtensions);
+            if (const Json* location = legacyItemMember(item, "location", options.flattenExtensions); location != nullptr) {
                 data.location = safeLegacyCompatibilityDetail(*location, path + "/location");
             }
-            data.agentText = optionalString(item, "agentText");
-            data.reasoningText = optionalString(item, "reasoningText");
-            data.reasoningSummary = optionalString(item, "reasoningSummary");
-            data.commandOutput = optionalString(item, "commandOutput");
-            data.droppedContentBytes = optionalUnsigned(item, "droppedContentBytes");
-            data.contentTruncated = item.value("contentTruncated", false);
-            data.startedAtMs = optionalSigned(item, "startedAtMs");
-            data.completedAtMs = optionalSigned(item, "completedAtMs");
-            data.truncation.truncated = item.value("truncated", false);
-            if (const auto omitted = item.find("omittedFields"); omitted != item.end()) {
+            data.agentText = legacyItemString(item, "agentText", options.flattenExtensions);
+            data.reasoningText = legacyItemString(item, "reasoningText", options.flattenExtensions);
+            data.reasoningSummary = legacyItemString(item, "reasoningSummary", options.flattenExtensions);
+            data.commandOutput = legacyItemString(item, "commandOutput", options.flattenExtensions);
+            data.droppedContentBytes = legacyItemUnsigned(item, "droppedContentBytes", options.flattenExtensions);
+            data.contentTruncated = legacyItemBoolean(item, "contentTruncated", false, options.flattenExtensions);
+            data.startedAtMs = legacyItemSigned(item, "startedAtMs", options.flattenExtensions);
+            data.completedAtMs = legacyItemSigned(item, "completedAtMs", options.flattenExtensions);
+            data.truncation.truncated = legacyItemBoolean(item, "truncated", false, options.flattenExtensions);
+            if (const Json* omitted = legacyItemMember(item, "omittedFields", options.flattenExtensions); omitted != nullptr) {
                 if (!omitted->is_array()) {
                     fail(ModelErrorCode::InvalidShape, path + "/omittedFields", "legacy item omitted fields must be an array");
                 }
@@ -3452,53 +3681,82 @@ namespace ai::openai::codex::frontend::internal::model {
                     data.truncation.omittedPaths.push_back(omitted->at(index).get<std::string>());
                 }
             }
-            data.connectionInvalidated = item.value("connectionInvalidated", false);
-            if (const auto stamp = item.find("stamp"); stamp != item.end()) {
+            data.connectionInvalidated = legacyItemBoolean(item, "connectionInvalidated", false, options.flattenExtensions);
+            if (const Json* stamp = legacyItemMember(item, "stamp", options.flattenExtensions); stamp != nullptr) {
                 Json sanitizedStamp = *stamp;
                 scrubLegacyCompatibilityDetail(sanitizedStamp);
                 const SourceMetadata decoded = decodeSourceMetadata(sanitizedStamp, path + "/stamp");
                 data.generation = decoded.generation;
                 data.freshness = decoded.freshness;
                 data.stampExtensions = decoded.extensions;
-            } else if (const auto generation = optionalUnsigned(item, "generation"); generation.has_value()) {
+            } else if (const auto generation = legacyItemUnsigned(item, "generation", options.flattenExtensions);
+                       generation.has_value()) {
                 data.generation = *generation;
-                if (const auto freshness = optionalString(item, "freshness"); freshness.has_value()) {
+                if (const auto freshness = legacyItemString(item, "freshness", options.flattenExtensions); freshness.has_value()) {
                     data.freshness = modelFreshness(stateFreshnessFromString(*freshness));
                 }
             }
             data.sourceIndex = sourceIndex;
-            if (const auto details = item.find("data"); details != item.end()) {
+            if (const Json* details = legacyItemMember(item, "data", options.flattenExtensions);
+                options.retainDataDetails && details != nullptr) {
                 data.safeDetails = safeLegacyCompatibilityDetail(*details, path + "/data");
             }
             if (const auto extensions = item.find("extensions"); extensions != item.end()) {
                 data.legacyExtensions = safeLegacyCompatibilityDetail(*extensions, path + "/extensions");
             }
-            data.extensions = safeLegacyCompatibilityDetail(legacyUnknownMembers(item,
-                                                                                 {"id",
-                                                                                  "type",
-                                                                                  "kind",
-                                                                                  "threadId",
-                                                                                  "turnId",
-                                                                                  "status",
-                                                                                  "summary",
-                                                                                  "location",
-                                                                                  "agentText",
-                                                                                  "reasoningText",
-                                                                                  "reasoningSummary",
-                                                                                  "commandOutput",
-                                                                                  "droppedContentBytes",
-                                                                                  "contentTruncated",
-                                                                                  "startedAtMs",
-                                                                                  "completedAtMs",
-                                                                                  "data",
-                                                                                  "truncated",
-                                                                                  "omittedFields",
-                                                                                  "connectionInvalidated",
-                                                                                  "stamp",
-                                                                                  "generation",
-                                                                                  "freshness",
-                                                                                  "extensions"}),
-                                                            path + "/compatibilityExtensions");
+            if (options.flattenExtensions) {
+                data.extensions = safeLegacyCompatibilityDetail(
+                    legacyFlattenedItemUnknownMembers(item,
+                                                      {"id",
+                                                       "type",
+                                                       "threadId",
+                                                       "turnId",
+                                                       "status",
+                                                       "summary",
+                                                       "location",
+                                                       "agentText",
+                                                       "reasoningText",
+                                                       "reasoningSummary",
+                                                       "commandOutput",
+                                                       "droppedContentBytes",
+                                                       "contentTruncated",
+                                                       "startedAtMs",
+                                                       "completedAtMs",
+                                                       "data",
+                                                       "truncated",
+                                                       "omittedFields",
+                                                       "connectionInvalidated",
+                                                       "generation",
+                                                       "freshness"}),
+                    path + "/compatibilityExtensions");
+            } else {
+                data.extensions = safeLegacyCompatibilityDetail(legacyUnknownMembers(item,
+                                                                                     {"id",
+                                                                                      "type",
+                                                                                      "kind",
+                                                                                      "threadId",
+                                                                                      "turnId",
+                                                                                      "status",
+                                                                                      "summary",
+                                                                                      "location",
+                                                                                      "agentText",
+                                                                                      "reasoningText",
+                                                                                      "reasoningSummary",
+                                                                                      "commandOutput",
+                                                                                      "droppedContentBytes",
+                                                                                      "contentTruncated",
+                                                                                      "startedAtMs",
+                                                                                      "completedAtMs",
+                                                                                      "data",
+                                                                                      "truncated",
+                                                                                      "omittedFields",
+                                                                                      "connectionInvalidated",
+                                                                                      "stamp",
+                                                                                      "generation",
+                                                                                      "freshness",
+                                                                                      "extensions"}),
+                                                                path + "/compatibilityExtensions");
+            }
             return {std::move(data), discriminator.value_or("unknown"), sourceIndex, std::move(path)};
         }
 
@@ -3926,6 +4184,15 @@ namespace ai::openai::codex::frontend::internal::model {
                         data.sourceIndex = *sourceIndex;
                     }
                     data.legacyDiscriminator = optionalString(encoded, "type");
+                    if (data.userMessage.has_value()) {
+                        const auto details = encoded.find("data");
+                        if (details != encoded.end()) {
+                            if (std::optional<std::vector<std::string>> parts = legacyUserMessageTextParts(*details);
+                                parts.has_value()) {
+                                data.userMessage->textParts = std::move(*parts);
+                            }
+                        }
+                    }
                     if (const auto extensions = encoded.find("extensions"); extensions != encoded.end()) {
                         data.legacyExtensions = safeLegacyCompatibilityDetail(*extensions, "/state/items/extensions");
                     }
@@ -4044,6 +4311,193 @@ namespace ai::openai::codex::frontend::internal::model {
         } catch (...) {
             return ModelError{ModelErrorCode::InvalidShape, "/state", "legacy snapshot decoding failed"};
         }
+    }
+
+    ModelResult<CanonicalSnapshot>
+    decodeValidatedNestedThreadState(const Json& encodedThread, FrontendSequence sequence) noexcept {
+        try {
+            const Json& thread = encodedThread;
+
+            CanonicalSnapshot decoded;
+            decoded.sequence = sequence;
+            decoded.threadsPresent = true;
+            decoded.turnsPresent = true;
+            decoded.itemsPresent = true;
+
+            const std::string threadPath = "/thread";
+            ThreadState threadState{requiredIdentity<ThreadIdentity>(thread, "id", threadPath)};
+            threadState.title = optionalString(thread, "title");
+            threadState.createdAtMs = optionalSigned(thread, "createdAt");
+            threadState.updatedAtMs = optionalSigned(thread, "updatedAt");
+            threadState.fullyLoaded = booleanOr(thread, "fullyLoaded", false);
+            threadState.stampKnown = thread.contains("stamp");
+            if (const auto stamp = thread.find("stamp"); stamp != thread.end()) {
+                Json sanitizedStamp = *stamp;
+                scrubLegacyCompatibilityDetail(sanitizedStamp);
+                threadState.stamp = decodeSourceMetadata(sanitizedStamp, threadPath + "/stamp");
+                threadState.freshness = threadState.stamp.freshness;
+            }
+            if (const auto extensions = thread.find("extensions"); extensions != thread.end()) {
+                threadState.legacyExtensions = safeLegacyCompatibilityDetail(*extensions, threadPath + "/extensions");
+            }
+            threadState.safeDetails = safeLegacyCompatibilityDetail(
+                legacyUnknownMembers(thread,
+                                     {"id", "title", "createdAt", "updatedAt", "fullyLoaded", "stamp", "turns", "extensions"}),
+                threadPath);
+            decoded.threads.push_back(std::move(threadState));
+
+            const std::string parentThreadId = decoded.threads.front().id.value();
+            const Json& turns = thread.at("turns");
+            const Json emptyItemDetails = Json::object();
+            decoded.turns.reserve(turns.size());
+            std::size_t sourceIndex = 0;
+            for (std::size_t turnIndex = 0; turnIndex < turns.size(); ++turnIndex) {
+                const Json& turn = turns.at(turnIndex);
+                const std::string turnPath = threadPath + "/turns/" + std::to_string(turnIndex);
+                TurnState turnState{requiredIdentity<TurnIdentity>(turn, "id", turnPath),
+                                    requiredIdentity<ThreadIdentity>(turn, "threadId", turnPath)};
+                if (turnState.threadId.value() != parentThreadId) {
+                    fail(ModelErrorCode::InvalidShape,
+                         turnPath + "/threadId",
+                         "nested turn parent does not match its containing thread");
+                }
+                turnState.status = optionalString(turn, "status");
+                turnState.active = booleanOr(turn, "active", false);
+                turnState.terminal = booleanOr(turn, "terminal", false);
+                turnState.stampKnown = turn.contains("stamp");
+                if (const auto stamp = turn.find("stamp"); stamp != turn.end()) {
+                    Json sanitizedStamp = *stamp;
+                    scrubLegacyCompatibilityDetail(sanitizedStamp);
+                    turnState.stamp = decodeSourceMetadata(sanitizedStamp, turnPath + "/stamp");
+                    turnState.freshness = turnState.stamp.freshness;
+                }
+                turnState.connectionInvalidated = booleanOr(turn, "connectionInvalidated", false);
+                if (const auto plan = turn.find("plan"); plan != turn.end()) {
+                    turnState.plan = decodeTurnPlan(*plan, turnPath + "/plan");
+                }
+                if (const auto extensions = turn.find("extensions"); extensions != turn.end()) {
+                    turnState.legacyExtensions = safeLegacyCompatibilityDetail(*extensions, turnPath + "/extensions");
+                }
+                turnState.safeDetails = safeLegacyCompatibilityDetail(
+                    legacyUnknownMembers(turn,
+                                         {"id",
+                                          "threadId",
+                                          "status",
+                                          "active",
+                                          "terminal",
+                                          "plan",
+                                          "stamp",
+                                          "connectionInvalidated",
+                                          "items",
+                                          "extensions"}),
+                    turnPath);
+                decoded.turns.push_back(std::move(turnState));
+
+                const std::string parentTurnId = decoded.turns.back().id.value();
+                const Json& items = turn.at("items");
+                for (std::size_t itemIndex = 0; itemIndex < items.size(); ++itemIndex, ++sourceIndex) {
+                    const Json& item = items.at(itemIndex);
+                    const std::string itemPath = turnPath + "/items/" + std::to_string(itemIndex);
+                    const auto requireContainingParent = [&](const Json& source,
+                                                             const std::string& sourcePath,
+                                                             std::string_view memberName,
+                                                             std::string_view containingIdentity,
+                                                             std::string_view containingEntity) {
+                        const auto parent = source.find(std::string(memberName));
+                        if (parent == source.end()) {
+                            return;
+                        }
+                        if (!parent->is_string() || parent->get_ref<const std::string&>() != containingIdentity) {
+                            fail(ModelErrorCode::InvalidShape,
+                                 sourcePath + "/" + std::string(memberName),
+                                 "nested item parent does not match its containing " + std::string(containingEntity));
+                        }
+                    };
+                    requireContainingParent(item, itemPath, "threadId", parentThreadId, "thread");
+                    requireContainingParent(item, itemPath, "turnId", parentTurnId, "turn");
+                    if (const auto extensions = item.find("extensions");
+                        extensions != item.end() && extensions->is_object()) {
+                        const std::string extensionsPath = itemPath + "/extensions";
+                        requireContainingParent(*extensions, extensionsPath, "threadId", parentThreadId, "thread");
+                        requireContainingParent(*extensions, extensionsPath, "turnId", parentTurnId, "turn");
+                    }
+                    const auto itemDetailsMember = item.find("data");
+                    const Json& itemDetails = itemDetailsMember != item.end() ? *itemDetailsMember : emptyItemDetails;
+                    const std::optional<std::string> discriminator = optionalString(item, "type");
+                    const std::optional<std::string> expandedType =
+                        discriminator.has_value() ? expandedItemType(*discriminator, itemDetails) : std::nullopt;
+                    if (!expandedType.has_value()) {
+                        decoded.legacyItems.push_back(legacyItemCompatibility(
+                            item, parentThreadId, parentTurnId, sourceIndex, itemPath, {true, true}));
+                        continue;
+                    }
+
+                    const std::optional<ThreadItemKind> kind = threadItemKindFromString(*expandedType);
+                    if (!kind.has_value()) {
+                        fail(ModelErrorCode::UnsupportedDiscriminator, itemPath + "/type", "thread item type is unsupported");
+                    }
+                    const bool retainDataDetails = *kind != ThreadItemKind::UserMessage;
+                    // Preserve the historical flattened-extension view while
+                    // reading this potentially large item in place.
+                    LegacyItemCompatibility compatibility = legacyItemCompatibility(
+                        item, parentThreadId, parentTurnId, sourceIndex, itemPath, {true, retainDataDetails});
+                    ItemData itemState = std::move(compatibility.value);
+                    itemState.legacyDiscriminator = discriminator;
+                    if (*kind == ThreadItemKind::UserMessage) {
+                        std::optional<UserMessageProjection> userMessage = legacyUserMessageProjection(itemDetails);
+                        if (!userMessage.has_value()) {
+                            fail(ModelErrorCode::InvalidShape,
+                                 itemPath + "/data",
+                                 "nested user-message data did not contain its complete typed projection");
+                        }
+                        itemState.userMessage = std::move(userMessage);
+                        Json compatibilityDetails = legacyUnknownMembers(
+                            itemDetails,
+                            {"clientId",
+                             "text",
+                             "textTruncated",
+                             "contentTruncated",
+                             "originalContentBytes",
+                             "retainedContentBytes",
+                             "originalContentItems",
+                             "retainedContentItems"});
+                        if (!compatibilityDetails.empty()) {
+                            itemState.safeDetails =
+                                safeLegacyCompatibilityDetail(std::move(compatibilityDetails), itemPath + "/data");
+                        }
+                    }
+                    decoded.items.push_back(makeThreadItem(*kind, std::move(itemState)));
+                }
+            }
+            return decoded;
+        } catch (const ModelFailure& failure) {
+            return failure.error;
+        } catch (const std::exception& error) {
+            return ModelError{ModelErrorCode::InvalidShape, "/thread", error.what()};
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, "/thread", "nested thread state decoding failed"};
+        }
+    }
+
+    ModelResult<CanonicalSnapshot> decodeNestedThreadState(const Json& encodedThread, FrontendSequence sequence) noexcept {
+        try {
+            // Public and independently sourced nested thread bodies remain an
+            // untrusted boundary. Validate against the operation-level
+            // ThreadState definition before forwarding to the consume-once
+            // decoder used by ClientCore for its already-validated result.
+            Json result{{"thread", encodedThread}};
+            const auto validation = Codec::validateDefinedResult(generated::MethodId::ThreadRead, result);
+            if (!validation) {
+                return ModelError{ModelErrorCode::InvalidShape,
+                                  "/thread",
+                                  "nested thread state failed validation: " + validation.error().message};
+            }
+        } catch (const std::exception& error) {
+            return ModelError{ModelErrorCode::InvalidShape, "/thread", error.what()};
+        } catch (...) {
+            return ModelError{ModelErrorCode::InvalidShape, "/thread", "nested thread state validation failed"};
+        }
+        return decodeValidatedNestedThreadState(encodedThread, sequence);
     }
 
     SnapshotRepresentationSelection snapshotRepresentationSelection(std::span<const FrontendCapability> selectedCapabilities) noexcept {
@@ -4195,7 +4649,9 @@ namespace ai::openai::codex::frontend::internal::model {
             Json normalized = snapshot.state;
             std::vector<LegacyItemCompatibility> legacyItems;
             std::vector<LegacyPendingRequestCompatibility> legacyPending;
+            std::optional<Json> legacyItemRepresentation;
             if (!selection.expandedItems) {
+                legacyItemRepresentation = Json{{"items", normalized.value("items", Json::array())}};
                 Json items = Json::array();
                 std::size_t sourceIndex = 0;
                 for (const Json& item : normalized.value("items", Json::array())) {
@@ -4234,6 +4690,9 @@ namespace ai::openai::codex::frontend::internal::model {
             CanonicalSnapshot value = std::move(decoded).value();
             value.legacyItems = std::move(legacyItems);
             value.legacyPendingRequests = std::move(legacyPending);
+            if (legacyItemRepresentation.has_value()) {
+                restoreLegacyRepresentation(*legacyItemRepresentation, value);
+            }
             return value;
         } catch (const ModelFailure& failure) {
             return failure.error;

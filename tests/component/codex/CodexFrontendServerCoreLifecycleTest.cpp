@@ -233,13 +233,13 @@ namespace {
         const std::vector<frontend::FrontendCapability> noSdkMultiple = configuredCapabilities(false, true);
         const std::vector<frontend::FrontendCapability> sdkSingle = configuredCapabilities(true, false);
         const std::vector<frontend::FrontendCapability> sdkMultiple = configuredCapabilities(true, true);
-        result.expectTrue(noSdkSingle.size() == 13 && !containsCapability(noSdkSingle, frontend::FrontendCapability::CppClientSdk) &&
+        result.expectTrue(noSdkSingle.size() == 14 && !containsCapability(noSdkSingle, frontend::FrontendCapability::CppClientSdk) &&
                               !containsCapability(noSdkSingle, frontend::FrontendCapability::MultiTransport) &&
-                              noSdkMultiple.size() == 14 &&
+                              noSdkMultiple.size() == 15 &&
                               !containsCapability(noSdkMultiple, frontend::FrontendCapability::CppClientSdk) &&
-                              containsCapability(noSdkMultiple, frontend::FrontendCapability::MultiTransport) && sdkSingle.size() == 14 &&
+                              containsCapability(noSdkMultiple, frontend::FrontendCapability::MultiTransport) && sdkSingle.size() == 15 &&
                               containsCapability(sdkSingle, frontend::FrontendCapability::CppClientSdk) &&
-                              !containsCapability(sdkSingle, frontend::FrontendCapability::MultiTransport) && sdkMultiple.size() == 15 &&
+                              !containsCapability(sdkSingle, frontend::FrontendCapability::MultiTransport) && sdkMultiple.size() == 16 &&
                               containsCapability(sdkMultiple, frontend::FrontendCapability::CppClientSdk) &&
                               containsCapability(sdkMultiple, frontend::FrontendCapability::MultiTransport),
                           "ServerCore exercises all four SDK on/off and one/two-family capability-truth cells");
@@ -273,6 +273,31 @@ namespace {
         result.expectTrue(firstWelcome &&
                               firstWelcome->maximumInboundMessageBytes == std::optional<std::uint64_t>{768U * 1024U},
                           "Welcome advertises the effective per-connection frontend ingress limit");
+        result.expectTrue(frozenAdvertisement &&
+                              containsCapability(frozenAdvertisement->defined,
+                                                 frontend::FrontendCapability::ThreadReadStateEffects) &&
+                              containsCapability(frozenAdvertisement->implemented,
+                                                 frontend::FrontendCapability::ThreadReadStateEffects) &&
+                              containsCapability(frozenAdvertisement->permitted,
+                                                 frontend::FrontendCapability::ThreadReadStateEffects),
+                          "a positively marked current Hello receives the current closed capability vocabulary");
+
+        frontend::Hello legacyHello = hello;
+        legacyHello.capabilityVocabularyVersion.reset();
+        std::vector<frontend::ServerMessage> legacyMessages;
+        const auto legacy = core.openConnection({}, callbacks(legacyMessages));
+        const bool legacyAccepted = legacy && core.receive(*legacy, frontend::ClientMessage{legacyHello}).accepted();
+        const auto* legacyWelcome = !legacyMessages.empty() ? std::get_if<frontend::Welcome>(&legacyMessages.front()) : nullptr;
+        const bool legacyVocabulary =
+            legacyWelcome && legacyWelcome->capabilities &&
+            !containsCapability(legacyWelcome->capabilities->defined,
+                                frontend::FrontendCapability::ThreadReadStateEffects) &&
+            !containsCapability(legacyWelcome->capabilities->implemented,
+                                frontend::FrontendCapability::ThreadReadStateEffects) &&
+            !containsCapability(legacyWelcome->capabilities->permitted,
+                                frontend::FrontendCapability::ThreadReadStateEffects);
+        result.expectTrue(legacyAccepted && legacyVocabulary,
+                          "an unmarked older Hello never receives the capability name its closed enum cannot decode");
 
         core.withdrawTransportFamily(frontend::FrontendTransportKind::WebSocket);
         const std::vector<frontend::FrontendCapability> reduced = core.implementedCapabilities();

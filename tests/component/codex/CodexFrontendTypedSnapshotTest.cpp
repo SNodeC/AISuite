@@ -48,6 +48,53 @@ namespace {
                           "legacy v1 uses its frozen nested shape and decodes into the shared typed snapshot authority");
     }
 
+    void testLegacyUserMessageNormalization(tests::support::TestResult& result) {
+        model::CanonicalSnapshot snapshot;
+        snapshot.sequence = model::FrontendSequence{10};
+        const model::ThreadIdentity threadId{"user-thread"};
+        const model::TurnIdentity turnId{"user-turn"};
+        snapshot.threads.emplace_back(threadId);
+        snapshot.turns.emplace_back(turnId, threadId);
+        model::ItemData data{model::ItemIdentity{"user-item"}, threadId, turnId};
+        data.userMessage = model::UserMessageProjection{"client-user",
+                                                        "part one\n\n\n\npart two",
+                                                        false,
+                                                        true,
+                                                        1'000,
+                                                        100,
+                                                        4,
+                                                        3,
+                                                        {"part one", "", "part two"}};
+        snapshot.items.emplace_back(model::UserMessageItem{std::move(data)});
+
+        const auto legacy = model::encodeLegacySnapshot(snapshot);
+        const frontend::Json wireData =
+            legacy ? legacy.value().state.at("threads").at(0).at("turns").at(0).at("items").at(0).at("data")
+                   : frontend::Json::object();
+        const auto decoded = legacy ? model::decodeLegacySnapshot(legacy.value())
+                                    : model::ModelResult<model::CanonicalSnapshot>{legacy.error()};
+        const model::ItemData* decodedItem =
+            decoded && decoded.value().items.size() == 1 ? &model::itemData(decoded.value().items.front()) : nullptr;
+        const model::UserMessageProjection* message =
+            decodedItem && decodedItem->userMessage ? &*decodedItem->userMessage : nullptr;
+        const auto reencoded = decoded ? model::encodeLegacySnapshot(decoded.value())
+                                       : model::ModelResult<frontend::Snapshot>{decoded.error()};
+        const frontend::Json reencodedData =
+            reencoded ? reencoded.value().state.at("threads").at(0).at("turns").at(0).at("items").at(0).at("data")
+                      : frontend::Json::object();
+        result.expectTrue(legacy && wireData.contains("content") && !wireData.contains("text") && message &&
+                              message->clientId == std::optional<std::string>{"client-user"} &&
+                              message->text == "part one\n\n\n\npart two" && !message->textTruncated && message->contentTruncated &&
+                              message->originalContentBytes == 1'000 &&
+                              message->retainedContentBytes == wireData.value("retainedContentBytes", 0U) &&
+                              message->originalContentItems == 4 && message->retainedContentItems == 3 &&
+                              message->textParts == std::vector<std::string>{"part one", "", "part two"} && reencoded &&
+                              reencodedData.value("content", frontend::Json::array()) == wireData.at("content") &&
+                              reencodedData.value("retainedContentBytes", 0U) == wireData.value("retainedContentBytes", 0U) &&
+                              reencodedData.value("retainedContentItems", 0U) == wireData.value("retainedContentItems", 0U),
+                          "legacy user-message content normalizes into the bounded semantic projection and round-trips its frozen multipart wire");
+    }
+
     void testLegacyForkTurnScoping(tests::support::TestResult& result) {
         model::CanonicalSnapshot snapshot;
         snapshot.sequence = model::FrontendSequence{10};
@@ -271,6 +318,7 @@ namespace {
 int main() {
     tests::support::TestResult result;
     testLegacyShapeAndRoundTrip(result);
+    testLegacyUserMessageNormalization(result);
     testLegacyForkTurnScoping(result);
     testPartialLegacyForkTurnScoping(result);
     testExplicitControllerPresenceRoundTrip(result);

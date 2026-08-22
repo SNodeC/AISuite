@@ -387,6 +387,19 @@ namespace {
             while (!clientOutbound.empty()) {
                 client::OutboundMessage outbound = std::move(clientOutbound.front());
                 clientOutbound.pop_front();
+                const Json wire = Json::parse(outbound.compactJson, nullptr, false);
+                if (wire.is_object() && wire.value("kind", std::string{}) == "hello") {
+                    defaultHelloObserved = true;
+                    const Json requested = wire.value("capabilities", Json::array());
+                    defaultHelloRequestedThreadReadEffects =
+                        requested.is_array() && std::find(requested.begin(), requested.end(), "thread_read_state_effects") != requested.end();
+                } else if (wire.is_object() && wire.value("kind", std::string{}) == "command" &&
+                           wire.value("method", std::string{}) == "thread.read" &&
+                           wire.value("params", Json::object()).value("includeTurns", false)) {
+                    if (wire.value("threadReadStateEffectVersion", 0) == 1) {
+                        ++optedInFullThreadReads;
+                    }
+                }
                 if (frontendConnection) {
                     const frontend::ConnectionReceiveResult received = frontendConnection->receive(
                         std::string_view(outbound.compactJson));
@@ -745,6 +758,7 @@ namespace {
         std::optional<frontend::Snapshot> replaySnapshot;
         std::size_t providerListCalls = 0;
         std::size_t providerThreadReadCalls = 0;
+        std::size_t optedInFullThreadReads = 0;
         std::size_t providerLargeModelListCalls = 0;
         std::size_t reproducedCompletionBytes = 0;
         std::size_t reproducedContentBytes = 0;
@@ -763,6 +777,8 @@ namespace {
         std::size_t replayExpandedEvents = 0;
         std::size_t replayValidExpandedEvents = 0;
         bool exactTurnStartRequest = false;
+        bool defaultHelloObserved = false;
+        bool defaultHelloRequestedThreadReadEffects = false;
         bool lifecycleNotificationScheduled = false;
         bool replayWelcome = false;
         bool replayComplete = false;
@@ -879,9 +895,52 @@ namespace {
                         [this]() {
                             afterTicks(4, [this]() {
                                 expectInitialState();
-                                beginLargeProviderResult();
+                                beginRequesterLocalThreadRead();
                             });
                         });
+                });
+        }
+
+        void beginRequesterLocalThreadRead() {
+            requesterLocalReadCompletions = 0;
+            requesterLocalReadSucceeded = false;
+            const client::State before = harness->sdk->state();
+            requesterLocalVisibleBefore = before.visibleSequence();
+            requesterLocalStateSynchronizedBefore = before.synchronizedThrough();
+            requesterLocalClientSynchronizedBefore = harness->sdk->synchronizedThrough();
+            result.expectTrue(requesterLocalVisibleBefore && requesterLocalStateSynchronizedBefore &&
+                                  requesterLocalClientSynchronizedBefore &&
+                                  requesterLocalVisibleBefore == requesterLocalStateSynchronizedBefore &&
+                                  requesterLocalStateSynchronizedBefore == requesterLocalClientSynchronizedBefore,
+                              "the real default client and FrontendService finish their initial handshake at one stable protocol cursor");
+            const client::Submission submission = harness->sdk->threads().read(
+                typed::ThreadReadParams{typed::ThreadId{"live-thread-0"}, true},
+                [this](const client::OperationResult<client::ThreadReadResult>& operation) {
+                    ++requesterLocalReadCompletions;
+                    requesterLocalReadSucceeded = operation.succeeded();
+                });
+            result.expectTrue(submission.accepted(), "a default-client full thread.read is accepted at the synchronized cursor");
+            waitUntil(
+                "the default-client full thread.read completes without advancing the shared cursor",
+                [this]() {
+                    harness->settle();
+                    return requesterLocalReadCompletions == 1;
+                },
+                [this]() {
+                    const client::State after = harness->sdk->state();
+                    const client::ThreadState* thread = after.thread("live-thread-0");
+                    const client::ItemState* item = after.item(typed::ThreadId{"live-thread-0"},
+                                                               typed::TurnId{"turn-live-thread-0"},
+                                                               typed::ItemId{std::string(LifecycleUserItemId)});
+                    result.expectTrue(requesterLocalReadSucceeded && thread && thread->fullyLoaded && item &&
+                                          after.visibleSequence() == requesterLocalVisibleBefore &&
+                                          after.synchronizedThrough() == requesterLocalStateSynchronizedBefore &&
+                                          harness->sdk->synchronizedThrough() == requesterLocalClientSynchronizedBefore &&
+                                          harness->defaultHelloObserved && !harness->defaultHelloRequestedThreadReadEffects &&
+                                          harness->optedInFullThreadReads == 1,
+                                      "the default client observes then opts in, gains requester-local descendants, and leaves both "
+                                      "visible and synchronized cursors unchanged");
+                    beginLargeProviderResult();
                 });
         }
 
@@ -1002,7 +1061,9 @@ namespace {
                                                                      typed::ItemId{std::string(LifecycleUserItemId)});
                     const auto firstUserMessage = firstItem ? client::userMessageSemanticView(*firstItem) : std::nullopt;
                     const auto secondUserMessage = secondItem ? client::userMessageSemanticView(*secondItem) : std::nullopt;
-                    result.expectTrue(firstReadSucceeded && secondReadSucceeded && harness->providerThreadReadCalls == 2 &&
+                    result.expectTrue(firstReadSucceeded && secondReadSucceeded && harness->providerThreadReadCalls == 3 &&
+                                          harness->defaultHelloObserved && !harness->defaultHelloRequestedThreadReadEffects &&
+                                          harness->optedInFullThreadReads == 3 &&
                                           firstThread != nullptr && firstThread->fullyLoaded && secondThread != nullptr &&
                                           secondThread->fullyLoaded && firstItem != nullptr && secondItem != nullptr &&
                                           firstUserMessage && firstUserMessage->text == LifecycleUserText &&
@@ -1011,8 +1072,8 @@ namespace {
                                           firstItem != secondItem && harness->sdk->isReady() && harness->sdkConnection->isOpen() &&
                                           harness->sdk->pendingOperationCount() == 0 && harness->sdkCloseReasons.empty() &&
                                           harness->sdkProtocolErrors == 0,
-                                      "two full thread.read operations with repeated provider item IDs complete on one persistent "
-                                      "observer frontend session");
+                                      "default client options observe the server capability advertisement, then two full thread.read "
+                                      "operations opt in and complete on one persistent observer frontend session");
                     beginCompactList();
                 });
         }
@@ -1537,6 +1598,7 @@ namespace {
         std::size_t completions = 0;
         std::size_t secondCompletions = 0;
         std::size_t readCompletions = 0;
+        std::size_t requesterLocalReadCompletions = 0;
         std::size_t largeProviderCompletions = 0;
         std::size_t largeProviderResultBytes = 0;
         std::size_t largeProviderResultItems = 0;
@@ -1558,6 +1620,10 @@ namespace {
         bool finishing = false;
         bool firstReadSucceeded = false;
         bool secondReadSucceeded = false;
+        bool requesterLocalReadSucceeded = false;
+        std::optional<frontend::SequenceNumber> requesterLocalVisibleBefore;
+        std::optional<frontend::SequenceNumber> requesterLocalStateSynchronizedBefore;
+        std::optional<frontend::SequenceNumber> requesterLocalClientSynchronizedBefore;
         bool largeProviderResultPreserved = false;
         bool largeProviderResultSucceeded = false;
         std::string largeProviderResultError;

@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 
-FRONTEND_V1_SHA256 = "603268540d8ceeeda42766df5fb04f66e0296a559dcbe39761be1758892d8bc0"
+FRONTEND_V1_SHA256 = "d90067b85482527e46642b85225de6717e380ade39da6e3c5f992521a408f81f"
 LEGACY_METHODS = (
     "controller.acquire",
     "controller.release",

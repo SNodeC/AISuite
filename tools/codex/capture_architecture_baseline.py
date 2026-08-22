@@ -556,7 +556,7 @@ def _derive_protocol(source_dir: pathlib.Path) -> dict[str, Any]:
             "notImplemented": sorted(
                 row["key"] for row in capability_rows if row["key"] not in feature_complete_implemented
             ),
-            "derivation": "13 generated static mechanisms plus topology-derived multi_transport and build-derived cpp_client_sdk",
+            "derivation": "14 generated static mechanisms plus topology-derived multi_transport and build-derived cpp_client_sdk",
         },
         "authorityCanonicalSha256": {
             name: _canonical_json_sha256(_source_file(source_dir, relative))
@@ -2595,8 +2595,8 @@ def _validate_external_shape(contract: Mapping[str, Any]) -> None:
             raise BaselineError(f"public C++ target mapping drifted: {row.get('importedTarget')}")
         if (
             row.get("targetType") != "SHARED_LIBRARY"
-            or row.get("version") != "0.5.0"
-            or row.get("soversion") != 6
+            or row.get("version") != "0.6.0"
+            or row.get("soversion") != 7
             or row.get("installedPackageExportFile") != "lib/cmake/AISuite/AISuiteTargets.cmake"
         ):
             raise BaselineError(f"public C++ target metadata is incomplete: {row.get('importedTarget')}")

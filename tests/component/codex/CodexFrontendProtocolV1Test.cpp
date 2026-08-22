@@ -420,10 +420,28 @@ int main() {
 
     expectClientRoundTrip(result, ClientMessage{Hello{}}, "hello without replay position");
     expectClientRoundTrip(result, ClientMessage{Hello{SequenceNumber(123), Json{{"future", true}}}}, "hello with replay position");
-    const auto legacyHelloBytes = Codec::serializeClient(ClientMessage{Hello{}});
+    const auto currentHello = Codec::encodeClient(ClientMessage{Hello{}});
+    result.expectTrue(currentHello.hasValue() &&
+                          currentHello.value().value("capabilityVocabularyVersion", 0U) == CapabilityVocabularyVersion,
+                      "a current client positively marks the closed capability vocabulary it can decode");
+
+    Hello legacyHello;
+    legacyHello.capabilityVocabularyVersion.reset();
+    const auto legacyHelloBytes = Codec::serializeClient(ClientMessage{legacyHello});
     result.expectTrue(legacyHelloBytes.hasValue() &&
                           legacyHelloBytes.value() == R"({"kind":"hello","protocol":"snodec.codex-frontend","version":1})",
-                      "an omitted authentication credential preserves the original Hello bytes");
+                      "an older unmarked client retains the original v1 Hello bytes");
+    const auto decodedLegacyHello = legacyHelloBytes ? Codec::decodeClient(std::string_view{legacyHelloBytes.value()})
+                                                     : CodecResult<ClientMessage>{legacyHelloBytes.error()};
+    const auto* decodedLegacy = decodedLegacyHello ? std::get_if<Hello>(&decodedLegacyHello.value()) : nullptr;
+    result.expectTrue(decodedLegacy && !decodedLegacy->capabilityVocabularyVersion,
+                      "a new server preserves an older client's absent capability-vocabulary marker");
+    const auto zeroVocabulary = Codec::decodeClient(Json{{"protocol", ProtocolIdentity},
+                                                         {"version", ProtocolVersion},
+                                                         {"kind", "hello"},
+                                                         {"capabilityVocabularyVersion", 0}});
+    result.expectTrue(!zeroVocabulary && zeroVocabulary.error().code == ErrorCode::InvalidField,
+                      "a present capability-vocabulary marker must be positive");
 
     constexpr std::string_view BearerSentinel = "A17B_SYNTHETIC_BEARER_SENTINEL";
     const Hello authenticatedHello{

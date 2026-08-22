@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -45,6 +46,16 @@ namespace {
             return true;
         }
 
+        bool runLastAfter(std::size_t preservedCallbacks) {
+            if (callbacks.size() <= preservedCallbacks) {
+                return false;
+            }
+            std::function<void()> callback = std::move(callbacks.back());
+            callbacks.pop_back();
+            callback();
+            return true;
+        }
+
         [[nodiscard]] std::size_t pending() const noexcept {
             return callbacks.size();
         }
@@ -62,6 +73,18 @@ namespace {
     private:
         std::deque<std::function<void()>> callbacks;
     };
+
+    std::function<void(std::function<void()>)> appServerCallbackScheduler(ManualScheduler& scheduler) {
+        return [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+    }
+
+    bool startProvider(FakeBackendCore& backendCore, ManualScheduler& scheduler) {
+        backendCore.start();
+        scheduler.drain();
+        return backendCore.isReady();
+    }
 
     struct Observations {
         std::vector<frontend::ServerMessage> messages;
@@ -934,6 +957,810 @@ namespace {
                     backend::SequenceNumber{17}, backend::SequenceNumber{18}),
             "item-content projection distinguishes exact snapshots from future snapshots that require per-key coverage");
     }
+
+    void testBoundedThreadReadRetainsNewestItemSuffix(tests::support::TestResult& result) {
+        backend::ThreadSnapshot headerOnly;
+        headerOnly.id = "bounded-header-only";
+        headerOnly.fullyLoaded = true;
+        const frontend::Json widestFence = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+            ai::openai::codex::typed::ThreadId{headerOnly.id}, headerOnly, std::numeric_limits<std::size_t>::max());
+        const std::size_t exactBoundary = widestFence.dump().size();
+        bool boundaryAccepted = false;
+        bool belowBoundaryRejected = false;
+        frontend::Json atBoundary;
+        try {
+            atBoundary = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+                ai::openai::codex::typed::ThreadId{headerOnly.id}, headerOnly, exactBoundary);
+            boundaryAccepted = true;
+        } catch (const std::length_error&) {
+        }
+        try {
+            static_cast<void>(server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+                ai::openai::codex::typed::ThreadId{headerOnly.id}, headerOnly, exactBoundary - 1));
+        } catch (const std::length_error&) {
+            belowBoundaryRejected = true;
+        }
+        const bool stateEffectHasNoNumericFence = [&] {
+            if (!widestFence.is_object()) {
+                return false;
+            }
+            const auto effect = widestFence.find("stateEffect");
+            if (effect == widestFence.end() || !effect->is_object()) {
+                return false;
+            }
+            return !effect->contains("throughSequence");
+        }();
+        const bool conservativeFenceAccounting = boundaryAccepted && atBoundary.dump().size() == exactBoundary &&
+                                                 belowBoundaryRejected && stateEffectHasNoNumericFence;
+
+        backend::ThreadSnapshot source;
+        source.id = "bounded-thread";
+        source.fullyLoaded = true;
+        backend::TurnSnapshot turn;
+        turn.id = "bounded-turn";
+        turn.threadId = source.id;
+        turn.status = "completed";
+        turn.terminal = true;
+        for (std::size_t index = 0; index < 6; ++index) {
+            backend::ItemSnapshot item;
+            item.id = "bounded-item-" + std::to_string(index);
+            item.type = "agentMessage";
+            item.status = "completed";
+            item.agentText.assign(512, static_cast<char>('a' + index));
+            turn.items.push_back(std::move(item));
+        }
+        source.turns.push_back(std::move(turn));
+
+        std::optional<frontend::Json> bounded;
+        for (std::size_t maximumBytes = 512; maximumBytes <= 4096 && !bounded; maximumBytes += 64) {
+            try {
+                frontend::Json candidate = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+                    ai::openai::codex::typed::ThreadId{source.id}, source, maximumBytes);
+                const frontend::Json& projectedThread = candidate.at("thread");
+                const frontend::Json& truncation = candidate.at("stateEffect").at("truncation");
+                if (projectedThread.at("turns").size() == 1 && !projectedThread.at("turns").front().at("items").empty() &&
+                    projectedThread.at("turns").front().at("items").size() < source.turns.front().items.size() &&
+                    truncation.at("responseOmittedTurns") == 0 && truncation.at("responseOmittedItems").get<std::uint64_t>() > 0) {
+                    bounded = std::move(candidate);
+                }
+            } catch (const std::length_error&) {
+            }
+        }
+        result.expectTrue(conservativeFenceAccounting && bounded && bounded->at("thread").at("fullyLoaded") == false &&
+                              bounded->at("stateEffect").at("authority") == "merge" &&
+                              bounded->at("stateEffect").at("truncation").at("responseTruncated") == true,
+                          "a bounded full read retains the largest newest-item suffix and marks it merge-only and incomplete");
+    }
+
+    void testThreadReadRetentionOmissionIsNotAbsence(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(
+            transport,
+            [](const frontend::Json& message, const tests::codex::TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method != message.end() && method->is_string() && *method == "thread/read" && id != message.end()) {
+                    const std::string threadId =
+                        message.value("params", frontend::Json::object()).value("threadId", "retention-omitted-thread");
+                    tests::codex::inject(
+                        callbacks,
+                        frontend::Json{{"id", *id},
+                                       {"result", tests::codex::threadOperationResult(threadId, frontend::Json::array())}});
+                }
+            });
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.capacity.maxRetainedThreads = 0;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "thread-read-retention-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+        Observations observations;
+        frontend::FrontendConnection connection =
+            service.openConnection(remotePeer("127.0.0.1:41039"), callbacksFor(observations, &service));
+        frontend::Hello negotiated = hello("thread-read-retention-token");
+        const bool authenticated = connection.receive(frontend::ClientMessage{std::move(negotiated)}).accepted();
+        scheduler.drain();
+        observations.messages.clear();
+
+        frontend::Command read{"thread-read-retention",
+                               frontend::ThreadRead{"retention-omitted-thread", true},
+                               frontend::Json{{"threadReadStateEffectVersion", 1}},
+                               frontend::Json::object()};
+        const bool accepted = connection.receive(frontend::ClientMessage{std::move(read)}).accepted();
+        scheduler.drain();
+        const frontend::Response* completed = response(observations, "thread-read-retention");
+        const frontend::Json* returned = completed && completed->ok && completed->result && completed->result->is_object()
+                                             ? &*completed->result
+                                             : nullptr;
+        const bool mergeOnly = returned && returned->contains("thread") && returned->at("thread").is_object() &&
+                               returned->at("thread").value("id", std::string{}) == "retention-omitted-thread" &&
+                               returned->at("thread").value("fullyLoaded", true) == false &&
+                               returned->contains("stateEffect") && returned->at("stateEffect").is_object() &&
+                               returned->at("stateEffect").value("authority", std::string{}) == "merge" &&
+                               returned->at("stateEffect").at("truncation").value("sourcePartial", false) == true;
+        result.expectTrue(providerReady && authenticated && accepted && mergeOnly && countEvents(observations, "thread.removed") == 0 &&
+                              core.state().capacity.snapshotOmissions == 0 && observations.closes.empty(),
+                          "a provider-confirmed thread omitted by local retention succeeds as an incomplete merge without global absence");
+
+        connection.close("thread-read retention omission probe complete");
+        service.close("thread-read retention omission probe complete");
+        scheduler.drain();
+    }
+
+    void testThreadReadProviderNotFoundIsRequesterLocalAbsence(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(
+            transport,
+            [](const frontend::Json& message, const tests::codex::TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method == message.end() || !method->is_string() || *method != "thread/read" || id == message.end()) {
+                    return;
+                }
+                const std::string threadId =
+                    message.value("params", frontend::Json::object()).value("threadId", "provider-absent-thread");
+                if (threadId == "provider-generic-error") {
+                    tests::codex::inject(
+                        callbacks,
+                        frontend::Json{{"id", *id},
+                                       {"error", {{"code", -32000}, {"message", "generic provider rejection"}}}});
+                    return;
+                }
+                if (threadId == "provider-unverified-not-found") {
+                    tests::codex::inject(
+                        callbacks,
+                        frontend::Json{{"id", *id},
+                                       {"error", {{"code", -32600}, {"message", "thread not found: " + threadId}}}});
+                    return;
+                }
+                tests::codex::inject(
+                    callbacks,
+                    frontend::Json{{"id", *id},
+                                   {"error",
+                                    {{"code", -32600}, {"message", "thread not loaded: " + threadId}}}});
+            });
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "thread-read-provider-absence-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+        Observations observations;
+        frontend::FrontendConnection connection =
+            service.openConnection(remotePeer("127.0.0.1:41044"), callbacksFor(observations, &service));
+        const bool authenticated =
+            connection.receive(frontend::ClientMessage{hello("thread-read-provider-absence-token")}).accepted();
+        scheduler.drain();
+        observations.messages.clear();
+
+        const frontend::SequenceNumber beforeFence = service.currentSequence();
+        backend::FrontendSession fence = core.openSession({});
+        const std::size_t preservedObserverCallbacks = scheduler.pending();
+        const bool negotiatedAccepted =
+            connection
+                .receive(frontend::ClientMessage{frontend::Command{
+                    "thread-read-provider-absence",
+                    frontend::ThreadRead{"provider-absent-thread", true},
+                    frontend::Json{{"threadReadStateEffectVersion", 1}},
+                    frontend::Json::object()}})
+                .accepted();
+        bool completionDrainedAheadOfObserver = false;
+        std::size_t completionCallbacks = 0;
+        while (scheduler.runLastAfter(preservedObserverCallbacks)) {
+            completionDrainedAheadOfObserver = true;
+            if (++completionCallbacks > 10'000) {
+                throw std::runtime_error("provider-absence completion did not quiesce behind its observer fence");
+            }
+        }
+        const bool absenceDeferred = response(observations, "thread-read-provider-absence") == nullptr;
+        scheduler.drain();
+
+        const frontend::Response* negotiated = response(observations, "thread-read-provider-absence");
+        const frontend::Json* returned = negotiated && negotiated->ok && negotiated->result && negotiated->result->is_object()
+                                             ? &*negotiated->result
+                                             : nullptr;
+        const frontend::Json* effect = returned && returned->contains("stateEffect") && returned->at("stateEffect").is_object()
+                                           ? &returned->at("stateEffect")
+                                           : nullptr;
+        const frontend::Json* truncation = effect && effect->contains("truncation") && effect->at("truncation").is_object()
+                                               ? &effect->at("truncation")
+                                               : nullptr;
+        const bool exactAbsence = returned && returned->value("threadId", std::string{}) == "provider-absent-thread" &&
+                                  !returned->contains("thread") && effect && effect->value("scope", std::string{}) == "thread" &&
+                                  effect->value("authority", std::string{}) == "absent" && truncation &&
+                                  !truncation->value("sourcePartial", true) &&
+                                  !truncation->value("responseTruncated", true) &&
+                                  truncation->value("responseOmittedTurns", std::uint64_t{1}) == 0 &&
+                                  truncation->value("responseOmittedItems", std::uint64_t{1}) == 0;
+        result.expectTrue(providerReady && authenticated && fence.isOpen() && preservedObserverCallbacks != 0 && negotiatedAccepted &&
+                              completionDrainedAheadOfObserver && absenceDeferred && exactAbsence &&
+                              service.currentSequence() == frontend::SequenceNumber{beforeFence.value() + 1} &&
+                              countEvents(observations, "thread.upserted") == 0 &&
+                              countEvents(observations, "thread.removed") == 0 && connection.isOpen() &&
+                              observations.closes.empty(),
+                          "an authoritative provider NotFound crosses its exact observer fence as one requester-local absent effect");
+
+        observations.messages.clear();
+        const frontend::SequenceNumber beforeLegacyRead = service.currentSequence();
+        const bool legacyAccepted =
+            connection
+                .receive(frontend::ClientMessage{frontend::Command{"thread-read-provider-absence-legacy",
+                                                                   frontend::ThreadRead{"provider-absent-thread", true},
+                                                                   frontend::Json::object(),
+                                                                   frontend::Json::object()}})
+                .accepted();
+        scheduler.drain();
+        const frontend::Response* legacy = response(observations, "thread-read-provider-absence-legacy");
+        result.expectTrue(legacyAccepted && legacy && !legacy->ok && legacy->error &&
+                              legacy->error->code == frontend::ErrorCode::NotFound && !legacy->result &&
+                              service.currentSequence() == beforeLegacyRead && countEvents(observations, "thread.upserted") == 0 &&
+                              countEvents(observations, "thread.removed") == 0 && connection.isOpen() &&
+                              observations.closes.empty(),
+                          "a legacy full read retains the authoritative provider NotFound as a command failure");
+
+        observations.messages.clear();
+        const bool genericAccepted =
+            connection
+                .receive(frontend::ClientMessage{frontend::Command{
+                    "thread-read-provider-generic-error",
+                    frontend::ThreadRead{"provider-generic-error", true},
+                    frontend::Json{{"threadReadStateEffectVersion", 1}},
+                    frontend::Json::object()}})
+                .accepted();
+        scheduler.drain();
+        const frontend::Response* generic = response(observations, "thread-read-provider-generic-error");
+        result.expectTrue(genericAccepted && generic && !generic->ok && generic->error &&
+                              generic->error->code == frontend::ErrorCode::RemoteAppServerError && !generic->result &&
+                              countEvents(observations, "thread.removed") == 0 && connection.isOpen() &&
+                              observations.closes.empty(),
+                          "a generic provider rejection cannot masquerade as an authoritative absent state effect");
+
+        observations.messages.clear();
+        const bool unverifiedAccepted =
+            connection
+                .receive(frontend::ClientMessage{frontend::Command{
+                    "thread-read-provider-unverified-not-found",
+                    frontend::ThreadRead{"provider-unverified-not-found", true},
+                    frontend::Json{{"threadReadStateEffectVersion", 1}},
+                    frontend::Json::object()}})
+                .accepted();
+        scheduler.drain();
+        const frontend::Response* unverified = response(observations, "thread-read-provider-unverified-not-found");
+        result.expectTrue(unverifiedAccepted && unverified && !unverified->ok && unverified->error &&
+                              unverified->error->code == frontend::ErrorCode::RemoteAppServerError && !unverified->result &&
+                              countEvents(observations, "thread.removed") == 0 && connection.isOpen() &&
+                              observations.closes.empty(),
+                          "an unverified provider error spelling cannot masquerade as an authoritative absent state effect");
+
+        connection.close("thread-read provider-absence probe complete");
+        fence.close("thread-read provider-absence fence complete");
+        service.close("thread-read provider-absence probe complete");
+        scheduler.drain();
+    }
+
+    void testThreadReadResynchronizationSupersedesStateEffect(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(
+            transport,
+            [](const frontend::Json& message, const tests::codex::TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method != message.end() && method->is_string() && *method == "thread/read" && id != message.end()) {
+                    const std::string threadId =
+                        message.value("params", frontend::Json::object()).value("threadId", "resync-thread");
+                    tests::codex::inject(
+                        callbacks,
+                        frontend::Json{{"id", *id},
+                                       {"result", tests::codex::threadOperationResult(threadId, frontend::Json::array())}});
+                }
+            });
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.maxObserverQueueEntries = 0;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "thread-read-resync-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+        Observations observations;
+        frontend::FrontendConnection connection =
+            service.openConnection(remotePeer("127.0.0.1:41036"), callbacksFor(observations, &service));
+        frontend::Hello negotiated = hello("thread-read-resync-token");
+        const bool authenticated = connection.receive(frontend::ClientMessage{std::move(negotiated)}).accepted();
+        scheduler.drain();
+        observations.messages.clear();
+
+        // Leave one canonical observer update pending while the full read is
+        // captured. With a zero-entry observer queue this forces the bridge to
+        // rebase, exercising supersession of the requester-local sidecar
+        // rather than relying on thread.read itself to publish global state.
+        backend::FrontendSession external = core.openSession({});
+        const std::size_t preservedObserverCallbacks = scheduler.pending();
+        frontend::Command read{"thread-read-resync",
+                               frontend::ThreadRead{"resync-thread", true},
+                               frontend::Json{{"threadReadStateEffectVersion", 1}},
+                               frontend::Json::object()};
+        const bool accepted = connection.receive(frontend::ClientMessage{std::move(read)}).accepted();
+        bool completionDrainedAheadOfObserver = false;
+        std::size_t completionCallbacks = 0;
+        while (scheduler.runLastAfter(preservedObserverCallbacks)) {
+            completionDrainedAheadOfObserver = true;
+            if (++completionCallbacks > 10'000) {
+                throw std::runtime_error("thread-read resynchronization completion did not quiesce behind its observer fence");
+            }
+        }
+        const bool completionDeferred = response(observations, "thread-read-resync") == nullptr;
+        scheduler.drain();
+        const frontend::Response* completed = response(observations, "thread-read-resync");
+        const auto snapshot = std::find_if(observations.messages.begin(), observations.messages.end(), [](const auto& message) {
+            return std::holds_alternative<frontend::Snapshot>(message);
+        });
+        const auto terminal = std::find_if(observations.messages.begin(), observations.messages.end(), [](const auto& message) {
+            const auto* value = std::get_if<frontend::Response>(&message);
+            return value && value->requestId == "thread-read-resync";
+        });
+        result.expectTrue(providerReady && authenticated && external.isOpen() && preservedObserverCallbacks != 0 && accepted &&
+                              completionDrainedAheadOfObserver && completionDeferred && snapshot != observations.messages.end() &&
+                              terminal != observations.messages.end() && snapshot < terminal && completed && !completed->ok &&
+                              completed->error && completed->error->code == frontend::ErrorCode::CapacityExceeded &&
+                              observations.closes.empty(),
+                          "a projection resynchronization supersedes an older captured thread body with Snapshot then command failure");
+
+        connection.close("thread-read resynchronization probe complete");
+        external.close("thread-read resynchronization external session complete");
+        service.close("thread-read resynchronization probe complete");
+        scheduler.drain();
+    }
+
+    void testThreadReadStateEffectIsRequesterLocal(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(
+            transport,
+            [](const frontend::Json& message, const tests::codex::TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method != message.end() && method->is_string() && *method == "thread/read" && id != message.end()) {
+                    const std::string threadId =
+                        message.value("params", frontend::Json::object()).value("threadId", "legacy-resync-thread");
+                    frontend::Json items = frontend::Json::array(
+                        {frontend::Json{{"type", "agentMessage"},
+                                        {"id", "requester-local-item"},
+                                        {"text", "requester-local body"}}});
+                    frontend::Json turns = frontend::Json::array(
+                        {tests::codex::turnValue(threadId, "requester-local-turn", "completed", std::move(items))});
+                    tests::codex::inject(
+                        callbacks,
+                        frontend::Json{{"id", *id},
+                                       {"result", tests::codex::threadOperationResult(threadId, std::move(turns))}});
+                }
+            });
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.maxObserverQueueEntries = 0;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "requester-local-thread-read-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+        Observations requester;
+        Observations peer;
+        frontend::FrontendConnection requesterConnection =
+            service.openConnection(remotePeer("127.0.0.1:41037"), callbacksFor(requester, &service));
+        frontend::FrontendConnection peerConnection =
+            service.openConnection(remotePeer("127.0.0.1:41038"), callbacksFor(peer, &service));
+        frontend::Hello requesterHello = hello("requester-local-thread-read-token");
+        const bool requesterAuthenticated =
+            requesterConnection.receive(frontend::ClientMessage{std::move(requesterHello)}).accepted();
+        scheduler.drain();
+        const bool peerAuthenticated =
+            peerConnection.receive(frontend::ClientMessage{hello("requester-local-thread-read-token")}).accepted();
+        scheduler.drain();
+        requester.messages.clear();
+        peer.messages.clear();
+        const frontend::SequenceNumber sequenceBeforeRead = service.currentSequence();
+
+        const bool accepted = requesterConnection
+                                  .receive(frontend::ClientMessage{frontend::Command{
+                                      "requester-local-thread-read",
+                                      frontend::ThreadRead{"legacy-resync-thread", true},
+                                      frontend::Json{{"threadReadStateEffectVersion", 1}},
+                                      frontend::Json::object()}})
+                                  .accepted();
+        scheduler.drain();
+        const frontend::Response* completed = response(requester, "requester-local-thread-read");
+        const bool requesterSawSnapshot =
+            std::any_of(requester.messages.begin(), requester.messages.end(), [](const frontend::ServerMessage& message) {
+                return std::holds_alternative<frontend::Snapshot>(message);
+            });
+        const bool peerSawSnapshot = std::any_of(peer.messages.begin(), peer.messages.end(), [](const frontend::ServerMessage& message) {
+            return std::holds_alternative<frontend::Snapshot>(message);
+        });
+        const bool privateReplacement = completed && completed->ok && completed->result && completed->result->is_object() &&
+                                        completed->result->contains("thread") && completed->result->at("thread").is_object() &&
+                                        completed->result->contains("stateEffect") &&
+                                        completed->result->at("stateEffect").is_object() &&
+                                        completed->result->at("thread").value("id", std::string{}) == "legacy-resync-thread" &&
+                                        completed->result->at("thread").value("fullyLoaded", false) &&
+                                        completed->result->at("thread").at("turns").size() == 1 &&
+                                        completed->result->at("thread").at("turns").front().at("items").size() == 1 &&
+                                        completed->result->at("thread").at("turns").front().at("items").front().value(
+                                            "id", std::string{}) == "requester-local-item" &&
+                                        completed->result->at("stateEffect").value("authority", std::string{}) == "replace";
+        const backend::Snapshot global = core.snapshot();
+        const bool globallyAbsent = std::none_of(global.threads.begin(), global.threads.end(), [](const backend::ThreadSnapshot& thread) {
+            return thread.id == "legacy-resync-thread";
+        });
+        result.expectTrue(providerReady && requesterAuthenticated && peerAuthenticated && accepted && privateReplacement &&
+                              !requesterSawSnapshot && !peerSawSnapshot && peer.messages.empty() && globallyAbsent &&
+                              service.currentSequence() == sequenceBeforeRead &&
+                              countEvents(requester, "thread.upserted") == 0 &&
+                              response(peer, "requester-local-thread-read") == nullptr && requester.closes.empty() && peer.closes.empty(),
+                          "a full thread.read returns one requester-local replacement without a global event, cursor advance, snapshot, "
+                          "or peer-visible payload");
+
+        requesterConnection.close("requester-local thread-read probe complete");
+        peerConnection.close("requester-local thread-read peer complete");
+        service.close("requester-local thread-read probe complete");
+        scheduler.drain();
+    }
+
+    void testThreadReadObserverOvertakeIsOrderedBeforeStateEffect(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(
+            transport,
+            [](const frontend::Json& message, const tests::codex::TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method == message.end() || !method->is_string() || *method != "thread/read" || id == message.end()) {
+                    return;
+                }
+                const std::string threadId =
+                    message.value("params", frontend::Json::object()).value("threadId", "observer-overtake-thread");
+                frontend::Json items = frontend::Json::array(
+                    {frontend::Json{{"type", "agentMessage"}, {"id", threadId + "-item"}, {"text", "captured body"}}});
+                frontend::Json turns = frontend::Json::array(
+                    {tests::codex::turnValue(threadId, threadId + "-turn", "completed", std::move(items))});
+                tests::codex::inject(
+                    callbacks,
+                    frontend::Json{{"id", *id}, {"result", tests::codex::threadOperationResult(threadId, std::move(turns))}});
+            });
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "thread-read-observer-overtake-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+        Observations observations;
+        frontend::FrontendConnection connection =
+            service.openConnection(remotePeer("127.0.0.1:41043"), callbacksFor(observations, &service));
+        frontend::Hello negotiated = hello("thread-read-observer-overtake-token");
+        const bool authenticated = connection.receive(frontend::ClientMessage{std::move(negotiated)}).accepted();
+        scheduler.drain();
+        observations.messages.clear();
+
+        const frontend::SequenceNumber negotiatedBaseline = service.currentSequence();
+        const bool negotiatedAccepted =
+            connection
+                .receive(frontend::ClientMessage{frontend::Command{
+                    "observer-overtake-negotiated",
+                    frontend::ThreadRead{"observer-overtake-negotiated-thread", true},
+                    frontend::Json{{"threadReadStateEffectVersion", 1}},
+                    frontend::Json::object()}})
+                .accepted();
+        const std::size_t negotiatedCompletionCallbacks = scheduler.pending();
+        backend::FrontendSession negotiatedSuffix = core.openSession({});
+        const bool negotiatedObserverOvertook = scheduler.runLastAfter(negotiatedCompletionCallbacks);
+        scheduler.drain();
+        const frontend::Response* negotiatedResponse = response(observations, "observer-overtake-negotiated");
+        const auto overtakingEvent = std::find_if(observations.messages.begin(), observations.messages.end(), [](const auto& message) {
+            return std::holds_alternative<frontend::EventBatch>(message);
+        });
+        const auto negotiatedTerminal =
+            std::find_if(observations.messages.begin(), observations.messages.end(), [](const auto& message) {
+                const auto* value = std::get_if<frontend::Response>(&message);
+                return value && value->requestId == "observer-overtake-negotiated";
+            });
+        const bool negotiatedReplacement = negotiatedResponse && negotiatedResponse->ok && negotiatedResponse->result &&
+                                           negotiatedResponse->result->is_object() &&
+                                           negotiatedResponse->result->contains("stateEffect") &&
+                                           negotiatedResponse->result->at("stateEffect").is_object() &&
+                                           negotiatedResponse->result->at("stateEffect").value("authority", std::string{}) == "replace";
+        result.expectTrue(providerReady && authenticated && negotiatedAccepted && negotiatedCompletionCallbacks != 0 &&
+                              negotiatedSuffix.isOpen() && negotiatedObserverOvertook &&
+                              service.currentSequence().value() > negotiatedBaseline.value() && negotiatedReplacement &&
+                              overtakingEvent != observations.messages.end() && negotiatedTerminal != observations.messages.end() &&
+                              overtakingEvent < negotiatedTerminal && connection.isOpen() && observations.closes.empty(),
+                          "an ordinary observer suffix that overtakes a captured negotiated read is delivered before its requester-local "
+                          "state effect");
+
+        observations.messages.clear();
+        backend::FrontendSession legacyUnobservedPrefix = core.openSession({});
+        const std::size_t preservedLegacyObserverCallbacks = scheduler.pending();
+        const bool legacyAccepted =
+            connection
+                .receive(frontend::ClientMessage{frontend::Command{"observer-overtake-legacy",
+                                                                   frontend::ThreadRead{"observer-overtake-legacy-thread", true},
+                                                                   frontend::Json::object(),
+                                                                   frontend::Json::object()}})
+                .accepted();
+        bool legacyCompletionDrainedAheadOfObserver = false;
+        while (scheduler.runLastAfter(preservedLegacyObserverCallbacks)) {
+            legacyCompletionDrainedAheadOfObserver = true;
+        }
+        const frontend::Response* legacyResponse = response(observations, "observer-overtake-legacy");
+        const bool legacyRawResult = legacyResponse && legacyResponse->ok && legacyResponse->result &&
+                                     legacyResponse->result->is_object() && legacyResponse->result->contains("thread") &&
+                                     !legacyResponse->result->contains("stateEffect") &&
+                                     legacyResponse->result->at("thread").value("id", std::string{}) ==
+                                         "observer-overtake-legacy-thread";
+        result.expectTrue(legacyUnobservedPrefix.isOpen() && preservedLegacyObserverCallbacks != 0 && legacyAccepted &&
+                              legacyCompletionDrainedAheadOfObserver && scheduler.pending() == preservedLegacyObserverCallbacks &&
+                              legacyRawResult && connection.isOpen() && observations.closes.empty(),
+                          "a legacy full read completes as requester-local raw result data without waiting for an observer fence");
+        scheduler.drain();
+
+        connection.close("thread-read observer-overtake probe complete");
+        negotiatedSuffix.close("thread-read negotiated suffix complete");
+        legacyUnobservedPrefix.close("thread-read legacy unobserved prefix complete");
+        service.close("thread-read observer-overtake probe complete");
+        scheduler.drain();
+    }
+
+    void testDeferredThreadReadCapacityIsBoundedAndReleased(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(
+            transport,
+            [](const frontend::Json& message, const tests::codex::TransportCallbacks& callbacks) {
+                const auto method = message.find("method");
+                const auto id = message.find("id");
+                if (method == message.end() || !method->is_string() || *method != "thread/read" || id == message.end()) {
+                    return;
+                }
+                const std::string threadId =
+                    message.value("params", frontend::Json::object()).value("threadId", "deferred-small");
+                frontend::Json turns = frontend::Json::array();
+                if (threadId == "deferred-large") {
+                    frontend::Json items = frontend::Json::array(
+                        {frontend::Json{{"type", "agentMessage"}, {"id", "deferred-large-item"}, {"text", std::string(160U * 1024U, 'x')}}});
+                    turns.push_back(tests::codex::turnValue(threadId, "deferred-large-turn", "completed", std::move(items)));
+                }
+                tests::codex::inject(
+                    callbacks,
+                    frontend::Json{{"id", *id}, {"result", tests::codex::threadOperationResult(threadId, std::move(turns))}});
+            });
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.maxOutboundMessageBytes =
+            frontend::DefaultFrontendServerMessageEnvelopeHeadroomBytes + 64U * 1024U;
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "deferred-thread-read-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+
+        const auto authenticate = [&](Observations& observations, std::string address, std::string token) {
+            frontend::FrontendConnection connection = service.openConnection(remotePeer(std::move(address)), callbacksFor(observations));
+            frontend::Hello negotiated = hello(std::move(token));
+            const bool accepted = connection.receive(frontend::ClientMessage{std::move(negotiated)}).accepted();
+            scheduler.drain();
+            observations.messages.clear();
+            result.expectTrue(accepted && connection.isOpen(), "the deferred thread-read capacity probe authenticates an open session");
+            return connection;
+        };
+        const auto read = [](std::string requestId, std::string threadId) {
+            return frontend::ClientMessage{frontend::Command{std::move(requestId),
+                                                             frontend::ThreadRead{std::move(threadId), true},
+                                                             frontend::Json{{"threadReadStateEffectVersion", 1}},
+                                                             frontend::Json::object()}};
+        };
+        const auto responseCounts = [](const Observations& observations, std::string_view prefix) {
+            std::pair<std::size_t, std::size_t> counts;
+            for (const frontend::ServerMessage& message : observations.messages) {
+                const auto* value = std::get_if<frontend::Response>(&message);
+                if (!value || !value->requestId.starts_with(prefix)) {
+                    continue;
+                }
+                ++counts.first;
+                counts.second += !value->ok && value->error && value->error->code == frontend::ErrorCode::CapacityExceeded ? 1U : 0U;
+            }
+            return counts;
+        };
+        const auto drainAfterFence = [&scheduler](std::size_t preserved) {
+            std::size_t callbacks = 0;
+            while (scheduler.runLastAfter(preserved)) {
+                if (++callbacks > 10'000) {
+                    throw std::runtime_error("deferred thread-read capacity probe did not quiesce behind its fence");
+                }
+            }
+        };
+
+        Observations first;
+        frontend::FrontendConnection firstConnection =
+            authenticate(first, "127.0.0.1:41041", "deferred-thread-read-token-1");
+        backend::FrontendSession firstFence = core.openSession({});
+        const std::size_t firstFenceCallbacks = scheduler.pending();
+        bool firstCommandsAccepted = providerReady && firstFence.isOpen() && firstFenceCallbacks != 0;
+        for (std::size_t index = 0; index < 9; ++index) {
+            firstCommandsAccepted = firstCommandsAccepted &&
+                                    firstConnection
+                                        .receive(read("deferred-count-" + std::to_string(index),
+                                                      "deferred-small-" + std::to_string(index)))
+                                        .accepted();
+        }
+        firstCommandsAccepted = firstCommandsAccepted &&
+                                firstConnection.receive(read("deferred-byte-large", "deferred-large")).accepted();
+        drainAfterFence(firstFenceCallbacks);
+        const auto beforeFence = responseCounts(first, "deferred-");
+        result.expectTrue(firstCommandsAccepted && beforeFence == std::pair<std::size_t, std::size_t>{2, 2} &&
+                              firstConnection.isOpen() && first.closes.empty(),
+                          "deferred sidecar count and byte overflow reject only their two commands with capacity_exceeded while the "
+                          "session remains open");
+        scheduler.drain();
+        const auto afterFence = responseCounts(first, "deferred-");
+        result.expectTrue(afterFence == std::pair<std::size_t, std::size_t>{10, 2} && firstConnection.isOpen() && first.closes.empty(),
+                          "advancing the observer fence drains the eight retained sidecars and releases their count and byte budget");
+
+        first.messages.clear();
+        backend::FrontendSession closeFence = core.openSession({});
+        const std::size_t closeFenceCallbacks = scheduler.pending();
+        bool closeCycleAccepted = closeFence.isOpen() && closeFenceCallbacks != 0;
+        for (std::size_t index = 0; index < 8; ++index) {
+            closeCycleAccepted = closeCycleAccepted &&
+                                 firstConnection
+                                     .receive(read("deferred-close-" + std::to_string(index),
+                                                   "deferred-close-thread-" + std::to_string(index)))
+                                     .accepted();
+        }
+        drainAfterFence(closeFenceCallbacks);
+        const auto beforeClose = responseCounts(first, "deferred-close-");
+        result.expectTrue(closeCycleAccepted && beforeClose.first == 0 && firstConnection.isOpen(),
+                          "a second full deferred quota is available after the first fence drain");
+        firstConnection.close("deferred thread-read close-release probe");
+        scheduler.drain();
+
+        Observations second;
+        frontend::FrontendConnection secondConnection =
+            authenticate(second, "127.0.0.1:41042", "deferred-thread-read-token-2");
+        backend::FrontendSession secondFence = core.openSession({});
+        const std::size_t secondFenceCallbacks = scheduler.pending();
+        bool secondCommandsAccepted = secondFence.isOpen() && secondFenceCallbacks != 0;
+        for (std::size_t index = 0; index < 8; ++index) {
+            secondCommandsAccepted = secondCommandsAccepted &&
+                                     secondConnection
+                                         .receive(read("deferred-reuse-" + std::to_string(index),
+                                                       "deferred-reuse-thread-" + std::to_string(index)))
+                                         .accepted();
+        }
+        drainAfterFence(secondFenceCallbacks);
+        const auto beforeSecondFence = responseCounts(second, "deferred-reuse-");
+        result.expectTrue(secondCommandsAccepted && beforeSecondFence.first == 0 && secondConnection.isOpen() && second.closes.empty(),
+                          "closing a session with eight deferred sidecars releases the shared bridge accounting for the next session");
+        scheduler.drain();
+        const auto afterSecondFence = responseCounts(second, "deferred-reuse-");
+        result.expectTrue(afterSecondFence == std::pair<std::size_t, std::size_t>{8, 0} && secondConnection.isOpen() &&
+                              second.closes.empty(),
+                          "the replacement session drains its complete reused quota without a stale capacity rejection");
+
+        secondConnection.close("deferred thread-read capacity probe complete");
+        firstFence.close("deferred thread-read first fence complete");
+        closeFence.close("deferred thread-read close fence complete");
+        secondFence.close("deferred thread-read second fence complete");
+        service.close("deferred thread-read capacity probe complete");
+        scheduler.drain();
+    }
+
     void testInlineBackendObserverAdmission(tests::support::TestResult& result) {
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();
         backend::BackendCoreOptions backendOptions;
@@ -1159,6 +1986,13 @@ int main() {
     testControllerCompletionAuthority(result);
     testContentEventCoalescing(result);
     testItemContentSnapshotSequenceClassification(result);
+    testBoundedThreadReadRetainsNewestItemSuffix(result);
+    testThreadReadRetentionOmissionIsNotAbsence(result);
+    testThreadReadProviderNotFoundIsRequesterLocalAbsence(result);
+    testThreadReadResynchronizationSupersedesStateEffect(result);
+    testThreadReadStateEffectIsRequesterLocal(result);
+    testThreadReadObserverOvertakeIsOrderedBeforeStateEffect(result);
+    testDeferredThreadReadCapacityIsBoundedAndReleased(result);
     testInlineBackendObserverAdmission(result);
     testInlineObserverResynchronizationAdmission(result);
     testControllerCompletionWaitsForObserverFence(result);

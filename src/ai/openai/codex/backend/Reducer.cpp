@@ -1599,10 +1599,10 @@ namespace ai::openai::codex::backend {
                 iterator->second.stamp = currentStamp(state);
             }
 
-            for (const typed::Turn& turn : value.turns) {
-                upsertTurn(state, turn, contentLimit, insertions);
-            }
             if (load == EntityLoad::Full) {
+                for (const typed::Turn& turn : value.turns) {
+                    upsertTurn(state, turn, contentLimit, insertions);
+                }
                 ThreadState& retainedThread = state.threads.at(value.id.value);
                 std::set<std::string> authoritativeTurnIds;
                 std::vector<typed::TurnId> authoritativeTurnOrder;
@@ -1891,6 +1891,7 @@ namespace ai::openai::codex::backend {
                             accountTurnRemoval(state.capacity, turn->second, true);
                             const std::string id = turnId.value;
                             eraseTurn(state, thread->second, id);
+                            thread->second.fullyLoaded = false;
                             canonicalStateRewritten = true;
                             evicted = true;
                             break;
@@ -1911,6 +1912,7 @@ namespace ai::openai::codex::backend {
                         if (turn != thread->second.turns.end()) {
                             accountTurnRemoval(state.capacity, turn->second, false);
                             eraseTurn(state, thread->second, turnId);
+                            thread->second.fullyLoaded = false;
                             canonicalStateRewritten = true;
                             evicted = true;
                         }
@@ -1943,6 +1945,7 @@ namespace ai::openai::codex::backend {
                                 !referenced.items.contains(ItemKey{threadId.value, turnId.value, itemIdValue.value})) {
                                 const std::string id = itemIdValue.value;
                                 eraseItem(state, turn->second, id);
+                                thread->second.fullyLoaded = false;
                                 saturatingAdd(state.capacity.evictedItems);
                                 canonicalStateRewritten = true;
                                 evicted = true;
@@ -1967,6 +1970,7 @@ namespace ai::openai::codex::backend {
                         auto turn = thread->second.turns.find(turnId);
                         if (turn != thread->second.turns.end() && turn->second.items.contains(itemIdValue)) {
                             eraseItem(state, turn->second, itemIdValue);
+                            thread->second.fullyLoaded = false;
                             saturatingAdd(state.capacity.snapshotOmissions);
                             canonicalStateRewritten = true;
                             evicted = true;

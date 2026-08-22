@@ -16,6 +16,7 @@
 #include <exception>
 #include <iterator>
 #include <limits>
+#include <tuple>
 #include <type_traits>
 
 namespace ai::openai::codex::frontend::internal::model {
@@ -318,17 +319,47 @@ namespace ai::openai::codex::frontend::internal::model {
                         const ItemData& data = itemData(candidate);
                         return data.turnId == std::optional<TurnIdentity>{turn.id} && data.threadId.has_value() &&
                                data.threadId != std::optional<ThreadIdentity>{turn.threadId};
+                    }) &&
+                    std::none_of(update.legacyItems.begin(), update.legacyItems.end(), [&](const LegacyItemCompatibility& candidate) {
+                        const ItemData& data = candidate.value;
+                        return data.turnId == std::optional<TurnIdentity>{turn.id} && data.threadId.has_value() &&
+                               data.threadId != std::optional<ThreadIdentity>{turn.threadId};
                     });
-                TurnUpsertedOccurrence turnUpdate{turn};
+                struct OrderedItem {
+                    std::size_t sourceIndex;
+                    std::size_t stableIndex;
+                    Json encoded;
+                };
+                std::vector<OrderedItem> orderedItems;
+                orderedItems.reserve(update.items.size() + update.legacyItems.size());
+                std::size_t stableIndex = 0;
                 for (const ThreadItem& item : update.items) {
                     const ItemData& data = itemData(item);
                     if (data.turnId == std::optional<TurnIdentity>{turn.id} &&
                         (data.threadId == std::optional<ThreadIdentity>{turn.threadId} ||
                          (!data.threadId.has_value() && unscopedItemsBelongToTurn))) {
-                        turnUpdate.items.push_back(item);
+                        orderedItems.push_back({data.sourceIndex.value_or(stableIndex), stableIndex, legacyItem(item)});
                     }
+                    ++stableIndex;
                 }
-                encoded["turns"].push_back(legacyTurn(turnUpdate));
+                for (const LegacyItemCompatibility& item : update.legacyItems) {
+                    const ItemData& data = item.value;
+                    if (data.turnId == std::optional<TurnIdentity>{turn.id} &&
+                        (data.threadId == std::optional<ThreadIdentity>{turn.threadId} ||
+                         (!data.threadId.has_value() && unscopedItemsBelongToTurn))) {
+                        orderedItems.push_back({item.sourceIndex, stableIndex, legacyItem(item)});
+                    }
+                    ++stableIndex;
+                }
+                std::stable_sort(orderedItems.begin(), orderedItems.end(), [](const OrderedItem& left, const OrderedItem& right) {
+                    return std::tie(left.sourceIndex, left.stableIndex) < std::tie(right.sourceIndex, right.stableIndex);
+                });
+                Json encodedTurn = legacyTurn(turn);
+                encodedTurn["items"] = Json::array();
+                for (OrderedItem& item : orderedItems) {
+                    encodedTurn["items"].push_back(std::move(item.encoded));
+                }
+                encoded["turns"].push_back(std::move(encodedTurn));
             }
             return encoded;
         }
@@ -578,6 +609,11 @@ namespace ai::openai::codex::frontend::internal::model {
                             fail(OccurrenceErrorCode::EncodingFailure,
                                  path + "/replaceDescendants",
                                  "legacy descendant replacement has no lossless expanded-v1 encoding");
+                        }
+                        if (update.applyIncomingCompleteness) {
+                            fail(OccurrenceErrorCode::EncodingFailure,
+                                 path + "/applyIncomingCompleteness",
+                                 "command-local completeness authority has no lossless expanded-v1 encoding");
                         }
                     } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
                         if (update.replaceItems) {
@@ -1092,7 +1128,8 @@ namespace ai::openai::codex::frontend::internal::model {
                                           std::span<const ThreadItem> replacementItems,
                                           std::span<const LegacyItemCompatibility> retainedLegacyItems,
                                           const ThreadIdentity& threadId,
-                                          const TurnIdentity& turnId) noexcept {
+                                          const TurnIdentity& turnId,
+                                          std::span<const LegacyItemCompatibility> replacementLegacyItems = {}) noexcept {
             bool belongsToThread = false;
             const auto inspect = [&](std::span<const TurnState> turns) {
                 for (const TurnState& turn : turns) {
@@ -1118,7 +1155,14 @@ namespace ai::openai::codex::frontend::internal::model {
                     const ItemData& data = item.value;
                     return data.turnId == std::optional<TurnIdentity>{turnId} && data.threadId.has_value() &&
                            data.threadId != std::optional<ThreadIdentity>{threadId};
-                });
+                }) &&
+                std::none_of(replacementLegacyItems.begin(),
+                             replacementLegacyItems.end(),
+                             [&](const LegacyItemCompatibility& item) {
+                                 const ItemData& data = item.value;
+                                 return data.turnId == std::optional<TurnIdentity>{turnId} && data.threadId.has_value() &&
+                                        data.threadId != std::optional<ThreadIdentity>{threadId};
+                             });
             return inspect(retained) && inspect(replacements) && inspectItems(retainedItems) &&
                    inspectItems(replacementItems) && legacyItemsAgree && belongsToThread;
         }
@@ -1236,8 +1280,44 @@ namespace ai::openai::codex::frontend::internal::model {
             normalizePendingRequestSourceOrder(snapshot);
         }
 
+        void upsertOrderedItems(CanonicalSnapshot& snapshot,
+                                std::vector<ThreadItem> replacements,
+                                std::vector<LegacyItemCompatibility> legacyReplacements) {
+            struct IncomingItem {
+                std::size_t sourceIndex;
+                std::size_t stableIndex;
+                bool legacy;
+                std::size_t valueIndex;
+            };
+            std::vector<IncomingItem> incoming;
+            incoming.reserve(replacements.size() + legacyReplacements.size());
+            std::size_t stableIndex = 0;
+            for (std::size_t index = 0; index < replacements.size(); ++index) {
+                incoming.push_back(
+                    {itemData(replacements[index]).sourceIndex.value_or(stableIndex), stableIndex, false, index});
+                ++stableIndex;
+            }
+            for (std::size_t index = 0; index < legacyReplacements.size(); ++index) {
+                incoming.push_back({legacyReplacements[index].sourceIndex, stableIndex, true, index});
+                ++stableIndex;
+            }
+            std::stable_sort(incoming.begin(), incoming.end(), [](const IncomingItem& left, const IncomingItem& right) {
+                return std::tie(left.sourceIndex, left.stableIndex) < std::tie(right.sourceIndex, right.stableIndex);
+            });
+            for (const IncomingItem& item : incoming) {
+                if (item.legacy) {
+                    upsertLegacyItem(snapshot, std::move(legacyReplacements[item.valueIndex]));
+                } else {
+                    upsertItem(snapshot, std::move(replacements[item.valueIndex]));
+                }
+            }
+        }
+
         template <typename Affected>
-        void replaceOrderedItems(CanonicalSnapshot& snapshot, std::vector<ThreadItem> replacements, Affected&& affected) {
+        void replaceOrderedItems(CanonicalSnapshot& snapshot,
+                                 std::vector<ThreadItem>&& replacements,
+                                 std::vector<LegacyItemCompatibility>&& legacyReplacements,
+                                 Affected&& affected) {
             normalizeItemSourceOrder(snapshot);
             std::size_t insertionIndex = snapshot.items.size() + snapshot.legacyItems.size();
             for (const ThreadItem& item : snapshot.items) {
@@ -1259,23 +1339,87 @@ namespace ai::openai::codex::frontend::internal::model {
             });
             normalizeItemSourceOrder(snapshot);
             insertionIndex = std::min(insertionIndex, snapshot.items.size() + snapshot.legacyItems.size());
+            const std::size_t replacementCount = replacements.size() + legacyReplacements.size();
             for (ThreadItem& item : snapshot.items) {
                 ItemData& value = mutableItemData(item);
                 if (*value.sourceIndex >= insertionIndex) {
-                    *value.sourceIndex += replacements.size();
+                    *value.sourceIndex += replacementCount;
                 }
             }
             for (LegacyItemCompatibility& item : snapshot.legacyItems) {
                 if (item.sourceIndex >= insertionIndex) {
-                    item.sourceIndex += replacements.size();
+                    item.sourceIndex += replacementCount;
                     item.value.sourceIndex = item.sourceIndex;
                 }
             }
+
+            struct IncomingItem {
+                std::size_t sourceIndex;
+                std::size_t stableIndex;
+                bool legacy;
+                std::size_t valueIndex;
+            };
+            std::vector<IncomingItem> incoming;
+            incoming.reserve(replacementCount);
+            std::size_t stableIndex = 0;
             for (std::size_t index = 0; index < replacements.size(); ++index) {
-                mutableItemData(replacements[index]).sourceIndex = insertionIndex + index;
-                snapshot.items.push_back(std::move(replacements[index]));
+                incoming.push_back(
+                    {itemData(replacements[index]).sourceIndex.value_or(stableIndex), stableIndex, false, index});
+                ++stableIndex;
+            }
+            for (std::size_t index = 0; index < legacyReplacements.size(); ++index) {
+                incoming.push_back({legacyReplacements[index].sourceIndex, stableIndex, true, index});
+                ++stableIndex;
+            }
+            std::stable_sort(incoming.begin(), incoming.end(), [](const IncomingItem& left, const IncomingItem& right) {
+                return std::tie(left.sourceIndex, left.stableIndex) < std::tie(right.sourceIndex, right.stableIndex);
+            });
+            for (std::size_t index = 0; index < incoming.size(); ++index) {
+                const IncomingItem& item = incoming[index];
+                const std::size_t sourceIndex = insertionIndex + index;
+                if (item.legacy) {
+                    LegacyItemCompatibility replacement = std::move(legacyReplacements[item.valueIndex]);
+                    replacement.sourceIndex = sourceIndex;
+                    replacement.value.sourceIndex = sourceIndex;
+                    snapshot.legacyItems.push_back(std::move(replacement));
+                } else {
+                    mutableItemData(replacements[item.valueIndex]).sourceIndex = sourceIndex;
+                    snapshot.items.push_back(std::move(replacements[item.valueIndex]));
+                }
             }
             normalizeItemSourceOrder(snapshot);
+        }
+
+        template <typename Affected>
+        void replaceOrderedItems(CanonicalSnapshot& snapshot,
+                                 const std::vector<ThreadItem>& replacements,
+                                 const std::vector<LegacyItemCompatibility>& legacyReplacements,
+                                 Affected&& affected) {
+            std::vector<ThreadItem> copiedReplacements = replacements;
+            std::vector<LegacyItemCompatibility> copiedLegacyReplacements = legacyReplacements;
+            replaceOrderedItems(snapshot,
+                                std::move(copiedReplacements),
+                                std::move(copiedLegacyReplacements),
+                                std::forward<Affected>(affected));
+        }
+
+        template <typename Affected>
+        void replaceOrderedItems(CanonicalSnapshot& snapshot, std::vector<ThreadItem>&& replacements, Affected&& affected) {
+            replaceOrderedItems(snapshot,
+                                std::move(replacements),
+                                std::vector<LegacyItemCompatibility>{},
+                                std::forward<Affected>(affected));
+        }
+
+        template <typename Affected>
+        void replaceOrderedItems(CanonicalSnapshot& snapshot,
+                                 const std::vector<ThreadItem>& replacements,
+                                 Affected&& affected) {
+            std::vector<ThreadItem> copiedReplacements = replacements;
+            replaceOrderedItems(snapshot,
+                                std::move(copiedReplacements),
+                                std::vector<LegacyItemCompatibility>{},
+                                std::forward<Affected>(affected));
         }
 
         template <typename Value, typename Affected>
@@ -1387,8 +1531,12 @@ namespace ai::openai::codex::frontend::internal::model {
         return legacyPayload;
     }
 
-    const std::vector<OccurrencePayload>& CanonicalOccurrence::expandedPayloads() const noexcept {
+    const std::vector<OccurrencePayload>& CanonicalOccurrence::expandedPayloads() const& noexcept {
         return occurrencePayloads;
+    }
+
+    std::vector<OccurrencePayload>&& CanonicalOccurrence::expandedPayloads() && noexcept {
+        return std::move(occurrencePayloads);
     }
 
     bool validateOccurrenceGroup(std::span<const OccurrencePayload> expanded, OccurrenceError* error) noexcept {
@@ -2162,6 +2310,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     ThreadUpsertedOccurrence update{std::move(decoded.threads.front())};
                     update.turns = std::move(decoded.turns);
                     update.items = std::move(decoded.items).releaseVector();
+                    update.legacyItems = std::move(decoded.legacyItems);
                     update.replaceDescendants = true;
                     return update;
                 }
@@ -2330,527 +2479,631 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
-    ModelResult<bool> applyOccurrence(CanonicalSnapshot& reduced, const CanonicalOccurrence& occurrence) noexcept {
-        try {
-            OccurrenceError validation;
-            if ((occurrence.expandedPayloads().empty() &&
-                 !validateLegacyCompatibility(occurrence.legacyCompatibility(), occurrence.expandedPayloads(), &validation)) ||
-                (!occurrence.expandedPayloads().empty() && !validateOccurrenceGroup(occurrence.expandedPayloads(), &validation))) {
-                return occurrenceModelError(validation);
+    namespace {
+        OccurrenceResult<ThreadUpsertedOccurrence>
+        threadReadStateEffectOccurrence(ModelResult<CanonicalSnapshot> decodedResult) noexcept {
+            try {
+                if (!decodedResult) {
+                    return OccurrenceError{OccurrenceErrorCode::InvalidPayload,
+                                           decodedResult.error().path,
+                                           decodedResult.error().message};
+                }
+                CanonicalSnapshot decoded = std::move(decodedResult).value();
+                if (decoded.threads.size() != 1) {
+                    return OccurrenceError{OccurrenceErrorCode::InvalidPayload,
+                                           "/thread",
+                                           "thread-read result did not decode to one canonical thread"};
+                }
+                ThreadUpsertedOccurrence update{std::move(decoded.threads.front())};
+                update.turns = std::move(decoded.turns);
+                update.items = std::move(decoded.items).releaseVector();
+                update.legacyItems = std::move(decoded.legacyItems);
+                update.replaceDescendants = true;
+                return update;
+            } catch (const OccurrenceFailure& failure) {
+                return failure.error;
+            } catch (const std::exception& error) {
+                return OccurrenceError{OccurrenceErrorCode::InvalidPayload, "/thread", error.what()};
+            } catch (...) {
+                return OccurrenceError{OccurrenceErrorCode::InvalidPayload,
+                                       "/thread",
+                                       "thread-read result could not be decoded"};
             }
-            const auto upsert = []<typename Value, typename Identity>(std::vector<Value>& values, Value replacement, Identity&& identity) {
-                const auto found = std::find_if(values.begin(), values.end(), [&](const Value& value) {
-                    return identity(value);
-                });
-                if (found == values.end()) {
-                    values.push_back(std::move(replacement));
-                } else {
-                    *found = std::move(replacement);
+        }
+    } // namespace
+
+    OccurrenceResult<ThreadUpsertedOccurrence>
+    decodeThreadReadStateEffectThread(const Json& thread, FrontendSequence sequence) noexcept {
+        return threadReadStateEffectOccurrence(decodeNestedThreadState(thread, sequence));
+    }
+
+    OccurrenceResult<ThreadUpsertedOccurrence>
+    decodeValidatedThreadReadStateEffectThread(const Json& thread, FrontendSequence sequence) noexcept {
+        return threadReadStateEffectOccurrence(decodeValidatedNestedThreadState(thread, sequence));
+    }
+
+    namespace {
+        template <typename Payloads>
+        ModelResult<bool>
+        applyOccurrenceImpl(CanonicalSnapshot& reduced, const CanonicalOccurrence& occurrence, Payloads& expandedPayloads) noexcept {
+            try {
+                OccurrenceError validation;
+                if ((expandedPayloads.empty() &&
+                     !validateLegacyCompatibility(occurrence.legacyCompatibility(), expandedPayloads, &validation)) ||
+                    (!expandedPayloads.empty() && !validateOccurrenceGroup(expandedPayloads, &validation))) {
+                    return occurrenceModelError(validation);
                 }
-            };
-            const auto markSparseCollectionRepresented = [](DomainState& state) {
-                if (state.information == InformationState::Absent || state.information == InformationState::Omitted ||
-                    state.information == InformationState::NullValue) {
-                    state.information = InformationState::Present;
-                }
-            };
-            const auto markProjectionRootRepresented = [&reduced](std::string_view root) {
-                const auto eraseRoot = [root](std::vector<std::string>& paths) {
-                    std::erase_if(paths, [root](const std::string& path) {
-                        return path == root;
-                    });
+                const auto upsert =
+                    []<typename Value, typename Identity>(std::vector<Value>& values, Value replacement, Identity&& identity) {
+                        const auto found = std::find_if(values.begin(), values.end(), [&](const Value& value) {
+                            return identity(value);
+                        });
+                        if (found == values.end()) {
+                            values.push_back(std::move(replacement));
+                        } else {
+                            *found = std::move(replacement);
+                        }
+                    };
+                const auto markSparseCollectionRepresented = [](DomainState& state) {
+                    if (state.information == InformationState::Absent || state.information == InformationState::Omitted ||
+                        state.information == InformationState::NullValue) {
+                        state.information = InformationState::Present;
+                    }
                 };
-                eraseRoot(reduced.projection.omittedPaths);
-                eraseRoot(reduced.projection.absentPaths);
-                eraseRoot(reduced.projection.nullPaths);
-            };
-            if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::LegacyItem &&
-                occurrence.legacyCompatibility().legacyItem.has_value()) {
-                upsertLegacyItem(reduced, *occurrence.legacyCompatibility().legacyItem);
-            }
-            if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::LegacyPendingRequest &&
-                occurrence.legacyCompatibility().legacyPendingRequest.has_value()) {
-                upsertLegacyPendingRequest(reduced, *occurrence.legacyCompatibility().legacyPendingRequest);
-            }
-            for (const OccurrencePayload& payload : occurrence.expandedPayloads()) {
-                std::visit(
-                    [&](const auto& update) {
-                        using Update = std::decay_t<decltype(update)>;
-                        if constexpr (std::is_same_v<Update, ProviderUpdatedOccurrence>) {
-                            reduced.provider = update.provider;
-                        } else if constexpr (std::is_same_v<Update, ControllerUpdatedOccurrence>) {
-                            reduced.controller = update.controller;
-                        } else if constexpr (std::is_same_v<Update, SessionsUpdatedOccurrence>) {
-                            reduced.sessionsPresent = true;
-                            if (update.completeProjection) {
-                                reduced.sessions = update.sessions;
-                            } else if (update.changedSession.has_value()) {
-                                std::erase_if(reduced.sessions, [&](const SessionState& value) {
-                                    return value.id == update.changedSession->id;
-                                });
-                                if (update.connected.value_or(true)) {
-                                    reduced.sessions.push_back(*update.changedSession);
+                const auto markProjectionRootRepresented = [&reduced](std::string_view root) {
+                    const auto eraseRoot = [root](std::vector<std::string>& paths) {
+                        std::erase_if(paths, [root](const std::string& path) {
+                            return path == root;
+                        });
+                    };
+                    eraseRoot(reduced.projection.omittedPaths);
+                    eraseRoot(reduced.projection.absentPaths);
+                    eraseRoot(reduced.projection.nullPaths);
+                };
+                if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::LegacyItem &&
+                    occurrence.legacyCompatibility().legacyItem.has_value()) {
+                    upsertLegacyItem(reduced, *occurrence.legacyCompatibility().legacyItem);
+                }
+                if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::LegacyPendingRequest &&
+                    occurrence.legacyCompatibility().legacyPendingRequest.has_value()) {
+                    upsertLegacyPendingRequest(reduced, *occurrence.legacyCompatibility().legacyPendingRequest);
+                }
+                for (auto& payload : expandedPayloads) {
+                    std::visit(
+                        [&](auto& update) {
+                            using Update = std::decay_t<decltype(update)>;
+                            if constexpr (std::is_same_v<Update, ProviderUpdatedOccurrence>) {
+                                reduced.provider = update.provider;
+                            } else if constexpr (std::is_same_v<Update, ControllerUpdatedOccurrence>) {
+                                reduced.controller = update.controller;
+                            } else if constexpr (std::is_same_v<Update, SessionsUpdatedOccurrence>) {
+                                reduced.sessionsPresent = true;
+                                if (update.completeProjection) {
+                                    reduced.sessions = update.sessions;
+                                } else if (update.changedSession.has_value()) {
+                                    std::erase_if(reduced.sessions, [&](const SessionState& value) {
+                                        return value.id == update.changedSession->id;
+                                    });
+                                    if (update.connected.value_or(true)) {
+                                        reduced.sessions.push_back(*update.changedSession);
+                                    }
                                 }
-                            }
-                        } else if constexpr (std::is_same_v<Update, ThreadListUpdatedOccurrence>) {
-                            reduced.threadListPresent = true;
-                            reduced.threadList = update.threadList;
-                        } else if constexpr (std::is_same_v<Update, ThreadUpsertedOccurrence>) {
-                            reduced.threadsPresent = true;
-                            upsert(reduced.threads, update.thread, [&](const ThreadState& value) {
-                                return value.id == update.thread.id;
-                            });
-                            if (update.replaceDescendants) {
+                            } else if constexpr (std::is_same_v<Update, ThreadListUpdatedOccurrence>) {
+                                reduced.threadListPresent = true;
+                                reduced.threadList = update.threadList;
+                            } else if constexpr (std::is_same_v<Update, ThreadUpsertedOccurrence>) {
+                                constexpr bool ConsumeUpdate = !std::is_const_v<std::remove_reference_t<decltype(update)>>;
+                                reduced.threadsPresent = true;
+                                const ThreadIdentity threadId = update.thread.id;
+                                ThreadState thread = [&]() {
+                                    if constexpr (ConsumeUpdate) {
+                                        return std::move(update.thread);
+                                    } else {
+                                        return update.thread;
+                                    }
+                                }();
+                                if (!update.replaceDescendants && !update.applyIncomingCompleteness) {
+                                    const auto existing =
+                                        std::find_if(reduced.threads.begin(), reduced.threads.end(), [&](const ThreadState& value) {
+                                            return value.id == threadId;
+                                        });
+                                    // A header/merge occurrence carries no
+                                    // descendant authority. Preserve the
+                                    // recipient's local completeness bit; a newly
+                                    // discovered summary starts incomplete.
+                                    thread.fullyLoaded = existing != reduced.threads.end() && existing->fullyLoaded;
+                                }
+                                upsert(reduced.threads, std::move(thread), [&](const ThreadState& value) {
+                                    return value.id == threadId;
+                                });
+                                if (update.replaceDescendants) {
+                                    reduced.turnsPresent = true;
+                                    reduced.itemsPresent = true;
+                                    const auto affectedItem = [&](const ItemData& item) {
+                                        return item.threadId == std::optional<ThreadIdentity>{threadId} ||
+                                               (!item.threadId.has_value() && item.turnId.has_value() &&
+                                                turnIdentityIsUniqueToThread(reduced.turns,
+                                                                             update.turns,
+                                                                             reduced.items,
+                                                                             update.items,
+                                                                             reduced.legacyItems,
+                                                                             threadId,
+                                                                             *item.turnId,
+                                                                             update.legacyItems));
+                                    };
+                                    if constexpr (ConsumeUpdate) {
+                                        // The rvalue replacement helper binds the
+                                        // incoming vectors by reference, so the
+                                        // ambiguity predicate observes them before
+                                        // their elements transfer into reduced.
+                                        replaceOrderedItems(reduced, std::move(update.items), std::move(update.legacyItems), affectedItem);
+                                        replaceOrderedSubset(reduced.turns, std::move(update.turns), [&](const TurnState& turn) {
+                                            return turn.threadId == threadId;
+                                        });
+                                    } else {
+                                        replaceOrderedItems(reduced, update.items, update.legacyItems, affectedItem);
+                                        replaceOrderedSubset(reduced.turns, update.turns, [&](const TurnState& turn) {
+                                            return turn.threadId == threadId;
+                                        });
+                                    }
+                                } else if (update.applyIncomingCompleteness) {
+                                    // Merge-authoritative nested bodies upsert all
+                                    // supplied descendants without interpreting an
+                                    // omission as deletion. Keep unknown legacy
+                                    // discriminators in the same transaction.
+                                    reduced.turnsPresent = true;
+                                    reduced.itemsPresent = true;
+                                    for (auto& turn : update.turns) {
+                                        const TurnIdentity turnId = turn.id;
+                                        const ThreadIdentity parentThreadId = turn.threadId;
+                                        if constexpr (ConsumeUpdate) {
+                                            upsert(reduced.turns, std::move(turn), [&](const TurnState& value) {
+                                                return value.id == turnId && value.threadId == parentThreadId;
+                                            });
+                                        } else {
+                                            upsert(reduced.turns, turn, [&](const TurnState& value) {
+                                                return value.id == turnId && value.threadId == parentThreadId;
+                                            });
+                                        }
+                                    }
+                                    if constexpr (ConsumeUpdate) {
+                                        upsertOrderedItems(reduced, std::move(update.items), std::move(update.legacyItems));
+                                    } else {
+                                        upsertOrderedItems(reduced, update.items, update.legacyItems);
+                                    }
+                                }
+                            } else if constexpr (std::is_same_v<Update, ThreadRemovedOccurrence>) {
+                                reduced.threadsPresent = true;
                                 reduced.turnsPresent = true;
                                 reduced.itemsPresent = true;
-                                replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
-                                    return item.threadId == std::optional<ThreadIdentity>{update.thread.id} ||
+                                replaceOrderedItems(reduced, std::vector<ThreadItem>{}, [&](const ItemData& item) {
+                                    return item.threadId == std::optional<ThreadIdentity>{update.threadId} ||
                                            (!item.threadId.has_value() && item.turnId.has_value() &&
                                             turnIdentityIsUniqueToThread(
-                                                reduced.turns,
-                                                update.turns,
-                                                reduced.items,
-                                                update.items,
-                                                reduced.legacyItems,
-                                                update.thread.id,
-                                                *item.turnId));
+                                                reduced.turns, {}, reduced.items, {}, reduced.legacyItems, update.threadId, *item.turnId));
                                 });
-                                replaceOrderedSubset(reduced.turns, update.turns, [&](const TurnState& turn) {
-                                    return turn.threadId == update.thread.id;
+                                std::erase_if(reduced.threads, [&](const ThreadState& value) {
+                                    return value.id == update.threadId;
                                 });
-                            }
-                        } else if constexpr (std::is_same_v<Update, ThreadRemovedOccurrence>) {
-                            reduced.threadsPresent = true;
-                            reduced.turnsPresent = true;
-                            reduced.itemsPresent = true;
-                            replaceOrderedItems(reduced, {}, [&](const ItemData& item) {
-                                return item.threadId == std::optional<ThreadIdentity>{update.threadId} ||
-                                       (!item.threadId.has_value() && item.turnId.has_value() &&
-                                        turnIdentityIsUniqueToThread(reduced.turns,
-                                                                     {},
-                                                                     reduced.items,
-                                                                     {},
-                                                                     reduced.legacyItems,
-                                                                     update.threadId,
-                                                                     *item.turnId));
-                            });
-                            std::erase_if(reduced.threads, [&](const ThreadState& value) {
-                                return value.id == update.threadId;
-                            });
-                            std::erase_if(reduced.turns, [&](const TurnState& value) {
-                                return value.threadId == update.threadId;
-                            });
-                        } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
-                            reduced.turnsPresent = true;
-                            upsert(reduced.turns, update.turn, [&](const TurnState& value) {
-                                return value.threadId == update.turn.threadId && value.id == update.turn.id;
-                            });
-                            if (update.replaceItems) {
+                                std::erase_if(reduced.turns, [&](const TurnState& value) {
+                                    return value.threadId == update.threadId;
+                                });
+                            } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
+                                reduced.turnsPresent = true;
+                                upsert(reduced.turns, update.turn, [&](const TurnState& value) {
+                                    return value.threadId == update.turn.threadId && value.id == update.turn.id;
+                                });
+                                if (update.replaceItems) {
+                                    reduced.itemsPresent = true;
+                                    replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
+                                        return (item.threadId == std::optional<ThreadIdentity>{update.turn.threadId} &&
+                                                item.turnId == std::optional<TurnIdentity>{update.turn.id}) ||
+                                               (!item.threadId.has_value() && item.turnId == std::optional<TurnIdentity>{update.turn.id} &&
+                                                turnIdentityIsUniqueToThread(reduced.turns,
+                                                                             {},
+                                                                             reduced.items,
+                                                                             update.items,
+                                                                             reduced.legacyItems,
+                                                                             update.turn.threadId,
+                                                                             update.turn.id));
+                                    });
+                                }
+                            } else if constexpr (std::is_same_v<Update, ItemUpsertedOccurrence>) {
                                 reduced.itemsPresent = true;
-                                replaceOrderedItems(reduced, update.items, [&](const ItemData& item) {
-                                    return (item.threadId == std::optional<ThreadIdentity>{update.turn.threadId} &&
-                                            item.turnId == std::optional<TurnIdentity>{update.turn.id}) ||
-                                           (!item.threadId.has_value() && item.turnId == std::optional<TurnIdentity>{update.turn.id} &&
-                                            turnIdentityIsUniqueToThread(
-                                                reduced.turns,
-                                                {},
-                                                reduced.items,
-                                                update.items,
-                                                reduced.legacyItems,
-                                                update.turn.threadId,
-                                                update.turn.id));
-                                });
-                            }
-                        } else if constexpr (std::is_same_v<Update, ItemUpsertedOccurrence>) {
-                            reduced.itemsPresent = true;
-                            upsertItem(reduced, update.item);
-                        } else if constexpr (std::is_same_v<Update, ItemContentUpdatedOccurrence>) {
-                            reduced.itemsPresent = true;
-                            // Content overlays preserve identity/parent/kind.
-                            // Locate the target through that stable metadata so
-                            // a streaming append never materializes or copies
-                            // the accumulated content merely for validation.
-                            const PersistentThreadItems& retainedItems = reduced.items;
-                            const PersistentThreadItems::ItemLookup lookup =
-                                retainedItems.lookup(update.itemId, update.threadId, update.turnId);
-                            const std::optional<std::size_t> foundById = lookup.firstById;
-                            const std::optional<std::size_t> found = lookup.scoped;
-                            if (!found) {
-                                if (foundById) {
-                                    const ItemData& target = itemData(retainedItems.metadataAt(*foundById));
-                                    if (update.threadId.has_value() && target.threadId != update.threadId) {
-                                        fail(OccurrenceErrorCode::InvalidPayload,
-                                             "/threadId",
-                                             "item content parent thread does not match the target item");
+                                upsertItem(reduced, update.item);
+                            } else if constexpr (std::is_same_v<Update, ItemContentUpdatedOccurrence>) {
+                                reduced.itemsPresent = true;
+                                // Content overlays preserve identity/parent/kind.
+                                // Locate the target through that stable metadata so
+                                // a streaming append never materializes or copies
+                                // the accumulated content merely for validation.
+                                const PersistentThreadItems& retainedItems = reduced.items;
+                                const PersistentThreadItems::ItemLookup lookup =
+                                    retainedItems.lookup(update.itemId, update.threadId, update.turnId);
+                                const std::optional<std::size_t> foundById = lookup.firstById;
+                                const std::optional<std::size_t> found = lookup.scoped;
+                                if (!found) {
+                                    if (foundById) {
+                                        const ItemData& target = itemData(retainedItems.metadataAt(*foundById));
+                                        if (update.threadId.has_value() && target.threadId != update.threadId) {
+                                            fail(OccurrenceErrorCode::InvalidPayload,
+                                                 "/threadId",
+                                                 "item content parent thread does not match the target item");
+                                        }
+                                        if (update.turnId.has_value() && target.turnId != update.turnId) {
+                                            fail(OccurrenceErrorCode::InvalidPayload,
+                                                 "/turnId",
+                                                 "item content parent turn does not match the target item");
+                                        }
                                     }
-                                    if (update.turnId.has_value() && target.turnId != update.turnId) {
-                                        fail(OccurrenceErrorCode::InvalidPayload,
-                                             "/turnId",
-                                             "item content parent turn does not match the target item");
-                                    }
+                                    fail(OccurrenceErrorCode::InvalidPayload, "/itemId", "item content target is missing");
                                 }
-                                fail(OccurrenceErrorCode::InvalidPayload, "/itemId", "item content target is missing");
-                            }
-                            const ThreadItem& targetItem = retainedItems.metadataAt(*found);
-                            const ItemData& target = itemData(targetItem);
-                            if (update.threadId.has_value() && target.threadId != update.threadId) {
-                                fail(OccurrenceErrorCode::InvalidPayload,
-                                     "/threadId",
-                                     "item content parent thread does not match the target item");
-                            }
-                            if (update.turnId.has_value() && target.turnId != update.turnId) {
-                                fail(OccurrenceErrorCode::InvalidPayload,
-                                     "/turnId",
-                                     "item content parent turn does not match the target item");
-                            }
-                            const bool commandItem = std::holds_alternative<CommandExecutionItem>(targetItem) ||
-                                                     std::holds_alternative<FileChangeItem>(targetItem);
-                            std::optional<PersistentThreadItems::ContentChannel> persistentChannel;
-                            std::size_t persistentMaximum = 0;
-                            const bool validAppendDelta =
-                                update.appendHint &&
-                                utf8CharacterPrefixLength(update.appendHint->delta, update.appendHint->delta.size()) ==
-                                    update.appendHint->delta.size();
-                            const bool legacyAppendNeedsNoTrim =
-                                update.appendHint && update.appendHint->discardPrefixBytes == 0 &&
-                                update.appendHint->baseContentBytes <= 16'384 &&
-                                update.appendHint->delta.size() <=
-                                    16'384 - static_cast<std::size_t>(update.appendHint->baseContentBytes);
-                            if (update.appendWireRepresentation && update.appendHint &&
-                                update.channel == std::optional<std::string>{"agentText"}) {
-                                persistentChannel = PersistentThreadItems::ContentChannel::AgentText;
-                                persistentMaximum = MaximumItemContentOverflowV1Bytes;
-                            } else if (update.appendWireRepresentation && update.appendHint &&
-                                       validAppendDelta && legacyAppendNeedsNoTrim &&
-                                       update.channel == std::optional<std::string>{"reasoningText"}) {
-                                persistentChannel = PersistentThreadItems::ContentChannel::ReasoningText;
-                                persistentMaximum = 16'384;
-                            } else if (update.appendWireRepresentation && update.appendHint &&
-                                       validAppendDelta && legacyAppendNeedsNoTrim &&
-                                       update.channel == std::optional<std::string>{"reasoningSummary"}) {
-                                persistentChannel = PersistentThreadItems::ContentChannel::ReasoningSummary;
-                                persistentMaximum = 16'384;
-                            } else if (update.appendWireRepresentation && update.appendHint &&
-                                       update.channel == std::optional<std::string>{"commandOutput"}) {
-                                if (update.extendedCommandOutputWireRepresentation && !commandItem) {
+                                const ThreadItem& targetItem = retainedItems.metadataAt(*found);
+                                const ItemData& target = itemData(targetItem);
+                                if (update.threadId.has_value() && target.threadId != update.threadId) {
                                     fail(OccurrenceErrorCode::InvalidPayload,
-                                         "/channel",
-                                         "append-v2 command output targets an unrelated item kind");
+                                         "/threadId",
+                                         "item content parent thread does not match the target item");
                                 }
-                                if (update.extendedCommandOutputWireRepresentation ||
-                                    (validAppendDelta && legacyAppendNeedsNoTrim)) {
-                                    persistentChannel = PersistentThreadItems::ContentChannel::CommandOutput;
-                                    persistentMaximum = update.extendedCommandOutputWireRepresentation
-                                                            ? MaximumCommandOutputOverflowV2Bytes
-                                                            : 16'384;
-                                }
-                            }
-
-                            if (persistentChannel) {
-                                const ItemContentAppendHint& hint = *update.appendHint;
-                                if (utf8CharacterPrefixLength(hint.delta, hint.delta.size()) != hint.delta.size()) {
+                                if (update.turnId.has_value() && target.turnId != update.turnId) {
                                     fail(OccurrenceErrorCode::InvalidPayload,
-                                         "/contentDelta",
-                                         "item content append delta is invalid UTF-8");
+                                         "/turnId",
+                                         "item content parent turn does not match the target item");
                                 }
-                                if (hint.discardPrefixBytes != 0 &&
-                                    *persistentChannel != PersistentThreadItems::ContentChannel::CommandOutput) {
-                                    fail(OccurrenceErrorCode::InvalidPayload,
-                                         "/discardPrefixBytes",
-                                         "item content discard is invalid for the retained canonical content");
-                                }
-                                if (!reduced.items.appendContent(*found,
-                                                                 *persistentChannel,
-                                                                 hint.baseContentBytes,
-                                                                 hint.discardPrefixBytes,
-                                                                 hint.delta,
-                                                                 update.contentTruncatedKnown,
-                                                                 update.truncation.truncated,
-                                                                 update.droppedContentBytesKnown,
-                                                                 update.truncation.droppedBytes,
-                                                                 persistentMaximum)) {
-                                    fail(OccurrenceErrorCode::InvalidPayload,
-                                         "/contentDelta",
-                                         "item content append does not match the retained canonical content");
-                                }
-                            } else {
-                                // Replacement/fallback access is intentionally
-                                // the only path that materializes the target.
-                                ThreadItem replacementItem = retainedItems.at(*found);
-                                std::visit(
-                                [&](auto& item) {
-                                    using Item = std::decay_t<decltype(item)>;
-                                    constexpr bool CommandOutputItem = std::is_same_v<Item, CommandExecutionItem> ||
-                                                                       std::is_same_v<Item, FileChangeItem>;
-                                    std::optional<std::string>* content = nullptr;
-                                    if (update.channel == std::optional<std::string>{"agentText"}) {
-                                        content = &item.value.agentText;
-                                    } else if (update.channel == std::optional<std::string>{"reasoningText"}) {
-                                        content = &item.value.reasoningText;
-                                    } else if (update.channel == std::optional<std::string>{"reasoningSummary"}) {
-                                        content = &item.value.reasoningSummary;
-                                    } else if (update.channel == std::optional<std::string>{"commandOutput"}) {
-                                        content = &item.value.commandOutput;
-                                    }
-                                    if (content == nullptr) {
-                                        fail(OccurrenceErrorCode::InvalidPayload, "/channel", "item content channel is invalid");
-                                    }
-                                    const bool extendedAgentText =
-                                        update.channel == std::optional<std::string>{"agentText"} &&
-                                        (update.appendWireRepresentation || update.overflowWireRepresentation);
-                                    const bool extendedCommandOutput =
-                                        update.channel == std::optional<std::string>{"commandOutput"} &&
-                                        update.extendedCommandOutputWireRepresentation;
-                                    if (extendedCommandOutput && !CommandOutputItem) {
+                                const bool commandItem = std::holds_alternative<CommandExecutionItem>(targetItem) ||
+                                                         std::holds_alternative<FileChangeItem>(targetItem);
+                                std::optional<PersistentThreadItems::ContentChannel> persistentChannel;
+                                std::size_t persistentMaximum = 0;
+                                const bool validAppendDelta =
+                                    update.appendHint &&
+                                    utf8CharacterPrefixLength(update.appendHint->delta, update.appendHint->delta.size()) ==
+                                        update.appendHint->delta.size();
+                                const bool legacyAppendNeedsNoTrim =
+                                    update.appendHint && update.appendHint->discardPrefixBytes == 0 &&
+                                    update.appendHint->baseContentBytes <= 16'384 &&
+                                    update.appendHint->delta.size() <=
+                                        16'384 - static_cast<std::size_t>(update.appendHint->baseContentBytes);
+                                if (update.appendWireRepresentation && update.appendHint &&
+                                    update.channel == std::optional<std::string>{"agentText"}) {
+                                    persistentChannel = PersistentThreadItems::ContentChannel::AgentText;
+                                    persistentMaximum = MaximumItemContentOverflowV1Bytes;
+                                } else if (update.appendWireRepresentation && update.appendHint && validAppendDelta &&
+                                           legacyAppendNeedsNoTrim && update.channel == std::optional<std::string>{"reasoningText"}) {
+                                    persistentChannel = PersistentThreadItems::ContentChannel::ReasoningText;
+                                    persistentMaximum = 16'384;
+                                } else if (update.appendWireRepresentation && update.appendHint && validAppendDelta &&
+                                           legacyAppendNeedsNoTrim && update.channel == std::optional<std::string>{"reasoningSummary"}) {
+                                    persistentChannel = PersistentThreadItems::ContentChannel::ReasoningSummary;
+                                    persistentMaximum = 16'384;
+                                } else if (update.appendWireRepresentation && update.appendHint &&
+                                           update.channel == std::optional<std::string>{"commandOutput"}) {
+                                    if (update.extendedCommandOutputWireRepresentation && !commandItem) {
                                         fail(OccurrenceErrorCode::InvalidPayload,
                                              "/channel",
                                              "append-v2 command output targets an unrelated item kind");
                                     }
-                                    if (update.overflowWireRepresentation && !extendedAgentText && !extendedCommandOutput) {
+                                    if (update.extendedCommandOutputWireRepresentation || (validAppendDelta && legacyAppendNeedsNoTrim)) {
+                                        persistentChannel = PersistentThreadItems::ContentChannel::CommandOutput;
+                                        persistentMaximum =
+                                            update.extendedCommandOutputWireRepresentation ? MaximumCommandOutputOverflowV2Bytes : 16'384;
+                                    }
+                                }
+
+                                if (persistentChannel) {
+                                    const ItemContentAppendHint& hint = *update.appendHint;
+                                    if (utf8CharacterPrefixLength(hint.delta, hint.delta.size()) != hint.delta.size()) {
                                         fail(OccurrenceErrorCode::InvalidPayload,
-                                             "/channel",
-                                             "extended item content representation is invalid for this channel");
+                                             "/contentDelta",
+                                             "item content append delta is invalid UTF-8");
                                     }
-                                    std::optional<std::string> replacement;
-                                    if (update.appendWireRepresentation) {
-                                        if (!update.appendHint.has_value()) {
-                                            fail(OccurrenceErrorCode::InvalidPayload,
-                                                 "/contentDelta",
-                                                 "item content append representation is incomplete");
-                                        }
-                                        const std::size_t retainedBytes = content->has_value() ? (*content)->size() : 0;
-                                        if (update.appendHint->baseContentBytes != static_cast<std::uint64_t>(retainedBytes)) {
-                                            fail(OccurrenceErrorCode::InvalidPayload,
-                                                 "/baseContentBytes",
-                                                 "item content append base does not match the retained canonical content");
-                                        }
-                                        replacement = content->value_or(std::string{});
-                                        if (update.appendHint->discardPrefixBytes > retainedBytes ||
-                                            (update.appendHint->discardPrefixBytes != 0 && !extendedCommandOutput)) {
-                                            fail(OccurrenceErrorCode::InvalidPayload,
-                                                 "/discardPrefixBytes",
-                                                 "item content discard is invalid for the retained canonical content");
-                                        }
-                                        const std::size_t discard =
-                                            static_cast<std::size_t>(update.appendHint->discardPrefixBytes);
-                                        if (discard < replacement->size() &&
-                                            (static_cast<unsigned char>((*replacement)[discard]) & 0xc0U) == 0x80U) {
-                                            fail(OccurrenceErrorCode::InvalidPayload,
-                                                 "/discardPrefixBytes",
-                                                 "item content discard splits a UTF-8 code point");
-                                        }
-                                        replacement->erase(0, discard);
-                                        replacement->append(update.appendHint->delta);
-                                    } else {
-                                        replacement = update.content;
+                                    if (hint.discardPrefixBytes != 0 &&
+                                        *persistentChannel != PersistentThreadItems::ContentChannel::CommandOutput) {
+                                        fail(OccurrenceErrorCode::InvalidPayload,
+                                             "/discardPrefixBytes",
+                                             "item content discard is invalid for the retained canonical content");
                                     }
-                                    std::uint64_t additionalDropped = 0;
-                                    if (replacement.has_value() && (extendedAgentText || extendedCommandOutput)) {
-                                        const std::size_t maximumBytes = extendedCommandOutput
-                                                                             ? MaximumCommandOutputOverflowV2Bytes
-                                                                             : MaximumItemContentOverflowV1Bytes;
-                                        if (replacement->size() > maximumBytes ||
-                                            utf8CharacterPrefixLength(*replacement, replacement->size()) != replacement->size()) {
-                                            fail(OccurrenceErrorCode::InvalidPayload,
-                                                 "/content",
-                                                 "extended item content exceeds the retained channel bound or is invalid UTF-8");
-                                        }
-                                    } else if (replacement.has_value()) {
-                                        const std::size_t retained = utf8CharacterPrefixLength(*replacement, 16'384);
-                                        const std::size_t excess = replacement->size() - retained;
-                                        additionalDropped = excess > std::numeric_limits<std::uint64_t>::max()
-                                                                ? std::numeric_limits<std::uint64_t>::max()
-                                                                : static_cast<std::uint64_t>(excess);
-                                        replacement->resize(retained);
+                                    if (!reduced.items.appendContent(*found,
+                                                                     *persistentChannel,
+                                                                     hint.baseContentBytes,
+                                                                     hint.discardPrefixBytes,
+                                                                     hint.delta,
+                                                                     update.contentTruncatedKnown,
+                                                                     update.truncation.truncated,
+                                                                     update.droppedContentBytesKnown,
+                                                                     update.truncation.droppedBytes,
+                                                                     persistentMaximum)) {
+                                        fail(OccurrenceErrorCode::InvalidPayload,
+                                             "/contentDelta",
+                                             "item content append does not match the retained canonical content");
                                     }
-                                    *content = std::move(replacement);
-                                    if (update.contentTruncatedKnown) {
-                                        item.value.contentTruncated = update.truncation.truncated;
-                                    }
-                                    if (additionalDropped != 0) {
-                                        item.value.contentTruncated = true;
-                                    }
-                                    if (update.droppedContentBytesKnown && update.appendWireRepresentation) {
-                                        // Append metadata is the authoritative post-update
-                                        // count and already includes any trimmed suffix.
-                                        item.value.droppedContentBytes = update.truncation.droppedBytes;
-                                    } else if (update.droppedContentBytesKnown) {
-                                        const std::uint64_t baseDropped = update.truncation.droppedBytes;
-                                        item.value.droppedContentBytes =
-                                            additionalDropped > std::numeric_limits<std::uint64_t>::max() - baseDropped
-                                                ? std::numeric_limits<std::uint64_t>::max()
-                                                : baseDropped + additionalDropped;
-                                    } else if (additionalDropped != 0) {
-                                        const std::uint64_t baseDropped = item.value.droppedContentBytes.value_or(0);
-                                        item.value.droppedContentBytes =
-                                            additionalDropped > std::numeric_limits<std::uint64_t>::max() - baseDropped
-                                                ? std::numeric_limits<std::uint64_t>::max()
-                                                : baseDropped + additionalDropped;
-                                    }
-                                },
-                                    replacementItem);
-                                reduced.items.replace(*found, std::move(replacementItem));
-                            }
-                        } else if constexpr (std::is_same_v<Update, PendingRequestsUpdatedOccurrence>) {
-                            reduced.pendingRequestsPresent = true;
-                            if (update.completeProjection) {
-                                reduced.pendingRequests = update.pendingRequests;
-                                reduced.legacyPendingRequests.clear();
-                                normalizePendingRequestSourceOrder(reduced);
-                            } else {
-                                if (update.removedRequestId.has_value()) {
-                                    erasePendingRequest(reduced, *update.removedRequestId);
+                                } else {
+                                    // Replacement/fallback access is intentionally
+                                    // the only path that materializes the target.
+                                    ThreadItem replacementItem = retainedItems.at(*found);
+                                    std::visit(
+                                        [&](auto& item) {
+                                            using Item = std::decay_t<decltype(item)>;
+                                            constexpr bool CommandOutputItem =
+                                                std::is_same_v<Item, CommandExecutionItem> || std::is_same_v<Item, FileChangeItem>;
+                                            std::optional<std::string>* content = nullptr;
+                                            if (update.channel == std::optional<std::string>{"agentText"}) {
+                                                content = &item.value.agentText;
+                                            } else if (update.channel == std::optional<std::string>{"reasoningText"}) {
+                                                content = &item.value.reasoningText;
+                                            } else if (update.channel == std::optional<std::string>{"reasoningSummary"}) {
+                                                content = &item.value.reasoningSummary;
+                                            } else if (update.channel == std::optional<std::string>{"commandOutput"}) {
+                                                content = &item.value.commandOutput;
+                                            }
+                                            if (content == nullptr) {
+                                                fail(OccurrenceErrorCode::InvalidPayload, "/channel", "item content channel is invalid");
+                                            }
+                                            const bool extendedAgentText =
+                                                update.channel == std::optional<std::string>{"agentText"} &&
+                                                (update.appendWireRepresentation || update.overflowWireRepresentation);
+                                            const bool extendedCommandOutput =
+                                                update.channel == std::optional<std::string>{"commandOutput"} &&
+                                                update.extendedCommandOutputWireRepresentation;
+                                            if (extendedCommandOutput && !CommandOutputItem) {
+                                                fail(OccurrenceErrorCode::InvalidPayload,
+                                                     "/channel",
+                                                     "append-v2 command output targets an unrelated item kind");
+                                            }
+                                            if (update.overflowWireRepresentation && !extendedAgentText && !extendedCommandOutput) {
+                                                fail(OccurrenceErrorCode::InvalidPayload,
+                                                     "/channel",
+                                                     "extended item content representation is invalid for this channel");
+                                            }
+                                            std::optional<std::string> replacement;
+                                            if (update.appendWireRepresentation) {
+                                                if (!update.appendHint.has_value()) {
+                                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                                         "/contentDelta",
+                                                         "item content append representation is incomplete");
+                                                }
+                                                const std::size_t retainedBytes = content->has_value() ? (*content)->size() : 0;
+                                                if (update.appendHint->baseContentBytes != static_cast<std::uint64_t>(retainedBytes)) {
+                                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                                         "/baseContentBytes",
+                                                         "item content append base does not match the retained canonical content");
+                                                }
+                                                replacement = content->value_or(std::string{});
+                                                if (update.appendHint->discardPrefixBytes > retainedBytes ||
+                                                    (update.appendHint->discardPrefixBytes != 0 && !extendedCommandOutput)) {
+                                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                                         "/discardPrefixBytes",
+                                                         "item content discard is invalid for the retained canonical content");
+                                                }
+                                                const std::size_t discard = static_cast<std::size_t>(update.appendHint->discardPrefixBytes);
+                                                if (discard < replacement->size() &&
+                                                    (static_cast<unsigned char>((*replacement)[discard]) & 0xc0U) == 0x80U) {
+                                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                                         "/discardPrefixBytes",
+                                                         "item content discard splits a UTF-8 code point");
+                                                }
+                                                replacement->erase(0, discard);
+                                                replacement->append(update.appendHint->delta);
+                                            } else {
+                                                replacement = update.content;
+                                            }
+                                            std::uint64_t additionalDropped = 0;
+                                            if (replacement.has_value() && (extendedAgentText || extendedCommandOutput)) {
+                                                const std::size_t maximumBytes = extendedCommandOutput ? MaximumCommandOutputOverflowV2Bytes
+                                                                                                       : MaximumItemContentOverflowV1Bytes;
+                                                if (replacement->size() > maximumBytes ||
+                                                    utf8CharacterPrefixLength(*replacement, replacement->size()) != replacement->size()) {
+                                                    fail(OccurrenceErrorCode::InvalidPayload,
+                                                         "/content",
+                                                         "extended item content exceeds the retained channel bound or is invalid UTF-8");
+                                                }
+                                            } else if (replacement.has_value()) {
+                                                const std::size_t retained = utf8CharacterPrefixLength(*replacement, 16'384);
+                                                const std::size_t excess = replacement->size() - retained;
+                                                additionalDropped = excess > std::numeric_limits<std::uint64_t>::max()
+                                                                        ? std::numeric_limits<std::uint64_t>::max()
+                                                                        : static_cast<std::uint64_t>(excess);
+                                                replacement->resize(retained);
+                                            }
+                                            *content = std::move(replacement);
+                                            if (update.contentTruncatedKnown) {
+                                                item.value.contentTruncated = update.truncation.truncated;
+                                            }
+                                            if (additionalDropped != 0) {
+                                                item.value.contentTruncated = true;
+                                            }
+                                            if (update.droppedContentBytesKnown && update.appendWireRepresentation) {
+                                                // Append metadata is the authoritative post-update
+                                                // count and already includes any trimmed suffix.
+                                                item.value.droppedContentBytes = update.truncation.droppedBytes;
+                                            } else if (update.droppedContentBytesKnown) {
+                                                const std::uint64_t baseDropped = update.truncation.droppedBytes;
+                                                item.value.droppedContentBytes =
+                                                    additionalDropped > std::numeric_limits<std::uint64_t>::max() - baseDropped
+                                                        ? std::numeric_limits<std::uint64_t>::max()
+                                                        : baseDropped + additionalDropped;
+                                            } else if (additionalDropped != 0) {
+                                                const std::uint64_t baseDropped = item.value.droppedContentBytes.value_or(0);
+                                                item.value.droppedContentBytes =
+                                                    additionalDropped > std::numeric_limits<std::uint64_t>::max() - baseDropped
+                                                        ? std::numeric_limits<std::uint64_t>::max()
+                                                        : baseDropped + additionalDropped;
+                                            }
+                                        },
+                                        replacementItem);
+                                    reduced.items.replace(*found, std::move(replacementItem));
                                 }
-                                for (const PendingRequest& request : update.pendingRequests) {
-                                    upsertPendingRequest(reduced, request);
+                            } else if constexpr (std::is_same_v<Update, PendingRequestsUpdatedOccurrence>) {
+                                reduced.pendingRequestsPresent = true;
+                                if (update.completeProjection) {
+                                    reduced.pendingRequests = update.pendingRequests;
+                                    reduced.legacyPendingRequests.clear();
+                                    normalizePendingRequestSourceOrder(reduced);
+                                } else {
+                                    if (update.removedRequestId.has_value()) {
+                                        erasePendingRequest(reduced, *update.removedRequestId);
+                                    }
+                                    for (const PendingRequest& request : update.pendingRequests) {
+                                        upsertPendingRequest(reduced, request);
+                                    }
+                                }
+                            } else if constexpr (std::is_same_v<Update, AccountUpdatedOccurrence>) {
+                                reduced.accounts = update.account;
+                            } else if constexpr (std::is_same_v<Update, ModelsUpdatedOccurrence>) {
+                                reduced.models = update.models;
+                            } else if constexpr (std::is_same_v<Update, ConfigurationUpdatedOccurrence>) {
+                                reduced.configuration = update.configuration;
+                            } else if constexpr (std::is_same_v<Update, ProcessUpdatedOccurrence>) {
+                                markProjectionRootRepresented("/processes");
+                                markSparseCollectionRepresented(reduced.processesState);
+                                upsert(reduced.processes, update.process, [&](const ProcessState& value) {
+                                    return value.handle == update.process.handle;
+                                });
+                            } else if constexpr (std::is_same_v<Update, FilesystemWatchUpdatedOccurrence>) {
+                                markSparseCollectionRepresented(reduced.filesystemWatches.state);
+                                upsert(reduced.filesystemWatches.entries, update.filesystemWatch, [&](const FilesystemWatchRecord& value) {
+                                    return value.watchId == update.filesystemWatch.watchId;
+                                });
+                            } else if constexpr (std::is_same_v<Update, FuzzySearchUpdatedOccurrence>) {
+                                markSparseCollectionRepresented(reduced.fuzzySearches.state);
+                                upsert(reduced.fuzzySearches.entries, update.fuzzySearch, [&](const FuzzySearchRecord& value) {
+                                    return value.sessionId == update.fuzzySearch.sessionId;
+                                });
+                            } else if constexpr (std::is_same_v<Update, ReviewsUpdatedOccurrence>) {
+                                reduced.reviews = update.reviews;
+                                reduced.permissionProfiles.state = update.reviews.state;
+                            } else if constexpr (std::is_same_v<Update, IntegrationsUpdatedOccurrence>) {
+                                reduced.integrations = update.integrations;
+                                reduced.apps.state = update.integrations.state;
+                                reduced.externalAgents.state = update.integrations.state;
+                                reduced.hooks.state = update.integrations.state;
+                                reduced.marketplace.state = update.integrations.state;
+                            } else if constexpr (std::is_same_v<Update, PluginsUpdatedOccurrence>) {
+                                reduced.plugins = update.plugins;
+                                reduced.skills.state = update.plugins.state;
+                            } else if constexpr (std::is_same_v<Update, SkillsUpdatedOccurrence>) {
+                                reduced.skills = update.skills;
+                                reduced.plugins.state = update.skills.state;
+                            } else if constexpr (std::is_same_v<Update, McpUpdatedOccurrence>) {
+                                reduced.mcp = update.mcp;
+                            } else if constexpr (std::is_same_v<Update, PlatformUpdatedOccurrence>) {
+                                reduced.platform = update.platform;
+                                reduced.windowsSandbox.state = update.platform.state;
+                                reduced.remoteControl.state = update.platform.state;
+                            } else if constexpr (std::is_same_v<Update, NoticeAddedOccurrence>) {
+                                markSparseCollectionRepresented(reduced.notices.state);
+                                reduced.notices.entries.push_back(update.notice);
+                            } else if constexpr (std::is_same_v<Update, ActivityUpdatedOccurrence>) {
+                                markSparseCollectionRepresented(reduced.activities.state);
+                                upsert(reduced.activities.entries, update.activity, [&](const ActivityRecord& value) {
+                                    return value.key == update.activity.key;
+                                });
+                            } else if constexpr (std::is_same_v<Update, CapacityUpdatedOccurrence>) {
+                                reduced.capacity = update.capacity;
+                                reduced.capacityPresent = true;
+                            } else if constexpr (std::is_same_v<Update, DiagnosticsUpdatedOccurrence>) {
+                                const TruncationMetadata retainedTruncation = reduced.diagnostics.state.truncation;
+                                reduced.diagnostics.state = DomainState::present(Freshness::Unknown);
+                                reduced.diagnostics.state.truncation = retainedTruncation;
+                                if (update.aggregateLegacyUpdate) {
+                                    reduced.diagnostics.entries = update.aggregateEntries;
+                                } else {
+                                    reduced.diagnostics.entries.push_back(update.diagnostic);
+                                }
+                                if (update.diagnostic.received.has_value()) {
+                                    reduced.diagnostics.received = update.diagnostic.received;
                                 }
                             }
-                        } else if constexpr (std::is_same_v<Update, AccountUpdatedOccurrence>) {
-                            reduced.accounts = update.account;
-                        } else if constexpr (std::is_same_v<Update, ModelsUpdatedOccurrence>) {
-                            reduced.models = update.models;
-                        } else if constexpr (std::is_same_v<Update, ConfigurationUpdatedOccurrence>) {
-                            reduced.configuration = update.configuration;
-                        } else if constexpr (std::is_same_v<Update, ProcessUpdatedOccurrence>) {
-                            markProjectionRootRepresented("/processes");
-                            markSparseCollectionRepresented(reduced.processesState);
-                            upsert(reduced.processes, update.process, [&](const ProcessState& value) {
-                                return value.handle == update.process.handle;
-                            });
-                        } else if constexpr (std::is_same_v<Update, FilesystemWatchUpdatedOccurrence>) {
-                            markSparseCollectionRepresented(reduced.filesystemWatches.state);
-                            upsert(reduced.filesystemWatches.entries, update.filesystemWatch, [&](const FilesystemWatchRecord& value) {
-                                return value.watchId == update.filesystemWatch.watchId;
-                            });
-                        } else if constexpr (std::is_same_v<Update, FuzzySearchUpdatedOccurrence>) {
-                            markSparseCollectionRepresented(reduced.fuzzySearches.state);
-                            upsert(reduced.fuzzySearches.entries, update.fuzzySearch, [&](const FuzzySearchRecord& value) {
-                                return value.sessionId == update.fuzzySearch.sessionId;
-                            });
-                        } else if constexpr (std::is_same_v<Update, ReviewsUpdatedOccurrence>) {
-                            reduced.reviews = update.reviews;
-                            reduced.permissionProfiles.state = update.reviews.state;
-                        } else if constexpr (std::is_same_v<Update, IntegrationsUpdatedOccurrence>) {
-                            reduced.integrations = update.integrations;
-                            reduced.apps.state = update.integrations.state;
-                            reduced.externalAgents.state = update.integrations.state;
-                            reduced.hooks.state = update.integrations.state;
-                            reduced.marketplace.state = update.integrations.state;
-                        } else if constexpr (std::is_same_v<Update, PluginsUpdatedOccurrence>) {
-                            reduced.plugins = update.plugins;
-                            reduced.skills.state = update.plugins.state;
-                        } else if constexpr (std::is_same_v<Update, SkillsUpdatedOccurrence>) {
-                            reduced.skills = update.skills;
-                            reduced.plugins.state = update.skills.state;
-                        } else if constexpr (std::is_same_v<Update, McpUpdatedOccurrence>) {
-                            reduced.mcp = update.mcp;
-                        } else if constexpr (std::is_same_v<Update, PlatformUpdatedOccurrence>) {
-                            reduced.platform = update.platform;
-                            reduced.windowsSandbox.state = update.platform.state;
-                            reduced.remoteControl.state = update.platform.state;
-                        } else if constexpr (std::is_same_v<Update, NoticeAddedOccurrence>) {
-                            markSparseCollectionRepresented(reduced.notices.state);
-                            reduced.notices.entries.push_back(update.notice);
-                        } else if constexpr (std::is_same_v<Update, ActivityUpdatedOccurrence>) {
-                            markSparseCollectionRepresented(reduced.activities.state);
-                            upsert(reduced.activities.entries, update.activity, [&](const ActivityRecord& value) {
-                                return value.key == update.activity.key;
-                            });
-                        } else if constexpr (std::is_same_v<Update, CapacityUpdatedOccurrence>) {
-                            reduced.capacity = update.capacity;
-                            reduced.capacityPresent = true;
-                        } else if constexpr (std::is_same_v<Update, DiagnosticsUpdatedOccurrence>) {
-                            const TruncationMetadata retainedTruncation = reduced.diagnostics.state.truncation;
-                            reduced.diagnostics.state = DomainState::present(Freshness::Unknown);
-                            reduced.diagnostics.state.truncation = retainedTruncation;
-                            if (update.aggregateLegacyUpdate) {
-                                reduced.diagnostics.entries = update.aggregateEntries;
-                            } else {
-                                reduced.diagnostics.entries.push_back(update.diagnostic);
-                            }
-                            if (update.diagnostic.received.has_value()) {
-                                reduced.diagnostics.received = update.diagnostic.received;
-                            }
-                        }
-                    },
-                    payload);
+                        },
+                        payload);
+                }
+                const auto markOmitted = [&](TruncationMetadata& truncation, std::size_t amount) {
+                    if (amount == 0) {
+                        return;
+                    }
+                    truncation.truncated = true;
+                    const std::size_t current = truncation.omittedEntries.value_or(0);
+                    truncation.omittedEntries = amount > std::numeric_limits<std::size_t>::max() - current
+                                                    ? std::numeric_limits<std::size_t>::max()
+                                                    : current + amount;
+                };
+                const auto trimFront = [&](auto& values, std::size_t maximum, TruncationMetadata& truncation) {
+                    if (values.size() <= maximum) {
+                        return std::size_t{0};
+                    }
+                    const std::size_t removed = values.size() - maximum;
+                    values.erase(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(removed));
+                    markOmitted(truncation, removed);
+                    return removed;
+                };
+
+                (void) trimFront(reduced.sessions, 128, reduced.truncation);
+                (void) trimFront(reduced.threads, 2'048, reduced.truncation);
+                (void) trimFront(reduced.turns, 16'384, reduced.truncation);
+                (void) trimFront(reduced.items, 65'536, reduced.truncation);
+                (void) trimFront(reduced.pendingRequests, 1'024, reduced.truncation);
+                (void) trimFront(reduced.processes, 256, reduced.truncation);
+                (void) trimFront(reduced.filesystemWatches.entries, 1'024, reduced.filesystemWatches.state.truncation);
+                (void) trimFront(reduced.fuzzySearches.entries, 256, reduced.fuzzySearches.state.truncation);
+                (void) trimFront(reduced.notices.entries, 256, reduced.notices.state.truncation);
+                (void) trimFront(reduced.activities.entries, 512, reduced.activities.state.truncation);
+                (void) trimFront(reduced.diagnostics.entries, 64, reduced.diagnostics.state.truncation);
+
+                if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::CodexExtension) {
+                    const auto encoded = encodeLegacyOccurrence(occurrence);
+                    if (!encoded) {
+                        return occurrenceModelError(encoded.error());
+                    }
+                    Json stateExtensions = reduced.stateExtensions.json();
+                    if (!stateExtensions.is_object()) {
+                        stateExtensions = Json::object();
+                    }
+                    Json& retained = stateExtensions["codexExtensions"];
+                    if (!retained.is_array()) {
+                        retained = Json::array();
+                    }
+                    retained.push_back(encoded.value().data);
+                    std::size_t omitted = 0;
+                    while (retained.size() > 64) {
+                        retained.erase(retained.begin());
+                        ++omitted;
+                    }
+                    SafeDetailError detailError = SafeDetailError::None;
+                    auto bounded = SafeDetail::fromJson(stateExtensions, &detailError);
+                    while (!bounded.has_value() && !retained.empty()) {
+                        retained.erase(retained.begin());
+                        ++omitted;
+                        bounded = SafeDetail::fromJson(stateExtensions, &detailError);
+                    }
+                    if (bounded.has_value()) {
+                        reduced.stateExtensions = std::move(*bounded);
+                    } else {
+                        ++omitted;
+                    }
+                    markOmitted(reduced.truncation, omitted);
+                }
+
+                reduced.sequence = occurrence.identity().sequence;
+                reduced.projection.sourceStamp = occurrence.identity().sourceStamp;
+                reduced.projection.projectionStamp = occurrence.identity().projectionStamp;
+                return true;
+            } catch (const OccurrenceFailure& failure) {
+                return occurrenceModelError(failure.error);
+            } catch (const std::exception& error) {
+                return ModelError{ModelErrorCode::InvalidShape, "/occurrence", error.what()};
+            } catch (...) {
+                return ModelError{ModelErrorCode::InvalidShape, "/occurrence", "occurrence reduction failed"};
             }
-            const auto markOmitted = [&](TruncationMetadata& truncation, std::size_t amount) {
-                if (amount == 0) {
-                    return;
-                }
-                truncation.truncated = true;
-                const std::size_t current = truncation.omittedEntries.value_or(0);
-                truncation.omittedEntries =
-                    amount > std::numeric_limits<std::size_t>::max() - current ? std::numeric_limits<std::size_t>::max() : current + amount;
-            };
-            const auto trimFront = [&](auto& values, std::size_t maximum, TruncationMetadata& truncation) {
-                if (values.size() <= maximum) {
-                    return std::size_t{0};
-                }
-                const std::size_t removed = values.size() - maximum;
-                values.erase(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(removed));
-                markOmitted(truncation, removed);
-                return removed;
-            };
-
-            (void) trimFront(reduced.sessions, 128, reduced.truncation);
-            (void) trimFront(reduced.threads, 2'048, reduced.truncation);
-            (void) trimFront(reduced.turns, 16'384, reduced.truncation);
-            (void) trimFront(reduced.items, 65'536, reduced.truncation);
-            (void) trimFront(reduced.pendingRequests, 1'024, reduced.truncation);
-            (void) trimFront(reduced.processes, 256, reduced.truncation);
-            (void) trimFront(reduced.filesystemWatches.entries, 1'024, reduced.filesystemWatches.state.truncation);
-            (void) trimFront(reduced.fuzzySearches.entries, 256, reduced.fuzzySearches.state.truncation);
-            (void) trimFront(reduced.notices.entries, 256, reduced.notices.state.truncation);
-            (void) trimFront(reduced.activities.entries, 512, reduced.activities.state.truncation);
-            (void) trimFront(reduced.diagnostics.entries, 64, reduced.diagnostics.state.truncation);
-
-            if (occurrence.legacyCompatibility().kind == LegacyCompatibilityKind::CodexExtension) {
-                const auto encoded = encodeLegacyOccurrence(occurrence);
-                if (!encoded) {
-                    return occurrenceModelError(encoded.error());
-                }
-                Json stateExtensions = reduced.stateExtensions.json();
-                if (!stateExtensions.is_object()) {
-                    stateExtensions = Json::object();
-                }
-                Json& retained = stateExtensions["codexExtensions"];
-                if (!retained.is_array()) {
-                    retained = Json::array();
-                }
-                retained.push_back(encoded.value().data);
-                std::size_t omitted = 0;
-                while (retained.size() > 64) {
-                    retained.erase(retained.begin());
-                    ++omitted;
-                }
-                SafeDetailError detailError = SafeDetailError::None;
-                auto bounded = SafeDetail::fromJson(stateExtensions, &detailError);
-                while (!bounded.has_value() && !retained.empty()) {
-                    retained.erase(retained.begin());
-                    ++omitted;
-                    bounded = SafeDetail::fromJson(stateExtensions, &detailError);
-                }
-                if (bounded.has_value()) {
-                    reduced.stateExtensions = std::move(*bounded);
-                } else {
-                    ++omitted;
-                }
-                markOmitted(reduced.truncation, omitted);
-            }
-
-            reduced.sequence = occurrence.identity().sequence;
-            reduced.projection.sourceStamp = occurrence.identity().sourceStamp;
-            reduced.projection.projectionStamp = occurrence.identity().projectionStamp;
-            return true;
-        } catch (const OccurrenceFailure& failure) {
-            return occurrenceModelError(failure.error);
-        } catch (const std::exception& error) {
-            return ModelError{ModelErrorCode::InvalidShape, "/occurrence", error.what()};
-        } catch (...) {
-            return ModelError{ModelErrorCode::InvalidShape, "/occurrence", "occurrence reduction failed"};
         }
+    } // namespace
+
+    ModelResult<bool> applyOccurrence(CanonicalSnapshot& reduced, const CanonicalOccurrence& occurrence) noexcept {
+        const std::vector<OccurrencePayload>& payloads = occurrence.expandedPayloads();
+        return applyOccurrenceImpl(reduced, occurrence, payloads);
+    }
+
+    ModelResult<bool> applyOccurrence(CanonicalSnapshot& reduced, CanonicalOccurrence&& occurrence) noexcept {
+        std::vector<OccurrencePayload>&& payloads = std::move(occurrence).expandedPayloads();
+        return applyOccurrenceImpl(reduced, occurrence, payloads);
     }
 
     ModelResult<CanonicalSnapshot> reduceOccurrence(const CanonicalSnapshot& snapshot, const CanonicalOccurrence& occurrence) noexcept {

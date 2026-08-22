@@ -43,6 +43,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -79,6 +80,20 @@ namespace ai::openai::codex::backend {
             } catch (...) {
                 return std::numeric_limits<std::size_t>::max();
             }
+        }
+
+        bool authoritativeThreadReadNotFound(const typed::OperationResult<typed::ThreadReadResponse>& result,
+                                             const typed::ThreadId& threadId) noexcept {
+            using Result = typed::OperationResult<typed::ThreadReadResponse>;
+            if (result.kind != Result::Kind::RemoteError || !result.remoteError || result.remoteError->code != -32600) {
+                return false;
+            }
+            const std::string_view message = result.remoteError->message;
+            const auto exactTarget = [&](std::string_view prefix) noexcept {
+                return message.size() == prefix.size() + threadId.value.size() && message.starts_with(prefix) &&
+                       message.substr(prefix.size()) == threadId.value;
+            };
+            return exactTarget("thread not loaded: ");
         }
 
         const Json& itemRaw(const typed::ThreadItem& item) {
@@ -240,12 +255,19 @@ namespace ai::openai::codex::backend {
 
         std::size_t commandCompletionBytes(const CommandCompletion& completion) noexcept {
             std::size_t bytes = 512 + completion.requestId.size();
+            const auto add = [&bytes](std::size_t amount) {
+                bytes = amount > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
+                                                                                : bytes + amount;
+            };
             if (completion.result.error) {
                 const std::size_t errorBytes = completion.result.error->message.size() + jsonBytes(completion.result.error->details);
-                if (errorBytes > std::numeric_limits<std::size_t>::max() - bytes) {
-                    return std::numeric_limits<std::size_t>::max();
+                add(errorBytes);
+            }
+            if (completion.threadReadSnapshot) {
+                add(sizeof(ThreadSnapshotAtSequence));
+                if (completion.threadReadSnapshot->thread) {
+                    add(threadSnapshotSizeBytes(*completion.threadReadSnapshot->thread));
                 }
-                bytes += errorBytes;
             }
             const std::size_t valueBytes = std::visit(
                 []<typename Value>(const Value& value) {
@@ -260,8 +282,8 @@ namespace ai::openai::codex::backend {
                     }
                 },
                 completion.result.value);
-            return valueBytes > std::numeric_limits<std::size_t>::max() - bytes ? std::numeric_limits<std::size_t>::max()
-                                                                                : bytes + valueBytes;
+            add(valueBytes);
+            return bytes;
         }
 
         template <typename Command>
@@ -1465,14 +1487,17 @@ namespace ai::openai::codex::backend {
                 command);
         }
 
-        void complete(SessionId id, const std::string& requestId, CommandResult result) {
+        void complete(SessionId id,
+                      const std::string& requestId,
+                      CommandResult result,
+                      std::optional<ThreadSnapshotAtSequence> threadReadSnapshot = std::nullopt) {
             activeOperations.erase({id, requestId});
             const auto iterator = sessions.find(id);
             if (iterator == sessions.end() || iterator->second->closed || !iterator->second->pendingRequestIds.contains(requestId) ||
                 iterator->second->queuedCompletions.contains(requestId)) {
                 return;
             }
-            CommandCompletion completion{requestId, std::move(result)};
+            CommandCompletion completion{requestId, std::move(result), std::move(threadReadSnapshot)};
             const std::size_t bytes = commandCompletionBytes(completion);
             if (!queueFits(*iterator->second, bytes)) {
                 closeSession(id, "frontend session outbound queue capacity exceeded");
@@ -1554,8 +1579,13 @@ namespace ai::openai::codex::backend {
         bool projectProviderOperation(const Command& command,
                                       const typename ProviderCommandTraits<Command>::Result& result,
                                       const std::optional<std::string>& resourceReservationKey) {
+            bool requesterLocalFullThreadRead = false;
+            if constexpr (std::is_same_v<Command, ThreadRead>) {
+                requesterLocalFullThreadRead = command.params.includeTurns.value_or(false);
+            }
             if constexpr (ProviderCommandTraits<Command>::stateful) {
-                if (!publish(ProviderOperationCompleted{ProviderCommandTraits<Command>::method,
+                if (!requesterLocalFullThreadRead &&
+                    !publish(ProviderOperationCompleted{ProviderCommandTraits<Command>::method,
                                                         BackendCommand{command},
                                                         ProviderOperationValue{result},
                                                         resourceReservationKey})) {
@@ -1574,8 +1604,7 @@ namespace ai::openai::codex::backend {
                     return false;
                 }
             } else if constexpr (std::is_same_v<Command, ThreadRead>) {
-                const EntityLoad load = command.params.includeTurns.value_or(false) ? EntityLoad::Full : EntityLoad::Summary;
-                if (!publish(ThreadUpserted{result.thread, load})) {
+                if (!requesterLocalFullThreadRead && !publish(ThreadUpserted{result.thread, EntityLoad::Summary})) {
                     return false;
                 }
             } else if constexpr (std::is_same_v<Command, TurnStart>) {
@@ -1584,6 +1613,26 @@ namespace ai::openai::codex::backend {
                 }
             }
             return !state.sequenceExhausted;
+        }
+
+        ThreadSnapshotAtSequence captureFullThreadRead(const typed::ThreadReadResponse& result) const {
+            BackendState isolated;
+            isolated.sequence = state.sequence;
+            Reducer isolatedReducer(options.reducer);
+            static_cast<void>(isolatedReducer.apply(isolated, CapacityConfigured{options.capacity}));
+            static_cast<void>(isolatedReducer.apply(isolated, ThreadUpserted{result.thread, EntityLoad::Full}));
+            std::optional<ThreadSnapshot> snapshot = makeThreadSnapshot(isolated, result.thread.id);
+            if (!snapshot) {
+                // Retention pressure is not provider absence. Preserve a
+                // merge-only target header so the bridge can report an
+                // explicitly partial successful read without deleting client
+                // state.
+                ThreadSnapshot header;
+                header.id = result.thread.id.value;
+                header.fullyLoaded = false;
+                snapshot = std::move(header);
+            }
+            return ThreadSnapshotAtSequence{state.sequence, std::move(snapshot)};
         }
 
         template <ProviderBackendCommand Command>
@@ -1632,10 +1681,48 @@ namespace ai::openai::codex::backend {
                             if constexpr (providerResourceKind<Command>().has_value()) {
                                 self->releaseProviderResource(*resourceKind, *resourceReservationKey);
                             }
+                            if constexpr (std::is_same_v<Command, ThreadRead>) {
+                                if (authoritativeThreadReadNotFound(result, command.params.threadId)) {
+                                    std::optional<ThreadSnapshotAtSequence> threadReadSnapshot;
+                                    if (command.params.includeTurns.value_or(false)) {
+                                        // The provider error and the canonical
+                                        // ordering fence are observed in this
+                                        // one serialized callback.  A null
+                                        // body is authoritative absence, not a
+                                        // retention-driven omission.
+                                        threadReadSnapshot = ThreadSnapshotAtSequence{self->state.sequence, std::nullopt};
+                                    }
+                                    self->complete(
+                                        id,
+                                        requestId,
+                                        CommandResult::failed(CommandErrorCode::NotFound,
+                                                              "The requested thread does not exist.",
+                                                              result.remoteError ? std::optional<std::int64_t>{result.remoteError->code}
+                                                                                 : std::nullopt),
+                                        std::move(threadReadSnapshot));
+                                    return;
+                                }
+                            }
                             self->complete(id, requestId, detail::providerOperationFailure(result));
                             return;
                         }
                         try {
+                            std::optional<ThreadSnapshotAtSequence> threadReadSnapshot;
+                            Result completionResult = [&]() -> Result {
+                                if constexpr (std::is_same_v<Command, ThreadRead>) {
+                                    if (command.params.includeTurns.value_or(false)) {
+                                        threadReadSnapshot = self->captureFullThreadRead(*result.value);
+                                        // The sidecar is the sole retained full
+                                        // representation. Keep only the target
+                                        // identity in the typed wrapper used for
+                                        // result discrimination and validation.
+                                        Result header;
+                                        header.thread.id = result.value->thread.id;
+                                        return header;
+                                    }
+                                }
+                                return *result.value;
+                            }();
                             if (!self->projectProviderOperation(command, *result.value, resourceReservationKey)) {
                                 if constexpr (providerResourceKind<Command>().has_value()) {
                                     self->releaseProviderResource(*resourceKind, *resourceReservationKey);
@@ -1647,7 +1734,8 @@ namespace ai::openai::codex::backend {
                                                           "The canonical backend state could not publish the operation result."));
                                 return;
                             }
-                            self->complete(id, requestId, CommandResult::succeeded(*result.value));
+                            self->complete(
+                                id, requestId, CommandResult::succeeded(std::move(completionResult)), std::move(threadReadSnapshot));
                         } catch (const std::exception& error) {
                             if constexpr (providerResourceKind<Command>().has_value()) {
                                 self->releaseProviderResource(*resourceKind, *resourceReservationKey);

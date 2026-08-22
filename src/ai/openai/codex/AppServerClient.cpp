@@ -140,12 +140,20 @@ namespace ai::openai::codex {
 
     class AppServerClient::Impl {
     public:
-        Impl(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams)
+        Impl(std::unique_ptr<detail::Transport> transport,
+             typed::InitializeParams initializeParams,
+             AppServerClient::CallbackScheduler callbackScheduler)
             : transport(std::move(transport))
             , initializeParams(std::move(initializeParams))
+            , callbackScheduler(std::move(callbackScheduler))
             , lifetime(std::make_shared<Lifetime>())
             , rawProtocol(*this)
             , logScope(logger::LogOrigin::Framework, logger::LogBoundary::Connection, "ai.openai.codex") {
+            if (!this->callbackScheduler) {
+                this->callbackScheduler = [](std::function<void()> callback) {
+                    core::EventReceiver::atNextTick(std::move(callback));
+                };
+            }
         }
 
         ~Impl() {
@@ -568,7 +576,7 @@ namespace ai::openai::codex {
 
         void schedule(std::function<void()> callback) {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
-            core::EventReceiver::atNextTick([weakLifetime, callback = std::move(callback)]() {
+            callbackScheduler([weakLifetime, callback = std::move(callback)]() {
                 if (weakLifetime.lock()) {
                     callback();
                 }
@@ -578,7 +586,7 @@ namespace ai::openai::codex {
         void schedulePublic(std::function<void()> callback) {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             const logger::BoundaryLogger callbackLogger = logScope.logger(logger::Logger::semanticSink());
-            core::EventReceiver::atNextTick([weakLifetime, callback = std::move(callback), callbackLogger]() {
+            callbackScheduler([weakLifetime, callback = std::move(callback), callbackLogger]() {
                 if (weakLifetime.lock()) {
                     invokePublicCallback(callback, callbackLogger);
                 }
@@ -588,7 +596,7 @@ namespace ai::openai::codex {
         void scheduleProtocol(std::uint64_t generation, std::function<void()> callback) {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             const logger::BoundaryLogger callbackLogger = logScope.logger(logger::Logger::semanticSink());
-            core::EventReceiver::atNextTick([weakLifetime, generation, callback = std::move(callback), callbackLogger]() {
+            callbackScheduler([weakLifetime, generation, callback = std::move(callback), callbackLogger]() {
                 const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                 if (locked && locked->protocolActive && locked->callbackGeneration == generation) {
                     invokePublicCallback(callback, callbackLogger);
@@ -599,7 +607,7 @@ namespace ai::openai::codex {
         void scheduleForConnection(std::uint64_t generation, std::function<void()> callback) {
             const std::weak_ptr<Lifetime> weakLifetime = lifetime;
             const logger::BoundaryLogger callbackLogger = logScope.logger(logger::Logger::semanticSink());
-            core::EventReceiver::atNextTick([weakLifetime, generation, callback = std::move(callback), callbackLogger]() {
+            callbackScheduler([weakLifetime, generation, callback = std::move(callback), callbackLogger]() {
                 const std::shared_ptr<Lifetime> locked = weakLifetime.lock();
                 if (locked && locked->callbackGeneration == generation) {
                     invokePublicCallback(callback, callbackLogger);
@@ -1205,6 +1213,7 @@ namespace ai::openai::codex {
 
         std::unique_ptr<detail::Transport> transport;
         typed::InitializeParams initializeParams;
+        AppServerClient::CallbackScheduler callbackScheduler;
         Callbacks callbacks;
 
         State state = State::Stopped;
@@ -1331,11 +1340,23 @@ namespace ai::openai::codex {
     }
 
     AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo)
-        : AppServerClient(std::move(transport), typed::InitializeParams{clientInfo}) {
+        : AppServerClient(std::move(transport), std::move(clientInfo), {}) {
     }
 
     AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams)
-        : impl(std::make_unique<Impl>(std::move(transport), std::move(initializeParams))) {
+        : AppServerClient(std::move(transport), std::move(initializeParams), {}) {
+    }
+
+    AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport,
+                                     ClientInfo clientInfo,
+                                     CallbackScheduler callbackScheduler)
+        : AppServerClient(std::move(transport), typed::InitializeParams{std::move(clientInfo)}, std::move(callbackScheduler)) {
+    }
+
+    AppServerClient::AppServerClient(std::unique_ptr<detail::Transport> transport,
+                                     typed::InitializeParams initializeParams,
+                                     CallbackScheduler callbackScheduler)
+        : impl(std::make_unique<Impl>(std::move(transport), std::move(initializeParams), std::move(callbackScheduler))) {
         impl->installFacades(std::unique_ptr<typed::Accounts>(new typed::Accounts(impl->raw())),
                              std::unique_ptr<typed::Apps>(new typed::Apps(impl->raw())),
                              std::unique_ptr<typed::Commands>(new typed::Commands(impl->raw())),

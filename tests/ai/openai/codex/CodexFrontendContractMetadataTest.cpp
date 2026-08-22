@@ -56,7 +56,7 @@ namespace {
     static_assert(generated::ProviderOperationMethodCount == 86);
     static_assert(generated::ReverseMethodCount == 12);
     static_assert(generated::ProviderLifecycleMethodCount == 3);
-    static_assert(generated::ImplementedMechanismCapabilityCount == 13);
+    static_assert(generated::ImplementedMechanismCapabilityCount == 14);
     static_assert(generated::AllPendingRequestProjections.size() == 10);
     static_assert(std::variant_size_v<generated::CompleteCommandParameters> == 105);
     static_assert(std::variant_size_v<generated::CompleteCommandResult> == 105);

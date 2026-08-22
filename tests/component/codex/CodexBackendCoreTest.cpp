@@ -450,6 +450,8 @@ namespace {
             std::vector<std::uint64_t> invalidations;
             std::vector<std::pair<std::uint64_t, backend::PendingRequestRemoved>> pendingRequestRemovals;
             std::vector<backend::CodexExtensionReceived> extensions;
+            std::size_t fullThreadUpserts = 0;
+            std::size_t providerOperationCompletions = 0;
             std::size_t snapshots = 0;
         };
 
@@ -509,6 +511,10 @@ namespace {
                             log.pendingRequestRemovals.emplace_back(event.sequence.value(), *removal);
                         } else if (const auto* extension = std::get_if<backend::CodexExtensionReceived>(&event.event)) {
                             log.extensions.push_back(*extension);
+                        } else if (const auto* upsert = std::get_if<backend::ThreadUpserted>(&event.event)) {
+                            log.fullThreadUpserts += upsert->load == backend::EntityLoad::Full ? 1U : 0U;
+                        } else if (std::holds_alternative<backend::ProviderOperationCompleted>(event.event)) {
+                            ++log.providerOperationCompletions;
                         }
                     }
                     expect(sequences.size() <= 32, "BackendCore event callback obeys maxEventsPerCallback");
@@ -867,6 +873,7 @@ namespace {
                    "transport enqueue rejection maps to local_submission_failure");
 
             const backend::Snapshot hydrated = backendCore->snapshot();
+            const backend::BackendState globalState = backendCore->state();
             const auto findThread = [&hydrated](const std::string& id) {
                 return std::find_if(hydrated.threads.begin(), hydrated.threads.end(), [&id](const backend::ThreadSnapshot& value) {
                     return value.id == id;
@@ -876,14 +883,39 @@ namespace {
             const auto resumed = findThread("thread-successful-resume");
             const auto read = findThread("thread-read");
             const auto summaryRead = findThread("thread-read-summary");
+            const backend::CommandCompletion* fullRead = completion("read-full");
+            const backend::ThreadSnapshot* privateRead = fullRead && fullRead->threadReadSnapshot &&
+                                                                 fullRead->threadReadSnapshot->thread
+                                                             ? &*fullRead->threadReadSnapshot->thread
+                                                             : nullptr;
             expect(started != hydrated.threads.end() && !started->fullyLoaded && resumed != hydrated.threads.end() &&
-                       !resumed->fullyLoaded && read != hydrated.threads.end() && read->fullyLoaded && read->turns.size() == 1 &&
-                       read->turns[0].items.size() == 1 && summaryRead != hydrated.threads.end() && !summaryRead->fullyLoaded,
-                   "start/resume and read(includeTurns=false) retain summary load state while read(includeTurns=true) is fully loaded");
+                       !resumed->fullyLoaded && read == hydrated.threads.end() && summaryRead != hydrated.threads.end() &&
+                       !summaryRead->fullyLoaded && summaryRead->turns.empty(),
+                   "global snapshots retain start/resume and read(includeTurns=false) summaries but no requester-local full read");
+            expect(privateRead && privateRead->id == "thread-read" && privateRead->fullyLoaded && privateRead->turns.size() == 1 &&
+                       privateRead->turns[0].items.size() == 1 && privateRead->turns[0].items[0].agentText == "read text",
+                   "read(includeTurns=true) completes with one requester-local fully-loaded thread sidecar");
+            expect(!globalState.threads.contains("thread-read") &&
+                       controllerEvents.fullThreadUpserts == 0 && observerEvents.fullThreadUpserts == 0 &&
+                       controllerEvents.providerOperationCompletions == 0 && observerEvents.providerOperationCompletions == 0,
+                   "full thread.read publishes neither descendants nor operation-result payloads into shared backend state or events");
             expect(threadListRequests == 2 && hydrated.threadList.complete,
                    "explicit thread/list merges its page and updates completeness independently of initial hydration");
 
-            streamStartSequence = hydrated.sequence.value();
+            lateSnapshotSession = backendCore->openSession(
+                {[](const std::vector<backend::SequencedBackendEvent>&) {
+                 },
+                 [this](const backend::Snapshot& snapshot) {
+                     lateSessionSnapshot = snapshot;
+                 },
+                 [](const backend::CommandCompletion&) {
+                 },
+                 [](const std::string&) {
+                 }});
+            expect(lateSnapshotSession.isOpen() && lateSnapshotSession.requestSnapshot(),
+                   "a newly opened frontend session can request the current shared snapshot after a private full read");
+
+            streamStartSequence = backendCore->snapshot().sequence.value();
             transport->inject({{"method", "thread/started"}, {"params", {{"thread", tests::codex::threadValue("thread-success")}}}});
             transport->inject({{"method", "thread/started"}, {"params", {{"thread", tests::codex::threadValue("thread-stream")}}}});
             transport->inject(
@@ -925,7 +957,7 @@ namespace {
                     for (const backend::ThreadSnapshot& thread : snapshot.threads) {
                         if (thread.id == "thread-stream" && !thread.turns.empty() && thread.turns[0].terminal &&
                             !thread.turns[0].items.empty() && thread.turns[0].items[0].agentText == streamedText &&
-                            snapshot.diagnostics.received != 0 && !observerEvents.extensions.empty()) {
+                            snapshot.diagnostics.received != 0 && !observerEvents.extensions.empty() && lateSessionSnapshot) {
                             return lastSequence(controllerEvents) >= snapshot.sequence.value() &&
                                    lastSequence(observerEvents) >= snapshot.sequence.value();
                         }
@@ -939,6 +971,16 @@ namespace {
 
         void verifyStreamAndPendingRequest() {
             const backend::Snapshot snapshot = backendCore->snapshot();
+            const bool lateSnapshotHasPrivateRead = lateSessionSnapshot &&
+                                                    std::any_of(lateSessionSnapshot->threads.begin(),
+                                                                lateSessionSnapshot->threads.end(),
+                                                                [](const backend::ThreadSnapshot& thread) {
+                                                                    return thread.id == "thread-read" &&
+                                                                           (!thread.turns.empty() || thread.fullyLoaded);
+                                                                });
+            expect(lateSessionSnapshot.has_value() && !lateSnapshotHasPrivateRead,
+                   "a session opened after the full read receives no requester-private descendants in its snapshot");
+            lateSnapshotSession.close("late snapshot isolation verified");
             expect(snapshot.diagnostics.recent.back() == "deterministic backend diagnostic",
                    "transport diagnostics are summarized in canonical backend state");
             expect(std::count_if(snapshot.threads.begin(),
@@ -1757,6 +1799,8 @@ namespace {
         std::unique_ptr<FakeBackendCore> backendCore;
         backend::FrontendSession controller;
         backend::FrontendSession observer;
+        backend::FrontendSession lateSnapshotSession;
+        std::optional<backend::Snapshot> lateSessionSnapshot;
         EventLog controllerEvents;
         EventLog observerEvents;
         std::map<std::string, backend::CommandCompletion> completions;

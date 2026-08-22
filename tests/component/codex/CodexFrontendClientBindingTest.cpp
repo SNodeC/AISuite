@@ -199,6 +199,14 @@ namespace {
         return thread;
     }
 
+    frontend::Json threadReadStateEffect(frontend::ThreadReadStateEffectAuthority authority,
+                                         bool sourcePartial = false) {
+        frontend::ThreadReadStateEffect effect;
+        effect.authority = authority;
+        effect.sourcePartial = sourcePartial;
+        return frontend::encodeThreadReadStateEffect(effect).value();
+    }
+
     void testBindingAuthority(tests::support::TestResult& result) {
         std::set<ai::openai::codex::frontend::generated::MethodId> methods;
         std::size_t native = 0;
@@ -493,6 +501,83 @@ namespace {
                               readResult->value->thread->turns.front().items.size() == 1 &&
                               readResult->value->thread->turns.front().items.front().id == typed::ItemId{"item-read"},
                           "thread.read preserves the complete ordered typed thread projection");
+
+        std::string stateEffectError;
+        frontend::Json mergeThread = projectedThread("thread-read-merge");
+        const frontend::Json mergeContradiction{
+            {"thread", std::move(mergeThread)},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Merge, true)}};
+        frontend::Json replaceThread = projectedThread("thread-read-replace");
+        replaceThread["fullyLoaded"] = false;
+        const frontend::Json replaceContradiction{
+            {"thread", std::move(replaceThread)},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Replace)}};
+        const frontend::Json absentContradiction{
+            {"thread", projectedThread("thread-read-absent")},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Absent)}};
+        const frontend::Json bodylessMerge{
+            {"threadId", "thread-read-bodyless-merge"},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Merge, true)}};
+        const frontend::Json bodylessReplace{
+            {"threadId", "thread-read-bodyless-replace"},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Replace)}};
+        const frontend::Json wireReplace{
+            {"thread", projectedThread("thread-read-wire-replace")},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Replace)}};
+        frontend::Json mergeWireThread = projectedThread("thread-read-wire-merge");
+        mergeWireThread["fullyLoaded"] = false;
+        const frontend::Json wireMerge{
+            {"thread", std::move(mergeWireThread)},
+            {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Merge, true)}};
+        frontend::ThreadReadStateEffect replaceFromPartial;
+        replaceFromPartial.authority = frontend::ThreadReadStateEffectAuthority::Replace;
+        replaceFromPartial.sourcePartial = true;
+        frontend::ThreadReadStateEffect completeMerge;
+        completeMerge.authority = frontend::ThreadReadStateEffectAuthority::Merge;
+        frontend::ThreadReadStateEffect truncatedWithoutOmissions;
+        truncatedWithoutOmissions.authority = frontend::ThreadReadStateEffectAuthority::Merge;
+        truncatedWithoutOmissions.responseTruncated = true;
+        frontend::ThreadReadStateEffect omissionsWithoutTruncation;
+        omissionsWithoutTruncation.authority = frontend::ThreadReadStateEffectAuthority::Replace;
+        omissionsWithoutTruncation.responseOmittedItems = 1;
+        frontend::ThreadReadStateEffect absentPartial;
+        absentPartial.authority = frontend::ThreadReadStateEffectAuthority::Absent;
+        absentPartial.sourcePartial = true;
+        const std::optional<client::ThreadReadResult> decodedBodylessMerge =
+            client::detail::decodeThreadReadResult(bodylessMerge, stateEffectError);
+        const std::optional<client::ThreadReadResult> decodedBodylessReplace =
+            client::detail::decodeThreadReadResult(bodylessReplace, stateEffectError);
+        const bool bodylessMergeRejectedOnWire =
+            !frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, bodylessMerge);
+        const bool bodylessReplaceRejectedOnWire =
+            !frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, bodylessReplace);
+        const auto wireReplaceValidation =
+            frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, wireReplace);
+        const auto wireMergeValidation =
+            frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, wireMerge);
+        result.expectTrue(static_cast<bool>(wireReplaceValidation),
+                          wireReplaceValidation ? "a complete Replace body is wire-valid"
+                                                : "complete Replace wire validation failed: " + wireReplaceValidation.error().message);
+        result.expectTrue(static_cast<bool>(wireMergeValidation),
+                          wireMergeValidation ? "an incomplete Merge body is wire-valid"
+                                              : "incomplete Merge wire validation failed: " + wireMergeValidation.error().message);
+        result.expectTrue(!client::detail::decodeThreadReadResult(mergeContradiction, stateEffectError) &&
+                              !client::detail::decodeThreadReadResult(replaceContradiction, stateEffectError) &&
+                              !client::detail::decodeThreadReadResult(absentContradiction, stateEffectError) &&
+                              decodedBodylessMerge && !decodedBodylessMerge->thread && decodedBodylessMerge->stateEffect &&
+                              decodedBodylessMerge->stateEffect->authority ==
+                                  frontend::ThreadReadStateEffectAuthority::Merge &&
+                              decodedBodylessReplace && !decodedBodylessReplace->thread && decodedBodylessReplace->stateEffect &&
+                              decodedBodylessReplace->stateEffect->authority ==
+                                  frontend::ThreadReadStateEffectAuthority::Replace &&
+                              bodylessMergeRejectedOnWire && bodylessReplaceRejectedOnWire &&
+                              !frontend::encodeThreadReadStateEffect(replaceFromPartial).has_value() &&
+                              !frontend::encodeThreadReadStateEffect(completeMerge).has_value() &&
+                              !frontend::encodeThreadReadStateEffect(truncatedWithoutOmissions).has_value() &&
+                              !frontend::encodeThreadReadStateEffect(omissionsWithoutTruncation).has_value() &&
+                              !frontend::encodeThreadReadStateEffect(absentPartial).has_value(),
+                          "thread.read wire validation rejects bodyless non-absent effects while the post-application binding accepts "
+                          "ID-plus-effect completions and rejects retained payload or truncation contradictions");
 
         typed::TurnStartParams startTurn;
         startTurn.threadId = typed::ThreadId{"thread-read"};
