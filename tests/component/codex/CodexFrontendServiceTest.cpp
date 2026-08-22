@@ -178,6 +178,14 @@ namespace {
                                                                 2,
                                                                 {"first", "second"}};
 
+        const std::string longUserText(model::SafeDetail::HardMaximumBytes + 4U * 1024U, 'x');
+        backend::ItemSnapshot longUserMessage;
+        longUserMessage.id = "item-long-user-message";
+        longUserMessage.type = "user_message";
+        longUserMessage.status = "completed";
+        longUserMessage.userMessage = backend::UserMessageSnapshot{
+            "long-client-message", longUserText, false, false, longUserText.size(), longUserText.size(), 1, 1, {longUserText}};
+
         backend::ItemSnapshot escapedCommand;
         escapedCommand.id = "item-escaped-command";
         escapedCommand.type = "command_execution";
@@ -204,6 +212,7 @@ namespace {
         turn.items.push_back(std::move(item));
         turn.items.push_back(std::move(futureItem));
         turn.items.push_back(std::move(userMessage));
+        turn.items.push_back(std::move(longUserMessage));
         turn.items.push_back(std::move(escapedCommand));
         turn.items.push_back(std::move(metadataOnly));
         turn.stamp = {8, backend::Freshness::Current};
@@ -221,7 +230,7 @@ namespace {
         thread.realtime.transcript = "hello";
         thread.realtime.sessionId = "realtime-session";
         thread.realtime.version = "v1";
-        thread.realtime.itemCount = 5;
+        thread.realtime.itemCount = 6;
         thread.realtime.receivedAudioBytes = 5;
         thread.realtime.droppedAudioBytes = 2;
         thread.realtime.transcriptTruncated = true;
@@ -235,7 +244,7 @@ namespace {
         const frontend::Json& encodedItem = encodedTurn.at("items").at(0);
         const frontend::Json& encodedFutureItem = encodedTurn.at("items").at(1);
         const frontend::Json& encodedUserMessage = encodedTurn.at("items").at(2);
-        const frontend::Json& encodedMetadataOnly = encodedTurn.at("items").at(4);
+        const frontend::Json& encodedMetadataOnly = encodedTurn.at("items").at(5);
 
         result.expectTrue(
             validation && wire.at("stateEffect").at("authority") == "replace" && encodedThread.at("ephemeral") == false &&
@@ -285,6 +294,10 @@ namespace {
             std::find_if(decoded.value().items.begin(), decoded.value().items.end(), [](const model::ThreadItem& value) {
                 return model::itemData(value).id.value() == "item-escaped-command";
             });
+        const auto decodedLongUserMessage =
+            std::find_if(decoded.value().items.begin(), decoded.value().items.end(), [](const model::ThreadItem& value) {
+                return model::itemData(value).id.value() == "item-long-user-message";
+            });
         const auto decodedFutureItem = std::find_if(
             decoded.value().legacyItems.begin(), decoded.value().legacyItems.end(), [](const model::LegacyItemCompatibility& value) {
                 return value.value.id.value() == "item-future";
@@ -303,11 +316,14 @@ namespace {
             decodedUserMessage != decoded.value().items.end() && model::itemData(*decodedUserMessage).userMessage &&
             model::itemData(*decodedUserMessage).userMessage->textParts == std::vector<std::string>{"first", "second"} &&
             model::itemData(*decodedUserMessage).safeDetails &&
-            model::itemData(*decodedUserMessage).safeDetails->json().at("content").size() == 3 &&
-            model::itemData(*decodedUserMessage).safeDetails->json().at("content").at(0).at("text") == "first" &&
-            model::itemData(*decodedUserMessage).safeDetails->json().at("content").at(1).at("text") == "second" &&
-            model::itemData(*decodedUserMessage).safeDetails->json().at("content").at(2).at("type") == "future_input" &&
-            model::itemData(*decodedUserMessage).safeDetails->json().at("content").at(2).at("opaqueFutureValue") == 99 &&
+            model::itemData(*decodedUserMessage).safeDetails->json().at("content").size() == 1 &&
+            model::itemData(*decodedUserMessage).safeDetails->json().at("content").at(0).at("type") == "future_input" &&
+            model::itemData(*decodedUserMessage).safeDetails->json().at("content").at(0).at("opaqueFutureValue") == 99 &&
+            decodedLongUserMessage != decoded.value().items.end() && model::itemData(*decodedLongUserMessage).userMessage &&
+            model::itemData(*decodedLongUserMessage).userMessage->text == longUserText &&
+            model::itemData(*decodedLongUserMessage).userMessage->textParts == std::vector<std::string>{longUserText} &&
+            (!model::itemData(*decodedLongUserMessage).safeDetails ||
+             !model::itemData(*decodedLongUserMessage).safeDetails->json().contains("content")) &&
             decodedEscapedCommand != decoded.value().items.end() &&
             model::itemData(*decodedEscapedCommand).commandOutput == std::optional<std::string>{std::string(20'000, '\\')} &&
             decodedFutureItem != decoded.value().legacyItems.end() && decodedFutureItem->discriminator == "future_super_item" &&

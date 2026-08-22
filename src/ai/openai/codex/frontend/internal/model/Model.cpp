@@ -4451,16 +4451,29 @@ namespace ai::openai::codex::frontend::internal::model {
                                  "nested user-message data did not contain its complete typed projection");
                         }
                         itemState.userMessage = std::move(userMessage);
-                        Json compatibilityDetails = legacyUnknownMembers(
-                            itemDetails,
-                            {"clientId",
-                             "text",
-                             "textTruncated",
-                             "contentTruncated",
-                             "originalContentBytes",
-                             "retainedContentBytes",
-                             "originalContentItems",
-                             "retainedContentItems"});
+                        Json compatibilityDetails = legacyUnknownMembers(itemDetails,
+                                                                         {"clientId",
+                                                                          "content",
+                                                                          "text",
+                                                                          "textTruncated",
+                                                                          "contentTruncated",
+                                                                          "originalContentBytes",
+                                                                          "retainedContentBytes",
+                                                                          "originalContentItems",
+                                                                          "retainedContentItems"});
+                        if (const auto content = itemDetails.find("content"); content != itemDetails.end() && content->is_array()) {
+                            Json futureContent = Json::array();
+                            for (const Json& entry : *content) {
+                                const bool knownText = entry.is_object() && optionalString(entry, "type") == "text" &&
+                                                       entry.contains("text") && entry.at("text").is_string();
+                                if (!knownText) {
+                                    futureContent.push_back(entry);
+                                }
+                            }
+                            if (!futureContent.empty()) {
+                                compatibilityDetails["content"] = std::move(futureContent);
+                            }
+                        }
                         if (!compatibilityDetails.empty()) {
                             itemState.safeDetails =
                                 safeLegacyCompatibilityDetail(std::move(compatibilityDetails), itemPath + "/data");

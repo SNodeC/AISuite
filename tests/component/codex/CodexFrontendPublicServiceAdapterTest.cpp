@@ -4,6 +4,7 @@
 #include "ai/openai/codex/backend/BackendCore.h"
 #include "ai/openai/codex/frontend/Codec.h"
 #include "ai/openai/codex/frontend/FrontendService.h"
+#include "ai/openai/codex/frontend/internal/model/Model.h"
 #include "ai/openai/codex/frontend/internal/server/BackendCoreBridge.h"
 #include "support/TestResult.h"
 
@@ -26,6 +27,7 @@ namespace {
     namespace backend = ai::openai::codex::backend;
     namespace frontend = ai::openai::codex::frontend;
     namespace generated = ai::openai::codex::frontend::generated;
+    namespace model = ai::openai::codex::frontend::internal::model;
     namespace server = ai::openai::codex::frontend::internal::server;
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
@@ -1379,10 +1381,18 @@ namespace {
                 if (method != message.end() && method->is_string() && *method == "thread/read" && id != message.end()) {
                     const std::string threadId =
                         message.value("params", frontend::Json::object()).value("threadId", "legacy-resync-thread");
+                    const std::string longUserText(model::SafeDetail::HardMaximumBytes + 4U * 1024U, 'u');
                     frontend::Json items = frontend::Json::array(
                         {frontend::Json{{"type", "agentMessage"},
                                         {"id", "requester-local-item"},
-                                        {"text", "requester-local body"}}});
+                                        {"text", "requester-local body"}},
+                         frontend::Json{{"type", "userMessage"},
+                                        {"id", "requester-local-large-user-item"},
+                                        {"clientId", "requester-local-client-message"},
+                                        {"content",
+                                         frontend::Json::array({frontend::Json{{"type", "text"},
+                                                                              {"text", longUserText},
+                                                                              {"text_elements", frontend::Json::array()}}})}}});
                     frontend::Json turns = frontend::Json::array(
                         {tests::codex::turnValue(threadId, "requester-local-turn", "completed", std::move(items))});
                     tests::codex::inject(
@@ -1450,6 +1460,7 @@ namespace {
         const bool peerSawSnapshot = std::any_of(peer.messages.begin(), peer.messages.end(), [](const frontend::ServerMessage& message) {
             return std::holds_alternative<frontend::Snapshot>(message);
         });
+        const std::string longUserText(model::SafeDetail::HardMaximumBytes + 4U * 1024U, 'u');
         const bool privateReplacement = completed && completed->ok && completed->result && completed->result->is_object() &&
                                         completed->result->contains("thread") && completed->result->at("thread").is_object() &&
                                         completed->result->contains("stateEffect") &&
@@ -1457,9 +1468,20 @@ namespace {
                                         completed->result->at("thread").value("id", std::string{}) == "legacy-resync-thread" &&
                                         completed->result->at("thread").value("fullyLoaded", false) &&
                                         completed->result->at("thread").at("turns").size() == 1 &&
-                                        completed->result->at("thread").at("turns").front().at("items").size() == 1 &&
+                                        completed->result->at("thread").at("turns").front().at("items").size() == 2 &&
                                         completed->result->at("thread").at("turns").front().at("items").front().value(
                                             "id", std::string{}) == "requester-local-item" &&
+                                        completed->result->at("thread").at("turns").front().at("items").at(1).value(
+                                            "id", std::string{}) == "requester-local-large-user-item" &&
+                                        completed->result->at("thread")
+                                                .at("turns")
+                                                .front()
+                                                .at("items")
+                                                .at(1)
+                                                .at("data")
+                                                .at("content")
+                                                .front()
+                                                .value("text", std::string{}) == longUserText &&
                                         completed->result->at("stateEffect").value("authority", std::string{}) == "replace";
         const backend::Snapshot global = core.snapshot();
         const bool globallyAbsent = std::none_of(global.threads.begin(), global.threads.end(), [](const backend::ThreadSnapshot& thread) {
@@ -1471,7 +1493,7 @@ namespace {
                               countEvents(requester, "thread.upserted") == 0 &&
                               response(peer, "requester-local-thread-read") == nullptr && requester.closes.empty() && peer.closes.empty(),
                           "a full thread.read returns one requester-local replacement without a global event, cursor advance, snapshot, "
-                          "or peer-visible payload");
+                          "or peer-visible payload, including canonical user text larger than SafeDetail's hard limit");
 
         requesterConnection.close("requester-local thread-read probe complete");
         peerConnection.close("requester-local thread-read peer complete");
