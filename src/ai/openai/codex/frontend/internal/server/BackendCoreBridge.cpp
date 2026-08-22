@@ -615,9 +615,8 @@ namespace ai::openai::codex::frontend::internal::server {
             : runtime(runtime)
             , maximumResultBytes(maximumResultBytes)
             , maximumDeferredThreadReadBytes(
-                  maximumResultBytes > std::numeric_limits<std::size_t>::max() / 2
-                      ? std::numeric_limits<std::size_t>::max()
-                      : maximumResultBytes * 2)
+                  backend::DefaultMaximumBackendSnapshotBytes
+                  * MaximumDeferredThreadReadCompletions)
             , timerScheduler(std::move(timerScheduler)) {
         }
 
@@ -812,14 +811,12 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         std::size_t deferredThreadReadBytesFor(const backend::CommandCompletion& completion) const noexcept {
-            std::size_t bytes = 512 + completion.requestId.size();
-            if (!completion.threadReadSnapshot || !completion.threadReadSnapshot->thread) {
-                return bytes;
-            }
-            const std::size_t snapshotBytes = backend::threadSnapshotSizeBytes(*completion.threadReadSnapshot->thread);
-            return snapshotBytes > std::numeric_limits<std::size_t>::max() - bytes
-                       ? std::numeric_limits<std::size_t>::max()
-                       : bytes + snapshotBytes;
+            // BackendCore already admits every immutable capture against its
+            // snapshot budget. Charge that structural upper bound directly;
+            // exact JSON sizing would encode and allocate the complete thread
+            // a second time on the ordering-deferral path.
+            static_cast<void>(completion);
+            return backend::DefaultMaximumBackendSnapshotBytes;
         }
 
         void releaseDeferredThreadReadBytes(std::size_t bytes) noexcept {
