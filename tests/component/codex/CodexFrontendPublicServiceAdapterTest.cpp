@@ -1032,6 +1032,32 @@ namespace {
                               bounded->at("stateEffect").at("authority") == "mergePreserveCompleteness" &&
                               bounded->at("stateEffect").at("truncation").at("responseTruncated") == true,
                           "a bounded read from a complete source retains the largest newest-item suffix without demoting completeness");
+
+        backend::ThreadSnapshot large = source;
+        large.id = "bounded-many-turns";
+        large.turns.clear();
+        for (std::size_t index = 0; index < 200; ++index) {
+            backend::TurnSnapshot largeTurn;
+            largeTurn.id = "bounded-many-turn-" + std::to_string(index);
+            largeTurn.threadId = large.id;
+            largeTurn.status = "completed";
+            largeTurn.terminal = true;
+            backend::ItemSnapshot largeItem;
+            largeItem.id = "bounded-many-item-" + std::to_string(index);
+            largeItem.type = "agentMessage";
+            largeItem.status = "completed";
+            largeItem.agentText.assign(64U * 1024U, static_cast<char>('a' + index % 26));
+            largeTurn.items.push_back(std::move(largeItem));
+            large.turns.push_back(std::move(largeTurn));
+        }
+        const frontend::Json manyTurnResult = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+            ai::openai::codex::typed::ThreadId{large.id}, large, 512U * 1024U);
+        const frontend::Json& manyTurnBody = manyTurnResult.at("thread");
+        result.expectTrue(manyTurnResult.at("stateEffect").at("authority") == "mergePreserveCompleteness" &&
+                              manyTurnResult.at("stateEffect").at("truncation").at("responseOmittedTurns").get<std::uint64_t>() > 0 &&
+                              !manyTurnBody.at("turns").empty() &&
+                              manyTurnBody.at("turns").back().value("id", std::string{}) == "bounded-many-turn-199",
+                          "a 200-turn oversized read retains the newest suffix with explicit ancestor-omission accounting");
     }
 
     void testThreadReadRetentionOmissionIsNotAbsence(tests::support::TestResult& result) {

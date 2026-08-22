@@ -17,10 +17,12 @@
 #include "ai/openai/codex/frontend/internal/server/BackendProjection.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -425,72 +427,112 @@ namespace ai::openai::codex::frontend::internal::server {
                 throw std::length_error("frontend command result exceeds outbound capacity");
             }
 
-            // Preserve a deterministic newest suffix.  A structurally
-            // truncated result is explicitly merge-only, so omitted ancestors
-            // can never be mistaken for authoritative deletion.
-            Json threadHeader = completeThread;
+            // Preserve a deterministic newest suffix. Encode every retained
+            // entity once; fit probes account for the already-encoded JSON
+            // fragments instead of repeatedly materializing the growing body.
+            Json encodedTurns = std::move(completeThread["turns"]);
+            Json threadHeader = std::move(completeThread);
             threadHeader["fullyLoaded"] = !projected.effect.sourcePartial;
             threadHeader["turns"] = Json::array();
             std::vector<std::uint64_t> itemPrefix(source->turns.size() + 1, 0);
+            std::vector<std::size_t> encodedTurnBytes;
+            encodedTurnBytes.reserve(encodedTurns.size());
             for (std::size_t index = 0; index < source->turns.size(); ++index) {
                 itemPrefix[index + 1] = saturatedAdd(itemPrefix[index], saturatedCount(source->turns[index].items.size()));
+                encodedTurnBytes.push_back(encodedTurns[index].dump().size());
             }
-            const auto suffixCandidate = [&](std::size_t omittedTurnCount) {
-                Json thread = threadHeader;
-                for (std::size_t index = omittedTurnCount; index < source->turns.size(); ++index) {
-                    thread["turns"].push_back(turnSnapshotJson(source->turns[index]));
+            const auto arrayBytes = [](std::span<const std::size_t> elements) {
+                if (elements.empty()) {
+                    return std::size_t{2};
                 }
-                return finalize(Json{{"thread", std::move(thread)}},
-                                saturatedCount(omittedTurnCount),
-                                itemPrefix[omittedTurnCount]);
+                std::size_t bytes = elements.size() + 1;
+                for (const std::size_t element : elements) {
+                    if (element > std::numeric_limits<std::size_t>::max() - bytes) {
+                        return std::numeric_limits<std::size_t>::max();
+                    }
+                    bytes += element;
+                }
+                return bytes;
+            };
+            const auto projectedBytes = [&](const Json& header,
+                                            std::span<const std::size_t> elements,
+                                            std::uint64_t omittedTurns,
+                                            std::uint64_t omittedItems) {
+                Json shell = finalize(Json{{"thread", header}}, omittedTurns, omittedItems);
+                const std::size_t shellBytes = shell.dump().size();
+                const std::size_t bodyBytes = arrayBytes(elements);
+                return bodyBytes > std::numeric_limits<std::size_t>::max() - (shellBytes - 2)
+                           ? std::numeric_limits<std::size_t>::max()
+                           : shellBytes - 2 + bodyBytes;
             };
 
-            std::size_t low = 1;
-            std::size_t high = source->turns.size();
-            while (low < high) {
-                const std::size_t middle = low + (high - low) / 2;
-                if (fits(suffixCandidate(middle))) {
-                    high = middle;
-                } else {
-                    low = middle + 1;
+            std::size_t omittedTurnCount = 1;
+            for (; omittedTurnCount <= encodedTurns.size(); ++omittedTurnCount) {
+                const std::span<const std::size_t> suffix =
+                    std::span<const std::size_t>(encodedTurnBytes).subspan(omittedTurnCount);
+                if (projectedBytes(threadHeader,
+                                   suffix,
+                                   saturatedCount(omittedTurnCount),
+                                   itemPrefix[omittedTurnCount]) <= maximumBytes) {
+                    break;
                 }
             }
-            Json bounded = suffixCandidate(low);
+            Json bounded;
 
             // If even the newest complete turn is too large, keep that turn's
             // header and the largest newest item suffix instead of dropping
             // the entire active turn.
-            if (low == source->turns.size() && !source->turns.empty()) {
-                const backend::TurnSnapshot& newest = source->turns.back();
-                Json turnHeader = turnSnapshotJson(newest);
+            if (omittedTurnCount == encodedTurns.size()) {
+                Json emptyThread = threadHeader;
+                bounded = finalize(Json{{"thread", std::move(emptyThread)}},
+                                   saturatedCount(encodedTurns.size()),
+                                   itemPrefix.back());
+                Json encodedItems = std::move(encodedTurns.back()["items"]);
+                Json turnHeader = std::move(encodedTurns.back());
                 turnHeader["items"] = Json::array();
-                const auto newestItemsCandidate = [&](std::size_t omittedItemCount) {
-                    Json turn = turnHeader;
-                    for (std::size_t index = omittedItemCount; index < newest.items.size(); ++index) {
-                        turn["items"].push_back(legacyItemSnapshotJson(newest.items[index]));
-                    }
-                    Json thread = threadHeader;
-                    thread["turns"].push_back(std::move(turn));
-                    return finalize(Json{{"thread", std::move(thread)}},
-                                    saturatedCount(source->turns.size() - 1),
-                                    saturatedAdd(itemPrefix[source->turns.size() - 1], saturatedCount(omittedItemCount)));
-                };
-                std::size_t itemLow = 0;
-                std::size_t itemHigh = newest.items.size();
-                while (itemLow < itemHigh) {
-                    const std::size_t middle = itemLow + (itemHigh - itemLow) / 2;
-                    if (fits(newestItemsCandidate(middle))) {
-                        itemHigh = middle;
-                    } else {
-                        itemLow = middle + 1;
+                std::vector<std::size_t> encodedItemBytes;
+                encodedItemBytes.reserve(encodedItems.size());
+                for (const Json& item : encodedItems) {
+                    encodedItemBytes.push_back(item.dump().size());
+                }
+                std::size_t omittedItemCount = 0;
+                for (; omittedItemCount <= encodedItems.size(); ++omittedItemCount) {
+                    const std::span<const std::size_t> suffix =
+                        std::span<const std::size_t>(encodedItemBytes).subspan(omittedItemCount);
+                    const std::size_t itemArrayBytes = arrayBytes(suffix);
+                    Json candidateTurnHeader = turnHeader;
+                    candidateTurnHeader["items"] = Json::array();
+                    const std::size_t turnShellBytes = candidateTurnHeader.dump().size();
+                    const std::size_t turnBytes = turnShellBytes - 2 + itemArrayBytes;
+                    const std::array<std::size_t, 1> turnElementBytes{turnBytes};
+                    if (projectedBytes(threadHeader,
+                                       turnElementBytes,
+                                       saturatedCount(source->turns.size() - 1),
+                                       saturatedAdd(itemPrefix[source->turns.size() - 1],
+                                                    saturatedCount(omittedItemCount))) <= maximumBytes) {
+                        Json turn = std::move(turnHeader);
+                        for (std::size_t index = omittedItemCount; index < encodedItems.size(); ++index) {
+                            turn["items"].push_back(std::move(encodedItems[index]));
+                        }
+                        Json thread = threadHeader;
+                        thread["turns"].push_back(std::move(turn));
+                        bounded = finalize(Json{{"thread", std::move(thread)}},
+                                           saturatedCount(source->turns.size() - 1),
+                                           saturatedAdd(itemPrefix[source->turns.size() - 1],
+                                                        saturatedCount(omittedItemCount)));
+                        break;
                     }
                 }
-                Json withNewestTurn = newestItemsCandidate(itemLow);
-                if (fits(withNewestTurn)) {
-                    bounded = std::move(withNewestTurn);
+            } else if (omittedTurnCount < encodedTurns.size()) {
+                Json thread = threadHeader;
+                for (std::size_t index = omittedTurnCount; index < encodedTurns.size(); ++index) {
+                    thread["turns"].push_back(std::move(encodedTurns[index]));
                 }
+                bounded = finalize(Json{{"thread", std::move(thread)}},
+                                   saturatedCount(omittedTurnCount),
+                                   itemPrefix[omittedTurnCount]);
             }
-            if (!fits(bounded)) {
+            if (bounded.empty() || !fits(bounded)) {
                 throw std::length_error("frontend command result exceeds outbound capacity");
             }
             projected.value = std::move(bounded);
