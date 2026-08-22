@@ -7056,7 +7056,7 @@
       "serverComparisonBorder": "equivalent BackendCore typed inputs/state/occurrences -> old and greenfield server cores -> canonical Frontend Protocol v1 output",
       "startingCorpus": {
         "canonicalSha256": {
-          "generatedProtocolFixture": "e9c22096c7e32b69e25fc1e7d46d2945e6db6090ece923cb884fb6e343010e99",
+          "generatedProtocolFixture": "1957df097a2505f5fa5b157268eeb022228a8ac56d4e0d1a0c5e9420a22035e4",
           "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
         },
         "generatedProtocolFixture": "tests/component/codex/fixtures/frontend-protocol-v1.generated.json",
