@@ -380,21 +380,29 @@ namespace ai::openai::codex::frontend::internal::server {
             ThreadReadStateEffect effect;
         };
 
+        thread_local BoundedThreadReadFitInstrumentation boundedThreadReadFitInstrumentation;
+
         BoundedThreadReadResult boundedThreadReadResult(const typed::ThreadId& id,
                                                         const std::optional<backend::ThreadSnapshot>& source,
                                                         std::size_t maximumBytes) {
             BoundedThreadReadResult projected;
             projected.effect.sourcePartial = source && !source->fullyLoaded;
 
+            const auto effectFor = [&](std::uint64_t omittedTurns, std::uint64_t omittedItems) {
+                ThreadReadStateEffect effect;
+                effect.sourcePartial = projected.effect.sourcePartial;
+                effect.responseOmittedTurns = omittedTurns;
+                effect.responseOmittedItems = omittedItems;
+                effect.responseTruncated = omittedTurns != 0 || omittedItems != 0;
+                effect.authority = effect.sourcePartial
+                                       ? ThreadReadStateEffectAuthority::Merge
+                                       : effect.responseTruncated
+                                             ? ThreadReadStateEffectAuthority::MergePreserveCompleteness
+                                             : ThreadReadStateEffectAuthority::Replace;
+                return effect;
+            };
             const auto finalize = [&](Json value, std::uint64_t omittedTurns, std::uint64_t omittedItems) {
-                projected.effect.responseOmittedTurns = omittedTurns;
-                projected.effect.responseOmittedItems = omittedItems;
-                projected.effect.responseTruncated = omittedTurns != 0 || omittedItems != 0;
-                projected.effect.authority = projected.effect.sourcePartial
-                                                 ? ThreadReadStateEffectAuthority::Merge
-                                                 : projected.effect.responseTruncated
-                                                       ? ThreadReadStateEffectAuthority::MergePreserveCompleteness
-                                                       : ThreadReadStateEffectAuthority::Replace;
+                projected.effect = effectFor(omittedTurns, omittedItems);
                 const std::optional<Json> effect = encodeThreadReadStateEffect(projected.effect);
                 if (!effect) {
                     throw std::logic_error("frontend thread-read state effect could not be encoded");
@@ -435,43 +443,69 @@ namespace ai::openai::codex::frontend::internal::server {
             threadHeader["fullyLoaded"] = !projected.effect.sourcePartial;
             threadHeader["turns"] = Json::array();
             std::vector<std::uint64_t> itemPrefix(source->turns.size() + 1, 0);
-            std::vector<std::size_t> encodedTurnBytes;
-            encodedTurnBytes.reserve(encodedTurns.size());
+            std::vector<std::size_t> encodedTurnSuffixBytes(encodedTurns.size() + 1, 0);
             for (std::size_t index = 0; index < source->turns.size(); ++index) {
                 itemPrefix[index + 1] = saturatedAdd(itemPrefix[index], saturatedCount(source->turns[index].items.size()));
-                encodedTurnBytes.push_back(encodedTurns[index].dump().size());
             }
-            const auto arrayBytes = [](std::span<const std::size_t> elements) {
-                if (elements.empty()) {
-                    return std::size_t{2};
-                }
-                std::size_t bytes = elements.size() + 1;
-                for (const std::size_t element : elements) {
-                    if (element > std::numeric_limits<std::size_t>::max() - bytes) {
-                        return std::numeric_limits<std::size_t>::max();
-                    }
-                    bytes += element;
-                }
-                return bytes;
+            const auto addSize = [](std::size_t left, std::size_t right) {
+                return right > std::numeric_limits<std::size_t>::max() - left
+                           ? std::numeric_limits<std::size_t>::max()
+                           : left + right;
             };
-            const auto projectedBytes = [&](const Json& header,
-                                            std::span<const std::size_t> elements,
+            const auto increment = [](std::size_t& value) {
+                if (value != std::numeric_limits<std::size_t>::max()) {
+                    ++value;
+                }
+            };
+            for (std::size_t index = encodedTurns.size(); index > 0; --index) {
+                encodedTurnSuffixBytes[index - 1] =
+                    addSize(encodedTurns[index - 1].dump().size(), encodedTurnSuffixBytes[index]);
+            }
+            const auto suffixArrayBytes = [&](const std::vector<std::size_t>& suffixBytes,
+                                              std::size_t first,
+                                              std::size_t count) {
+                const std::size_t retained = count - first;
+                return addSize(suffixBytes[first], retained == 0 ? std::size_t{2} : addSize(retained, 1));
+            };
+            const auto decimalDigits = [](std::uint64_t value) {
+                std::size_t digits = 1;
+                while (value >= 10) {
+                    value /= 10;
+                    ++digits;
+                }
+                return digits;
+            };
+            increment(boundedThreadReadFitInstrumentation.threadShellSerializations);
+            const std::size_t threadEnvelopeShellBytes = Json{{"thread", threadHeader}}.dump().size();
+            const auto encodedEffectBytes = [&](std::uint64_t omittedTurns, std::uint64_t omittedItems) {
+                increment(boundedThreadReadFitInstrumentation.effectShellSerializations);
+                const std::optional<Json> effect = encodeThreadReadStateEffect(effectFor(omittedTurns, omittedItems));
+                if (!effect) {
+                    throw std::logic_error("frontend thread-read sizing effect could not be encoded");
+                }
+                return effect->dump().size();
+            };
+            const std::size_t completeEffectBytes = encodedEffectBytes(0, 0);
+            const std::size_t truncatedEffectBytes = encodedEffectBytes(1, 0);
+            constexpr std::size_t StateEffectMemberBytes = std::string_view{",\"stateEffect\":"}.size();
+            // Both count fields occupy one digit in the sizing effects above.
+            // Only their decimal widths vary between probes; authority and the
+            // responseTruncated spelling are selected by the matching shell.
+            const auto projectedBytes = [&](std::size_t turnArrayBytes,
                                             std::uint64_t omittedTurns,
                                             std::uint64_t omittedItems) {
-                Json shell = finalize(Json{{"thread", header}}, omittedTurns, omittedItems);
-                const std::size_t shellBytes = shell.dump().size();
-                const std::size_t bodyBytes = arrayBytes(elements);
-                return bodyBytes > std::numeric_limits<std::size_t>::max() - (shellBytes - 2)
-                           ? std::numeric_limits<std::size_t>::max()
-                           : shellBytes - 2 + bodyBytes;
+                const bool truncated = omittedTurns != 0 || omittedItems != 0;
+                std::size_t effectBytes = truncated ? truncatedEffectBytes : completeEffectBytes;
+                effectBytes = addSize(effectBytes, decimalDigits(omittedTurns) - 1);
+                effectBytes = addSize(effectBytes, decimalDigits(omittedItems) - 1);
+                const std::size_t threadBytes = addSize(threadEnvelopeShellBytes - 2, turnArrayBytes);
+                return addSize(addSize(threadBytes, StateEffectMemberBytes), effectBytes);
             };
 
             std::size_t omittedTurnCount = 1;
             for (; omittedTurnCount <= encodedTurns.size(); ++omittedTurnCount) {
-                const std::span<const std::size_t> suffix =
-                    std::span<const std::size_t>(encodedTurnBytes).subspan(omittedTurnCount);
-                if (projectedBytes(threadHeader,
-                                   suffix,
+                increment(boundedThreadReadFitInstrumentation.fitProbes);
+                if (projectedBytes(suffixArrayBytes(encodedTurnSuffixBytes, omittedTurnCount, encodedTurns.size()),
                                    saturatedCount(omittedTurnCount),
                                    itemPrefix[omittedTurnCount]) <= maximumBytes) {
                     break;
@@ -490,23 +524,20 @@ namespace ai::openai::codex::frontend::internal::server {
                 Json encodedItems = std::move(encodedTurns.back()["items"]);
                 Json turnHeader = std::move(encodedTurns.back());
                 turnHeader["items"] = Json::array();
-                std::vector<std::size_t> encodedItemBytes;
-                encodedItemBytes.reserve(encodedItems.size());
-                for (const Json& item : encodedItems) {
-                    encodedItemBytes.push_back(item.dump().size());
+                std::vector<std::size_t> encodedItemSuffixBytes(encodedItems.size() + 1, 0);
+                for (std::size_t index = encodedItems.size(); index > 0; --index) {
+                    encodedItemSuffixBytes[index - 1] =
+                        addSize(encodedItems[index - 1].dump().size(), encodedItemSuffixBytes[index]);
                 }
+                increment(boundedThreadReadFitInstrumentation.turnShellSerializations);
+                const std::size_t turnShellBytes = turnHeader.dump().size();
                 std::size_t omittedItemCount = 0;
                 for (; omittedItemCount <= encodedItems.size(); ++omittedItemCount) {
-                    const std::span<const std::size_t> suffix =
-                        std::span<const std::size_t>(encodedItemBytes).subspan(omittedItemCount);
-                    const std::size_t itemArrayBytes = arrayBytes(suffix);
-                    Json candidateTurnHeader = turnHeader;
-                    candidateTurnHeader["items"] = Json::array();
-                    const std::size_t turnShellBytes = candidateTurnHeader.dump().size();
-                    const std::size_t turnBytes = turnShellBytes - 2 + itemArrayBytes;
-                    const std::array<std::size_t, 1> turnElementBytes{turnBytes};
-                    if (projectedBytes(threadHeader,
-                                       turnElementBytes,
+                    increment(boundedThreadReadFitInstrumentation.fitProbes);
+                    const std::size_t itemArrayBytes =
+                        suffixArrayBytes(encodedItemSuffixBytes, omittedItemCount, encodedItems.size());
+                    const std::size_t turnBytes = addSize(turnShellBytes - 2, itemArrayBytes);
+                    if (projectedBytes(addSize(turnBytes, 2),
                                        saturatedCount(source->turns.size() - 1),
                                        saturatedAdd(itemPrefix[source->turns.size() - 1],
                                                     saturatedCount(omittedItemCount))) <= maximumBytes) {
@@ -2249,6 +2280,14 @@ namespace ai::openai::codex::frontend::internal::server {
                                                               const std::optional<backend::ThreadSnapshot>& source,
                                                               std::size_t maximumBytes) {
         return ::ai::openai::codex::frontend::internal::server::boundedThreadReadResult(id, source, maximumBytes).value;
+    }
+
+    void BackendCoreBridgeTestAccess::resetBoundedThreadReadFitInstrumentation() noexcept {
+        ::ai::openai::codex::frontend::internal::server::boundedThreadReadFitInstrumentation = {};
+    }
+
+    BoundedThreadReadFitInstrumentation BackendCoreBridgeTestAccess::boundedThreadReadFitInstrumentation() noexcept {
+        return ::ai::openai::codex::frontend::internal::server::boundedThreadReadFitInstrumentation;
     }
 
     std::size_t BackendCoreBridgeTestAccess::deferredThreadReadBytesFor(const backend::CommandCompletion& completion) noexcept {

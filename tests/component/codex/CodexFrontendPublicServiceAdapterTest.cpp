@@ -961,6 +961,109 @@ namespace {
             "item-content projection distinguishes exact snapshots from future snapshots that require per-key coverage");
     }
 
+    frontend::Json referenceBoundedThreadReadResult(const backend::ThreadSnapshot& source, std::size_t maximumBytes) {
+        const auto finalize = [&](frontend::Json value, std::uint64_t omittedTurns, std::uint64_t omittedItems) {
+            frontend::ThreadReadStateEffect effect;
+            effect.sourcePartial = !source.fullyLoaded;
+            effect.responseOmittedTurns = omittedTurns;
+            effect.responseOmittedItems = omittedItems;
+            effect.responseTruncated = omittedTurns != 0 || omittedItems != 0;
+            effect.authority = effect.sourcePartial
+                                   ? frontend::ThreadReadStateEffectAuthority::Merge
+                                   : effect.responseTruncated
+                                         ? frontend::ThreadReadStateEffectAuthority::MergePreserveCompleteness
+                                         : frontend::ThreadReadStateEffectAuthority::Replace;
+            value["stateEffect"] = *frontend::encodeThreadReadStateEffect(effect);
+            return value;
+        };
+        frontend::Json complete = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+            typed::ThreadId{source.id}, source, std::numeric_limits<std::size_t>::max());
+        if (complete.dump().size() <= maximumBytes) {
+            return complete;
+        }
+
+        frontend::Json encodedTurns = complete.at("thread").at("turns");
+        frontend::Json threadHeader = complete.at("thread");
+        threadHeader["turns"] = frontend::Json::array();
+        std::vector<std::uint64_t> itemPrefix(source.turns.size() + 1, 0);
+        std::vector<std::size_t> encodedTurnBytes;
+        encodedTurnBytes.reserve(encodedTurns.size());
+        for (std::size_t index = 0; index < source.turns.size(); ++index) {
+            itemPrefix[index + 1] = itemPrefix[index] + source.turns[index].items.size();
+            encodedTurnBytes.push_back(encodedTurns[index].dump().size());
+        }
+        const auto arrayBytes = [](const std::vector<std::size_t>& elements, std::size_t first) {
+            if (first == elements.size()) {
+                return std::size_t{2};
+            }
+            std::size_t bytes = elements.size() - first + 1;
+            for (std::size_t index = first; index < elements.size(); ++index) {
+                if (elements[index] > std::numeric_limits<std::size_t>::max() - bytes) {
+                    return std::numeric_limits<std::size_t>::max();
+                }
+                bytes += elements[index];
+            }
+            return bytes;
+        };
+        const auto projectedBytes = [&](std::size_t bodyBytes,
+                                        std::uint64_t omittedTurns,
+                                        std::uint64_t omittedItems) {
+            const std::size_t shellBytes =
+                finalize(frontend::Json{{"thread", threadHeader}}, omittedTurns, omittedItems).dump().size();
+            return bodyBytes > std::numeric_limits<std::size_t>::max() - (shellBytes - 2)
+                       ? std::numeric_limits<std::size_t>::max()
+                       : shellBytes - 2 + bodyBytes;
+        };
+
+        std::size_t omittedTurns = 1;
+        for (; omittedTurns <= encodedTurns.size(); ++omittedTurns) {
+            if (projectedBytes(arrayBytes(encodedTurnBytes, omittedTurns), omittedTurns, itemPrefix[omittedTurns]) <=
+                maximumBytes) {
+                break;
+            }
+        }
+
+        frontend::Json empty = finalize(frontend::Json{{"thread", threadHeader}}, encodedTurns.size(), itemPrefix.back());
+        if (omittedTurns == encodedTurns.size()) {
+            frontend::Json encodedItems = encodedTurns.back().at("items");
+            frontend::Json turnHeader = encodedTurns.back();
+            turnHeader["items"] = frontend::Json::array();
+            std::vector<std::size_t> encodedItemBytes;
+            encodedItemBytes.reserve(encodedItems.size());
+            for (const frontend::Json& item : encodedItems) {
+                encodedItemBytes.push_back(item.dump().size());
+            }
+            const std::size_t turnShellBytes = turnHeader.dump().size();
+            for (std::size_t omittedItems = 0; omittedItems <= encodedItems.size(); ++omittedItems) {
+                const std::size_t itemBytes = arrayBytes(encodedItemBytes, omittedItems);
+                const std::size_t turnBytes = turnShellBytes - 2 + itemBytes;
+                if (projectedBytes(turnBytes + 2,
+                                   source.turns.size() - 1,
+                                   itemPrefix[source.turns.size() - 1] + omittedItems) <= maximumBytes) {
+                    frontend::Json turn = turnHeader;
+                    for (std::size_t index = omittedItems; index < encodedItems.size(); ++index) {
+                        turn["items"].push_back(encodedItems[index]);
+                    }
+                    frontend::Json thread = threadHeader;
+                    thread["turns"].push_back(std::move(turn));
+                    return finalize(frontend::Json{{"thread", std::move(thread)}},
+                                    source.turns.size() - 1,
+                                    itemPrefix[source.turns.size() - 1] + omittedItems);
+                }
+            }
+        } else if (omittedTurns < encodedTurns.size()) {
+            frontend::Json thread = threadHeader;
+            for (std::size_t index = omittedTurns; index < encodedTurns.size(); ++index) {
+                thread["turns"].push_back(encodedTurns[index]);
+            }
+            return finalize(frontend::Json{{"thread", std::move(thread)}}, omittedTurns, itemPrefix[omittedTurns]);
+        }
+        if (empty.dump().size() <= maximumBytes) {
+            return empty;
+        }
+        throw std::length_error("reference bounded thread read exceeds outbound capacity");
+    }
+
     void testBoundedThreadReadRetainsNewestItemSuffix(tests::support::TestResult& result) {
         backend::ThreadSnapshot headerOnly;
         headerOnly.id = "bounded-header-only";
@@ -1034,6 +1137,24 @@ namespace {
                               bounded->at("stateEffect").at("truncation").at("responseTruncated") == true,
                           "a bounded read from a complete source retains the largest newest-item suffix without demoting completeness");
 
+        bool itemReferenceMatches = false;
+        bool itemShellsAreConstant = false;
+        if (bounded) {
+            const std::size_t itemBoundary = bounded->dump().size();
+            const frontend::Json reference = referenceBoundedThreadReadResult(source, itemBoundary);
+            server::BackendCoreBridgeTestAccess::resetBoundedThreadReadFitInstrumentation();
+            const frontend::Json optimized = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+                typed::ThreadId{source.id}, source, itemBoundary);
+            const server::BoundedThreadReadFitInstrumentation instrumentation =
+                server::BackendCoreBridgeTestAccess::boundedThreadReadFitInstrumentation();
+            itemReferenceMatches = optimized == reference && optimized.dump() == reference.dump();
+            itemShellsAreConstant = instrumentation.fitProbes > 1 && instrumentation.threadShellSerializations == 1 &&
+                                    instrumentation.turnShellSerializations == 1 &&
+                                    instrumentation.effectShellSerializations == 2;
+        }
+        result.expectTrue(itemReferenceMatches && itemShellsAreConstant,
+                          "the oversized-newest-turn fallback is byte-identical to the reference and serializes fit shells once");
+
         backend::ThreadSnapshot large = source;
         large.id = "bounded-many-turns";
         large.turns.clear();
@@ -1051,14 +1172,69 @@ namespace {
             largeTurn.items.push_back(std::move(largeItem));
             large.turns.push_back(std::move(largeTurn));
         }
+        const frontend::Json manyTurnReference = referenceBoundedThreadReadResult(large, 512U * 1024U);
+        server::BackendCoreBridgeTestAccess::resetBoundedThreadReadFitInstrumentation();
         const frontend::Json manyTurnResult = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
             ai::openai::codex::typed::ThreadId{large.id}, large, 512U * 1024U);
+        const server::BoundedThreadReadFitInstrumentation manyTurnInstrumentation =
+            server::BackendCoreBridgeTestAccess::boundedThreadReadFitInstrumentation();
         const frontend::Json& manyTurnBody = manyTurnResult.at("thread");
         result.expectTrue(manyTurnResult.at("stateEffect").at("authority") == "mergePreserveCompleteness" &&
                               manyTurnResult.at("stateEffect").at("truncation").at("responseOmittedTurns").get<std::uint64_t>() > 0 &&
                               !manyTurnBody.at("turns").empty() &&
-                              manyTurnBody.at("turns").back().value("id", std::string{}) == "bounded-many-turn-199",
-                          "a 200-turn oversized read retains the newest suffix with explicit ancestor-omission accounting");
+                              manyTurnBody.at("turns").back().value("id", std::string{}) == "bounded-many-turn-199" &&
+                              manyTurnResult == manyTurnReference && manyTurnResult.dump() == manyTurnReference.dump() &&
+                              manyTurnInstrumentation.fitProbes > 100 &&
+                              manyTurnInstrumentation.threadShellSerializations == 1 &&
+                              manyTurnInstrumentation.turnShellSerializations == 0 &&
+                              manyTurnInstrumentation.effectShellSerializations == 2,
+                          "a 200-turn read matches the byte-for-byte reference while fit-shell serialization stays constant");
+
+        const std::size_t winningBytes = manyTurnResult.dump().size();
+        const frontend::Json exactReference = referenceBoundedThreadReadResult(large, winningBytes);
+        const frontend::Json exactResult = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+            typed::ThreadId{large.id}, large, winningBytes);
+        const frontend::Json belowReference = referenceBoundedThreadReadResult(large, winningBytes - 1);
+        const frontend::Json belowResult = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+            typed::ThreadId{large.id}, large, winningBytes - 1);
+        result.expectTrue(exactResult == exactReference && exactResult.dump() == exactReference.dump() &&
+                              belowResult == belowReference && belowResult.dump() == belowReference.dump() &&
+                              belowResult != exactResult,
+                          "the optimized first-fit selection matches the reference immediately around the winning byte boundary");
+
+        bool decimalTransitionsMatch = true;
+        for (const std::uint64_t omittedTurns : {9U, 10U, 99U, 100U}) {
+            frontend::Json full = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+                typed::ThreadId{large.id}, large, std::numeric_limits<std::size_t>::max());
+            frontend::Json thread = full.at("thread");
+            frontend::Json turns = thread.at("turns");
+            thread["turns"] = frontend::Json::array();
+            for (std::size_t index = omittedTurns; index < turns.size(); ++index) {
+                thread["turns"].push_back(turns[index]);
+            }
+            frontend::ThreadReadStateEffect effect;
+            effect.authority = frontend::ThreadReadStateEffectAuthority::MergePreserveCompleteness;
+            effect.responseTruncated = true;
+            effect.responseOmittedTurns = omittedTurns;
+            effect.responseOmittedItems = omittedTurns;
+            frontend::Json expected{{"thread", std::move(thread)},
+                                    {"stateEffect", *frontend::encodeThreadReadStateEffect(effect)}};
+            const frontend::Json actual = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+                typed::ThreadId{large.id}, large, expected.dump().size());
+            decimalTransitionsMatch = decimalTransitionsMatch && actual == expected && actual.dump() == expected.dump();
+        }
+        result.expectTrue(decimalTransitionsMatch,
+                          "omitted-turn and omitted-item decimal-width transitions preserve exact first-fit accounting");
+
+        backend::ThreadSnapshot partial = large;
+        partial.fullyLoaded = false;
+        const frontend::Json partialReference = referenceBoundedThreadReadResult(partial, 512U * 1024U);
+        const frontend::Json partialResult = server::BackendCoreBridgeTestAccess::boundedThreadReadResult(
+            typed::ThreadId{partial.id}, partial, 512U * 1024U);
+        result.expectTrue(partialResult == partialReference && partialResult.dump() == partialReference.dump() &&
+                              partialResult.at("stateEffect").at("authority") == "merge" &&
+                              partialResult.at("thread").at("fullyLoaded") == false,
+                          "a partial-source bounded read remains byte-identical to the reference with Merge authority");
     }
 
     void testThreadReadRetentionOmissionIsNotAbsence(tests::support::TestResult& result) {

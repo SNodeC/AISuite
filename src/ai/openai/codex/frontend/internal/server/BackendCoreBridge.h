@@ -67,8 +67,17 @@ namespace ai::openai::codex::frontend::internal::server {
         std::shared_ptr<State> state;
     };
 
-    // Permanent non-installed conformance seam for the controller transaction
-    // invariant. Production and tests exercise the same validation authority.
+    // Permanent non-installed conformance seams. Production and tests exercise
+    // the same bounded-read and controller validation paths.
+    struct BoundedThreadReadFitInstrumentation {
+        std::size_t fitProbes = 0;
+        std::size_t threadShellSerializations = 0;
+        std::size_t turnShellSerializations = 0;
+        std::size_t effectShellSerializations = 0;
+
+        bool operator==(const BoundedThreadReadFitInstrumentation&) const = default;
+    };
+
     struct BackendCoreBridgeTestAccess {
         [[nodiscard]] static bool controllerResultValid(generated::MethodId method,
                                                         std::uint64_t expectedBackendSession,
@@ -81,6 +90,8 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] static Json boundedThreadReadResult(const typed::ThreadId& id,
                                                           const std::optional<backend::ThreadSnapshot>& source,
                                                           std::size_t maximumBytes);
+        static void resetBoundedThreadReadFitInstrumentation() noexcept;
+        [[nodiscard]] static BoundedThreadReadFitInstrumentation boundedThreadReadFitInstrumentation() noexcept;
         [[nodiscard]] static std::size_t deferredThreadReadBytesFor(const backend::CommandCompletion& completion) noexcept;
     };
 
