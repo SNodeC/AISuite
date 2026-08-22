@@ -574,6 +574,107 @@ namespace ai::openai::codex::frontend::internal::server {
             return false;
         }
 
+        constexpr std::size_t DeferredThreadReadStructuralRoundingBytes = 64U * 1024U;
+        constexpr std::string_view RawThreadReadItemEncoderKeys =
+            "id,type,status,agentText,reasoningText,reasoningSummary,commandOutput,droppedContentBytes,contentTruncated,data,extensions,"
+            "generation,freshness,connectionInvalidated,startedAtMs,completedAtMs";
+        constexpr std::string_view TurnEncoderKeys =
+            "id,threadId,status,active,terminal,items,extensions,stamp,connectionInvalidated,failure,tokenUsage,plan,"
+            "effectiveExecutionConfiguration,effectiveExecutionConfigurationProvenance";
+        constexpr std::string_view ThreadEncoderKeys =
+            "id,fullyLoaded,turns,extensions,stamp,realtime,lifecycle,transcript,itemCount,receivedAudioBytes,droppedAudioBytes,"
+            "transcriptTruncated,sourceGeneration,sourceFreshness,lastError,errorDetailsOmitted,sessionId,version,lastSdpBytes,title,cwd,"
+            "model,modelProvider,preview,status,ephemeral,archived,executionConfiguration,createdAt,updatedAt";
+
+        constexpr std::size_t roundUpDeferredThreadReadStructuralBytes(std::size_t bytes) noexcept {
+            return ((bytes + DeferredThreadReadStructuralRoundingBytes - 1U) / DeferredThreadReadStructuralRoundingBytes) *
+                   DeferredThreadReadStructuralRoundingBytes;
+        }
+
+        // Each constant is the corresponding encoder's fixed key set plus its
+        // bounded JSON sidecars and C++ container, rounded up by 64 KiB. Text
+        // payloads and identifiers are charged from their retained lengths.
+        constexpr std::size_t DeferredThreadReadPerItemStructuralBytes = roundUpDeferredThreadReadStructuralBytes(
+            sizeof(backend::ItemSnapshot) + RawThreadReadItemEncoderKeys.size() + 2U * backend::MaxSnapshotJsonBytes + 4096U);
+        constexpr std::size_t DeferredThreadReadPerTurnStructuralBytes = roundUpDeferredThreadReadStructuralBytes(
+            sizeof(backend::TurnSnapshot) + TurnEncoderKeys.size() + 4U * backend::MaxSnapshotJsonBytes +
+            backend::MaxRetainedTurnPlanExplanationBytes +
+            backend::MaxRetainedTurnPlanSteps *
+                (backend::MaxRetainedTurnPlanStepBytes + backend::MaxRetainedTurnPlanStatusBytes + 64U) +
+            4096U);
+        constexpr std::size_t DeferredThreadReadFixedOverheadBytes = roundUpDeferredThreadReadStructuralBytes(
+            sizeof(backend::CommandCompletion) + sizeof(backend::ThreadSnapshotAtSequence) + sizeof(backend::ThreadSnapshot) +
+            ThreadEncoderKeys.size() + 2U * backend::MaxSnapshotJsonBytes + 4096U);
+        constexpr std::size_t DeferredThreadReadUserMessagePartStructuralBytes = 64U;
+
+        void saturatingAdd(std::size_t& value, std::size_t amount) noexcept {
+            value = amount > std::numeric_limits<std::size_t>::max() - value ? std::numeric_limits<std::size_t>::max() : value + amount;
+        }
+
+        void saturatingMultiplyAdd(std::size_t& value, std::size_t count, std::size_t amount) noexcept {
+            if (count != 0 && amount > std::numeric_limits<std::size_t>::max() / count) {
+                value = std::numeric_limits<std::size_t>::max();
+                return;
+            }
+            saturatingAdd(value, count * amount);
+        }
+
+        std::size_t deferredThreadReadRetainedBytes(const backend::CommandCompletion& completion) noexcept {
+            std::size_t bytes = DeferredThreadReadFixedOverheadBytes;
+            saturatingAdd(bytes, completion.requestId.size());
+            if (!completion.threadReadSnapshot || !completion.threadReadSnapshot->thread) {
+                return bytes;
+            }
+            const backend::ThreadSnapshot& thread = *completion.threadReadSnapshot->thread;
+            const auto addOptionalString = [&bytes](const std::optional<std::string>& value) {
+                if (value) {
+                    saturatingAdd(bytes, value->size());
+                }
+            };
+            saturatingAdd(bytes, thread.id.size());
+            addOptionalString(thread.title);
+            addOptionalString(thread.cwd);
+            addOptionalString(thread.model);
+            addOptionalString(thread.modelProvider);
+            addOptionalString(thread.preview);
+            addOptionalString(thread.status);
+            saturatingAdd(bytes, thread.realtime.lifecycle.size());
+            saturatingAdd(bytes, thread.realtime.transcript.size());
+            addOptionalString(thread.realtime.lastError);
+            addOptionalString(thread.realtime.sessionId);
+            addOptionalString(thread.realtime.version);
+            for (const backend::TurnSnapshot& turn : thread.turns) {
+                saturatingAdd(bytes, DeferredThreadReadPerTurnStructuralBytes);
+                saturatingAdd(bytes, turn.id.size());
+                saturatingAdd(bytes, turn.threadId.size());
+                saturatingAdd(bytes, turn.status.size());
+                addOptionalString(turn.effectiveExecutionConfigurationProvenance);
+                for (const backend::ItemSnapshot& item : turn.items) {
+                    saturatingAdd(bytes, DeferredThreadReadPerItemStructuralBytes);
+                    saturatingAdd(bytes, item.id.size());
+                    saturatingAdd(bytes, item.type.size());
+                    saturatingAdd(bytes, item.status.size());
+                    saturatingAdd(bytes, item.agentText.size());
+                    saturatingAdd(bytes, item.reasoningText.size());
+                    saturatingAdd(bytes, item.reasoningSummary.size());
+                    saturatingAdd(bytes, item.commandOutput.size());
+                    if (item.userMessage) {
+                        // text duplicates the retained textParts payload, with
+                        // only two separator bytes between adjacent parts.
+                        saturatingAdd(bytes, item.userMessage->text.size());
+                        saturatingAdd(bytes, item.userMessage->text.size());
+                        saturatingMultiplyAdd(bytes,
+                                              item.userMessage->textParts.size(),
+                                              DeferredThreadReadUserMessagePartStructuralBytes);
+                        if (item.userMessage->clientId) {
+                            saturatingAdd(bytes, item.userMessage->clientId->size());
+                        }
+                    }
+                }
+            }
+            return bytes;
+        }
+
     } // namespace
 
     class BackendCoreBridge::State : public std::enable_shared_from_this<BackendCoreBridge::State> {
@@ -813,12 +914,10 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         std::size_t deferredThreadReadBytesFor(const backend::CommandCompletion& completion) const noexcept {
-            // BackendCore already admits every immutable capture against its
-            // snapshot budget. Charge that structural upper bound directly;
-            // exact JSON sizing would encode and allocate the complete thread
-            // a second time on the ordering-deferral path.
-            static_cast<void>(completion);
-            return backend::DefaultMaximumBackendSnapshotBytes;
+            // Full thread-read captures bypass the whole-state snapshot byte
+            // bound. Charge their retained content and a rounded-up structural
+            // bound without constructing or serializing JSON on this path.
+            return deferredThreadReadRetainedBytes(completion);
         }
 
         void releaseDeferredThreadReadBytes(std::size_t bytes) noexcept {
@@ -2140,6 +2239,10 @@ namespace ai::openai::codex::frontend::internal::server {
                                                               const std::optional<backend::ThreadSnapshot>& source,
                                                               std::size_t maximumBytes) {
         return ::ai::openai::codex::frontend::internal::server::boundedThreadReadResult(id, source, maximumBytes).value;
+    }
+
+    std::size_t BackendCoreBridgeTestAccess::deferredThreadReadBytesFor(const backend::CommandCompletion& completion) noexcept {
+        return deferredThreadReadRetainedBytes(completion);
     }
 
 } // namespace ai::openai::codex::frontend::internal::server

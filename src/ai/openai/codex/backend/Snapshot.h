@@ -27,6 +27,7 @@ namespace ai::openai::codex::backend {
     inline constexpr std::size_t MaxSnapshotCodexExtensions = 64;
     inline constexpr std::size_t MaxSnapshotExtensionMethodBytes = 1024;
     inline constexpr std::size_t MaxSnapshotExtensionPayloadBytes = 32U * 1024U;
+    inline constexpr std::size_t MaxSnapshotJsonBytes = 64U * 1024U;
     inline constexpr std::size_t MaxSnapshotCommandOutputBytes = 4U * 1024U * 1024U;
     inline constexpr std::size_t MaxSnapshotExtensionDecodingErrorBytes = 2U * 1024U;
     inline constexpr std::size_t MaxSerializedCodexExtensionEventBytes = 64U * 1024U;
@@ -546,6 +547,19 @@ namespace ai::openai::codex::backend {
 
     Snapshot makeSnapshot(const BackendState& state);
     [[nodiscard]] std::optional<ThreadSnapshot> makeThreadSnapshot(const BackendState& state, const typed::ThreadId& id);
+
+    namespace detail {
+        struct ThreadSnapshotEncodingInstrumentation {
+            std::size_t jsonConstructions = 0;
+            std::size_t dumpCalls = 0;
+
+            bool operator==(const ThreadSnapshotEncodingInstrumentation&) const = default;
+        };
+
+        void resetThreadSnapshotEncodingInstrumentation() noexcept;
+        [[nodiscard]] ThreadSnapshotEncodingInstrumentation threadSnapshotEncodingInstrumentation() noexcept;
+    } // namespace detail
+
     std::size_t threadSnapshotSizeBytes(const ThreadSnapshot& snapshot) noexcept;
     [[nodiscard]] std::optional<ItemSnapshotBatch> makeItemSnapshotBatch(const BackendState& state,
                                                                          std::span<const ItemSnapshotKey> keys);
