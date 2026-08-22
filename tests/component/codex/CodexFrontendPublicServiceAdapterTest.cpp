@@ -1649,6 +1649,27 @@ namespace {
     }
 
     void testDeferredThreadReadCapacityIsBoundedAndReleased(tests::support::TestResult& result) {
+        backend::TurnSnapshot accountingTurn;
+        for (std::size_t index = 0; index < 9; ++index) {
+            backend::ItemSnapshot accountingItem;
+            accountingItem.commandOutput = std::string(1024U * 1024U, 'x');
+            accountingTurn.items.push_back(std::move(accountingItem));
+        }
+        backend::ThreadSnapshot accountingThread;
+        accountingThread.turns.push_back(std::move(accountingTurn));
+        backend::CommandCompletion accountingCompletion{
+            "deferred-accounting-probe",
+            {},
+            backend::ThreadSnapshotAtSequence{backend::SequenceNumber{1}, std::move(accountingThread)}};
+        backend::detail::resetThreadSnapshotEncodingInstrumentation();
+        const std::size_t accountingBytes = server::BackendCoreBridgeTestAccess::deferredThreadReadBytesFor(accountingCompletion);
+        const backend::detail::ThreadSnapshotEncodingInstrumentation accountingInstrumentation =
+            backend::detail::threadSnapshotEncodingInstrumentation();
+        result.expectTrue(accountingBytes > backend::DefaultMaximumBackendSnapshotBytes &&
+                              accountingInstrumentation.jsonConstructions == 0 && accountingInstrumentation.dumpCalls == 0,
+                          "an oversized deferred thread-read sidecar is charged above the whole-snapshot default without constructing "
+                          "or dumping JSON");
+
         const auto transport = std::make_shared<tests::codex::FakeTransportState>();
         tests::codex::installInitializingFake(
             transport,
@@ -1661,9 +1682,17 @@ namespace {
                 const std::string threadId =
                     message.value("params", frontend::Json::object()).value("threadId", "deferred-small");
                 frontend::Json turns = frontend::Json::array();
-                if (threadId == "deferred-large") {
-                    frontend::Json items = frontend::Json::array(
-                        {frontend::Json{{"type", "agentMessage"}, {"id", "deferred-large-item"}, {"text", std::string(160U * 1024U, 'x')}}});
+                if (threadId.starts_with("deferred-large")) {
+                    frontend::Json items = frontend::Json::array();
+                    for (std::size_t index = 0; index < 9; ++index) {
+                        items.push_back(frontend::Json{{"type", "commandExecution"},
+                                                       {"id", "deferred-large-item-" + std::to_string(index)},
+                                                       {"command", "printf large"},
+                                                       {"cwd", "/tmp/project"},
+                                                       {"status", "completed"},
+                                                       {"commandActions", frontend::Json::array()},
+                                                       {"aggregatedOutput", std::string(1024U * 1024U, 'x')}});
+                    }
                     turns.push_back(tests::codex::turnValue(threadId, "deferred-large-turn", "completed", std::move(items)));
                 }
                 tests::codex::inject(
@@ -1749,21 +1778,18 @@ namespace {
         backend::FrontendSession firstFence = core.openSession({});
         const std::size_t firstFenceCallbacks = scheduler.pending();
         bool firstCommandsAccepted = providerReady && firstFence.isOpen() && firstFenceCallbacks != 0;
-        for (std::size_t index = 0; index < 9; ++index) {
+        for (std::size_t index = 0; index < 6; ++index) {
             firstCommandsAccepted = firstCommandsAccepted &&
                                     firstConnection
-                                        .receive(read("deferred-count-" + std::to_string(index),
-                                                      "deferred-small-" + std::to_string(index)))
+                                        .receive(read("deferred-large-" + std::to_string(index),
+                                                      "deferred-large-" + std::to_string(index)))
                                         .accepted();
         }
-        firstCommandsAccepted = firstCommandsAccepted &&
-                                firstConnection.receive(read("deferred-byte-large", "deferred-large")).accepted();
         drainAfterFence(firstFenceCallbacks);
         const auto beforeFence = responseCounts(first, "deferred-");
-        result.expectTrue(firstCommandsAccepted && beforeFence == std::pair<std::size_t, std::size_t>{2, 2} &&
+        result.expectTrue(firstCommandsAccepted && beforeFence == std::pair<std::size_t, std::size_t>{1, 1} &&
                               firstConnection.isOpen() && first.closes.empty(),
-                          "deferred sidecar count and byte overflow reject only their two commands with capacity_exceeded while the "
-                          "session remains open");
+                          "the aggregate byte cap rejects a sixth large sidecar below the eight-entry count cap");
         for (const std::shared_ptr<DeferredTimer>& timer : deferredTimers) {
             if (timer->active && timer->delayMs == 5000) {
                 timer->active = false;
@@ -1772,19 +1798,19 @@ namespace {
         }
         drainAfterFence(firstFenceCallbacks);
         const auto afterDeadline = responseCounts(first, "deferred-");
-        result.expectTrue(afterDeadline == std::pair<std::size_t, std::size_t>{10, 2} && firstConnection.isOpen() &&
+        result.expectTrue(afterDeadline == std::pair<std::size_t, std::size_t>{6, 1} && firstConnection.isOpen() &&
                               first.closes.empty(),
                           "a stalled observer fence fails every retained thread read within the deadline while preserving the session");
         scheduler.drain();
         const auto afterFence = responseCounts(first, "deferred-");
-        result.expectTrue(afterFence == std::pair<std::size_t, std::size_t>{10, 2} && firstConnection.isOpen() && first.closes.empty(),
+        result.expectTrue(afterFence == std::pair<std::size_t, std::size_t>{6, 1} && firstConnection.isOpen() && first.closes.empty(),
                           "advancing the observer fence after expiry produces no duplicate completion and leaves the quota released");
 
         first.messages.clear();
         backend::FrontendSession closeFence = core.openSession({});
         const std::size_t closeFenceCallbacks = scheduler.pending();
         bool closeCycleAccepted = closeFence.isOpen() && closeFenceCallbacks != 0;
-        for (std::size_t index = 0; index < 8; ++index) {
+        for (std::size_t index = 0; index < 9; ++index) {
             closeCycleAccepted = closeCycleAccepted &&
                                  firstConnection
                                      .receive(read("deferred-close-" + std::to_string(index),
@@ -1793,8 +1819,9 @@ namespace {
         }
         drainAfterFence(closeFenceCallbacks);
         const auto beforeClose = responseCounts(first, "deferred-close-");
-        result.expectTrue(closeCycleAccepted && beforeClose.first == 0 && firstConnection.isOpen(),
-                          "a second full deferred quota is available after the first fence drain");
+        result.expectTrue(closeCycleAccepted && beforeClose == std::pair<std::size_t, std::size_t>{1, 1} &&
+                              firstConnection.isOpen(),
+                          "eight small sidecars reach the independent count cap and only the ninth is rejected");
         firstConnection.close("deferred thread-read close-release probe");
         scheduler.drain();
 

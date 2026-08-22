@@ -31,8 +31,35 @@
 
 namespace ai::openai::codex::backend {
 
+    namespace detail {
+        namespace {
+            thread_local ThreadSnapshotEncodingInstrumentation threadSnapshotEncodingCounters;
+
+            void saturatingIncrement(std::size_t& value) noexcept {
+                if (value != std::numeric_limits<std::size_t>::max()) {
+                    ++value;
+                }
+            }
+        } // namespace
+
+        void resetThreadSnapshotEncodingInstrumentation() noexcept {
+            threadSnapshotEncodingCounters = {};
+        }
+
+        ThreadSnapshotEncodingInstrumentation threadSnapshotEncodingInstrumentation() noexcept {
+            return threadSnapshotEncodingCounters;
+        }
+
+        void recordThreadSnapshotJsonConstruction() noexcept {
+            saturatingIncrement(threadSnapshotEncodingCounters.jsonConstructions);
+        }
+
+        void recordThreadSnapshotDump() noexcept {
+            saturatingIncrement(threadSnapshotEncodingCounters.dumpCalls);
+        }
+    } // namespace detail
+
     namespace {
-        constexpr std::size_t MaxExtensionBytes = 64U * 1024U;
         constexpr std::size_t MaxExtensionNestingDepth = 32;
         constexpr std::size_t MaxExtensionJsonNodes = 4096;
         constexpr std::size_t MaxFrontendItemContentCharacters = 16U * 1024U;
@@ -47,11 +74,11 @@ namespace ai::openai::codex::backend {
         Json boundedJson(const Json& value) {
             try {
                 const std::string encoded = value.dump();
-                if (encoded.size() <= MaxExtensionBytes) {
+                if (encoded.size() <= MaxSnapshotJsonBytes) {
                     return value;
                 }
                 return Json::object(
-                    {{"truncated", true}, {"originalBytes", encoded.size()}, {"preview", encoded.substr(0, MaxExtensionBytes)}});
+                    {{"truncated", true}, {"originalBytes", encoded.size()}, {"preview", encoded.substr(0, MaxSnapshotJsonBytes)}});
             } catch (...) {
                 return Json::object({{"omitted", true}, {"reason", "value could not be serialized safely"}});
             }
@@ -426,8 +453,8 @@ namespace ai::openai::codex::backend {
                 return std::nullopt;
             }
             std::string error;
-            const std::optional<Json> approval = detail::encodeAskForApproval(settings.approvalPolicy, error);
-            const std::optional<Json> sandbox = detail::encodeSandboxPolicy(settings.sandboxPolicy, error);
+            const std::optional<Json> approval = ::ai::openai::codex::detail::encodeAskForApproval(settings.approvalPolicy, error);
+            const std::optional<Json> sandbox = ::ai::openai::codex::detail::encodeSandboxPolicy(settings.sandboxPolicy, error);
             if (!approval || !sandbox) {
                 return std::nullopt;
             }
@@ -1172,6 +1199,7 @@ namespace ai::openai::codex::backend {
         }
 
         Json threadSnapshotJson(const ThreadSnapshot& thread, SnapshotAccountingForm form) {
+            detail::recordThreadSnapshotJsonConstruction();
             Json encoded{{"id", thread.id},
                          {"fullyLoaded", thread.fullyLoaded},
                          {"turns", Json::array()},
@@ -2784,6 +2812,7 @@ namespace ai::openai::codex::backend {
 
     std::size_t threadSnapshotSizeBytes(const ThreadSnapshot& snapshot) noexcept {
         try {
+            detail::recordThreadSnapshotDump();
             return threadSnapshotJson(snapshot, SnapshotAccountingForm::RawThreadRead).dump().size();
         } catch (...) {
             return std::numeric_limits<std::size_t>::max();

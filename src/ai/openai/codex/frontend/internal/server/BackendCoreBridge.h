@@ -81,6 +81,7 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] static Json boundedThreadReadResult(const typed::ThreadId& id,
                                                           const std::optional<backend::ThreadSnapshot>& source,
                                                           std::size_t maximumBytes);
+        [[nodiscard]] static std::size_t deferredThreadReadBytesFor(const backend::CommandCompletion& completion) noexcept;
     };
 
 } // namespace ai::openai::codex::frontend::internal::server
