@@ -370,7 +370,7 @@ def validate_additive_schema_contract(
         raise AssertionError("thread.read state-effect result schema changed")
     if state_effect["properties"].get("scope") != {"const": "thread"} or state_effect[
         "properties"
-    ].get("authority") != {"enum": ["merge", "replace", "absent"]}:
+    ].get("authority") != {"enum": ["merge", "mergePreserveCompleteness", "replace", "absent"]}:
         raise AssertionError("thread.read state-effect authority schema changed")
     if "throughSequence" in state_effect["properties"]:
         raise AssertionError("thread.read state effect must use ordered response delivery, not a global sequence fence")

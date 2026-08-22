@@ -216,7 +216,8 @@ namespace {
         model::ThreadState thread{model::ThreadIdentity{std::string(id)}};
         thread.fullyLoaded = false;
         model::ThreadUpsertedOccurrence update{std::move(thread)};
-        update.replaceDescendants = replaceDescendants;
+        update.authority = replaceDescendants ? model::ThreadUpsertAuthority::Replace
+                                              : model::ThreadUpsertAuthority::Header;
         model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:1"},
                                           model::OccurrencePayload{std::move(update)}};
         occurrence.threadId = model::ThreadIdentity{std::string(id)};

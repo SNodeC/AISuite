@@ -388,9 +388,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 projected.effect.responseOmittedTurns = omittedTurns;
                 projected.effect.responseOmittedItems = omittedItems;
                 projected.effect.responseTruncated = omittedTurns != 0 || omittedItems != 0;
-                projected.effect.authority = projected.effect.sourcePartial || projected.effect.responseTruncated
+                projected.effect.authority = projected.effect.sourcePartial
                                                  ? ThreadReadStateEffectAuthority::Merge
-                                                 : ThreadReadStateEffectAuthority::Replace;
+                                                 : projected.effect.responseTruncated
+                                                       ? ThreadReadStateEffectAuthority::MergePreserveCompleteness
+                                                       : ThreadReadStateEffectAuthority::Replace;
                 const std::optional<Json> effect = encodeThreadReadStateEffect(projected.effect);
                 if (!effect) {
                     throw std::logic_error("frontend thread-read state effect could not be encoded");
@@ -427,7 +429,7 @@ namespace ai::openai::codex::frontend::internal::server {
             // truncated result is explicitly merge-only, so omitted ancestors
             // can never be mistaken for authoritative deletion.
             Json threadHeader = completeThread;
-            threadHeader["fullyLoaded"] = false;
+            threadHeader["fullyLoaded"] = !projected.effect.sourcePartial;
             threadHeader["turns"] = Json::array();
             std::vector<std::uint64_t> itemPrefix(source->turns.size() + 1, 0);
             for (std::size_t index = 0; index < source->turns.size(); ++index) {

@@ -384,8 +384,7 @@ namespace {
             {std::move(retainedFuture), "retained_future_item", 1, "/thread/turns/0/items/1"});
         model::ThreadUpsertedOccurrence mergeUpdate = decoded.value();
         mergeUpdate.thread.fullyLoaded = false;
-        mergeUpdate.replaceDescendants = false;
-        mergeUpdate.applyIncomingCompleteness = true;
+        mergeUpdate.authority = model::ThreadUpsertAuthority::MergeApplyCompleteness;
         model::OccurrenceIdentity mergeIdentity{model::FrontendSequence{12},
                                                 model::OccurrenceGroupIdentity{"thread-read-merge"},
                                                 0,

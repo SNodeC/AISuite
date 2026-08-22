@@ -200,10 +200,15 @@ namespace {
     }
 
     frontend::Json threadReadStateEffect(frontend::ThreadReadStateEffectAuthority authority,
-                                         bool sourcePartial = false) {
+                                         bool sourcePartial = false,
+                                         std::uint64_t omittedTurns = 0,
+                                         std::uint64_t omittedItems = 0) {
         frontend::ThreadReadStateEffect effect;
         effect.authority = authority;
         effect.sourcePartial = sourcePartial;
+        effect.responseOmittedTurns = omittedTurns;
+        effect.responseOmittedItems = omittedItems;
+        effect.responseTruncated = omittedTurns != 0 || omittedItems != 0;
         return frontend::encodeThreadReadStateEffect(effect).value();
     }
 
@@ -529,6 +534,10 @@ namespace {
         const frontend::Json wireMerge{
             {"thread", std::move(mergeWireThread)},
             {"stateEffect", threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::Merge, true)}};
+        const frontend::Json wirePreservingMerge{
+            {"thread", projectedThread("thread-read-wire-preserving-merge")},
+            {"stateEffect",
+             threadReadStateEffect(frontend::ThreadReadStateEffectAuthority::MergePreserveCompleteness, false, 1)}};
         frontend::ThreadReadStateEffect replaceFromPartial;
         replaceFromPartial.authority = frontend::ThreadReadStateEffectAuthority::Replace;
         replaceFromPartial.sourcePartial = true;
@@ -555,12 +564,18 @@ namespace {
             frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, wireReplace);
         const auto wireMergeValidation =
             frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, wireMerge);
+        const auto wirePreservingMergeValidation =
+            frontend::Codec::validateDefinedResult(frontend::generated::MethodId::ThreadRead, wirePreservingMerge);
         result.expectTrue(static_cast<bool>(wireReplaceValidation),
                           wireReplaceValidation ? "a complete Replace body is wire-valid"
                                                 : "complete Replace wire validation failed: " + wireReplaceValidation.error().message);
         result.expectTrue(static_cast<bool>(wireMergeValidation),
                           wireMergeValidation ? "an incomplete Merge body is wire-valid"
                                               : "incomplete Merge wire validation failed: " + wireMergeValidation.error().message);
+        result.expectTrue(static_cast<bool>(wirePreservingMergeValidation),
+                          wirePreservingMergeValidation
+                              ? "a suffix-truncated preserving Merge body is wire-valid"
+                              : "preserving Merge wire validation failed: " + wirePreservingMergeValidation.error().message);
         result.expectTrue(!client::detail::decodeThreadReadResult(mergeContradiction, stateEffectError) &&
                               !client::detail::decodeThreadReadResult(replaceContradiction, stateEffectError) &&
                               !client::detail::decodeThreadReadResult(absentContradiction, stateEffectError) &&

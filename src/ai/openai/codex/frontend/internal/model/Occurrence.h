@@ -91,6 +91,8 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const ThreadListUpdatedOccurrence&) const = default;
     };
 
+    enum class ThreadUpsertAuthority { Header, MergePreserveCompleteness, MergeApplyCompleteness, Replace };
+
     struct ThreadUpsertedOccurrence {
         ThreadState thread;
         std::vector<TurnState> turns;
@@ -99,11 +101,7 @@ namespace ai::openai::codex::frontend::internal::model {
         // authoritative nested thread body must carry them alongside typed
         // items so neither merge nor replacement silently drops them.
         std::vector<LegacyItemCompatibility> legacyItems;
-        bool replaceDescendants = false;
-        // Header merges normally preserve a recipient's stronger cached
-        // completeness. Command-local authoritative reads set this when the
-        // incoming partial body must explicitly downgrade that cache bit.
-        bool applyIncomingCompleteness = false;
+        ThreadUpsertAuthority authority = ThreadUpsertAuthority::Header;
         SafeDetail extensions;
         explicit ThreadUpsertedOccurrence(ThreadState value)
             : thread(std::move(value)) {

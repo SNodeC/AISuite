@@ -262,7 +262,7 @@ namespace {
 
     void testAuthoritativeThreadMoveApplication(tests::support::TestResult& result) {
         model::ThreadUpsertedOccurrence update{model::ThreadState{model::ThreadIdentity{"move-thread"}}};
-        update.replaceDescendants = true;
+        update.authority = model::ThreadUpsertAuthority::Replace;
         update.thread.title = std::string(256, 'h');
 
         model::TurnState turn{model::TurnIdentity{"move-turn"}, model::ThreadIdentity{"move-thread"}};
@@ -531,7 +531,7 @@ namespace {
                           "removing a fork parent preserves sibling and ambiguous unscoped descendants with the same turn ID");
 
         model::ThreadUpsertedOccurrence threadUpdate{model::ThreadState{model::ThreadIdentity{"first-thread"}}};
-        threadUpdate.replaceDescendants = true;
+        threadUpdate.authority = model::ThreadUpsertAuthority::Replace;
         threadUpdate.turns.emplace_back(model::TurnIdentity{"shared-turn"}, model::ThreadIdentity{"first-thread"});
         threadUpdate.items.emplace_back(model::AgentMessageItem{
             model::ItemData{model::ItemIdentity{"first-replacement"},
@@ -600,7 +600,7 @@ namespace {
 
         model::ThreadUpsertedOccurrence partialThreadUpdate{
             model::ThreadState{model::ThreadIdentity{"retained-thread"}}};
-        partialThreadUpdate.replaceDescendants = true;
+        partialThreadUpdate.authority = model::ThreadUpsertAuthority::Replace;
         partialThreadUpdate.turns.emplace_back(model::TurnIdentity{"partial-shared-turn"},
                                                model::ThreadIdentity{"retained-thread"});
         partialThreadUpdate.items.emplace_back(model::AgentMessageItem{
@@ -1628,7 +1628,7 @@ namespace {
             GuardCase{{frontend::SequenceNumber{19},
                        "thread.updated",
                        {{"thread", {{"id", "thread-guard"}, {"fullyLoaded", true}, {"turns", frontend::Json::array()}}}}},
-                      "/expandedPayloads/0/replaceDescendants"},
+                      "/expandedPayloads/0/authority"},
             GuardCase{{frontend::SequenceNumber{20},
                        "turn.updated",
                        {{"turn",

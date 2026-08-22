@@ -1723,7 +1723,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     // carry no descendant replacement authority; recipients
                     // retain their existing turns and may hydrate explicitly.
                     update.thread.fullyLoaded = false;
-                    update.replaceDescendants = false;
+                    update.authority = model::ThreadUpsertAuthority::Header;
                     return model::OccurrencePayload{std::move(update)};
                 }
                 case ExpandedEventType::ThreadRemoved:

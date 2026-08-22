@@ -1028,10 +1028,10 @@ namespace {
             } catch (const std::length_error&) {
             }
         }
-        result.expectTrue(conservativeFenceAccounting && bounded && bounded->at("thread").at("fullyLoaded") == false &&
-                              bounded->at("stateEffect").at("authority") == "merge" &&
+        result.expectTrue(conservativeFenceAccounting && bounded && bounded->at("thread").at("fullyLoaded") == true &&
+                              bounded->at("stateEffect").at("authority") == "mergePreserveCompleteness" &&
                               bounded->at("stateEffect").at("truncation").at("responseTruncated") == true,
-                          "a bounded full read retains the largest newest-item suffix and marks it merge-only and incomplete");
+                          "a bounded read from a complete source retains the largest newest-item suffix without demoting completeness");
     }
 
     void testThreadReadRetentionOmissionIsNotAbsence(tests::support::TestResult& result) {

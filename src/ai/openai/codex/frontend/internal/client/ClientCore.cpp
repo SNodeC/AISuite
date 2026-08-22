@@ -3903,13 +3903,14 @@ namespace ai::openai::codex::frontend::internal::client {
             }
             const bool replace = effect->authority == ThreadReadStateEffectAuthority::Replace;
             if (replace) {
-                update.replaceDescendants = true;
+                update.authority = model::ThreadUpsertAuthority::Replace;
                 if (std::optional<ClientError> error = applyPayload(std::move(update), false); error.has_value()) {
                     return error;
                 }
             } else {
-                update.replaceDescendants = false;
-                update.applyIncomingCompleteness = true;
+                update.authority = effect->authority == ThreadReadStateEffectAuthority::Merge
+                                       ? model::ThreadUpsertAuthority::MergeApplyCompleteness
+                                       : model::ThreadUpsertAuthority::MergePreserveCompleteness;
                 if (std::optional<ClientError> error = applyPayload(std::move(update), false); error.has_value()) {
                     return error;
                 }

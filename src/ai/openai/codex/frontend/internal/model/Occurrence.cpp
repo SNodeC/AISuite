@@ -605,15 +605,10 @@ namespace ai::openai::codex::frontend::internal::model {
                                  "legacy session deltas have no lossless expanded-v1 encoding");
                         }
                     } else if constexpr (std::is_same_v<Update, ThreadUpsertedOccurrence>) {
-                        if (update.replaceDescendants) {
+                        if (update.authority != ThreadUpsertAuthority::Header) {
                             fail(OccurrenceErrorCode::EncodingFailure,
-                                 path + "/replaceDescendants",
-                                 "legacy descendant replacement has no lossless expanded-v1 encoding");
-                        }
-                        if (update.applyIncomingCompleteness) {
-                            fail(OccurrenceErrorCode::EncodingFailure,
-                                 path + "/applyIncomingCompleteness",
-                                 "command-local completeness authority has no lossless expanded-v1 encoding");
+                                 path + "/authority",
+                                 "command-local thread authority has no lossless expanded-v1 encoding");
                         }
                     } else if constexpr (std::is_same_v<Update, TurnUpsertedOccurrence>) {
                         if (update.replaceItems) {
@@ -2311,7 +2306,7 @@ namespace ai::openai::codex::frontend::internal::model {
                     update.turns = std::move(decoded.turns);
                     update.items = std::move(decoded.items).releaseVector();
                     update.legacyItems = std::move(decoded.legacyItems);
-                    update.replaceDescendants = true;
+                    update.authority = ThreadUpsertAuthority::Replace;
                     return update;
                 }
                 if (event.type == "thread.list.updated") {
@@ -2498,7 +2493,7 @@ namespace ai::openai::codex::frontend::internal::model {
                 update.turns = std::move(decoded.turns);
                 update.items = std::move(decoded.items).releaseVector();
                 update.legacyItems = std::move(decoded.legacyItems);
-                update.replaceDescendants = true;
+                update.authority = ThreadUpsertAuthority::Replace;
                 return update;
             } catch (const OccurrenceFailure& failure) {
                 return failure.error;
@@ -2602,11 +2597,29 @@ namespace ai::openai::codex::frontend::internal::model {
                                         return update.thread;
                                     }
                                 }();
-                                if (!update.replaceDescendants && !update.applyIncomingCompleteness) {
-                                    const auto existing =
-                                        std::find_if(reduced.threads.begin(), reduced.threads.end(), [&](const ThreadState& value) {
-                                            return value.id == threadId;
-                                        });
+                                const auto existing =
+                                    std::find_if(reduced.threads.begin(), reduced.threads.end(), [&](const ThreadState& value) {
+                                        return value.id == threadId;
+                                    });
+                                if (update.authority != ThreadUpsertAuthority::Replace && existing != reduced.threads.end()) {
+                                    if (!thread.title.has_value()) {
+                                        thread.title = existing->title;
+                                    }
+                                    if (!thread.createdAtMs.has_value()) {
+                                        thread.createdAtMs = existing->createdAtMs;
+                                    }
+                                    if (!thread.updatedAtMs.has_value()) {
+                                        thread.updatedAtMs = existing->updatedAtMs;
+                                    }
+                                    if (thread.safeDetails.empty()) {
+                                        thread.safeDetails = existing->safeDetails;
+                                    }
+                                    if (thread.legacyExtensions.empty()) {
+                                        thread.legacyExtensions = existing->legacyExtensions;
+                                    }
+                                }
+                                if (update.authority == ThreadUpsertAuthority::Header ||
+                                    update.authority == ThreadUpsertAuthority::MergePreserveCompleteness) {
                                     // A header/merge occurrence carries no
                                     // descendant authority. Preserve the
                                     // recipient's local completeness bit; a newly
@@ -2616,7 +2629,7 @@ namespace ai::openai::codex::frontend::internal::model {
                                 upsert(reduced.threads, std::move(thread), [&](const ThreadState& value) {
                                     return value.id == threadId;
                                 });
-                                if (update.replaceDescendants) {
+                                if (update.authority == ThreadUpsertAuthority::Replace) {
                                     reduced.turnsPresent = true;
                                     reduced.itemsPresent = true;
                                     const auto affectedItem = [&](const ItemData& item) {
@@ -2646,7 +2659,8 @@ namespace ai::openai::codex::frontend::internal::model {
                                             return turn.threadId == threadId;
                                         });
                                     }
-                                } else if (update.applyIncomingCompleteness) {
+                                } else if (update.authority == ThreadUpsertAuthority::MergeApplyCompleteness ||
+                                           update.authority == ThreadUpsertAuthority::MergePreserveCompleteness) {
                                     // Merge-authoritative nested bodies upsert all
                                     // supplied descendants without interpreting an
                                     // omission as deletion. Keep unknown legacy

@@ -785,7 +785,7 @@
       "required": ["scope", "authority", "truncation"],
       "properties": {
         "scope": { "const": "thread" },
-        "authority": { "enum": ["merge", "replace", "absent"] },
+        "authority": { "enum": ["merge", "mergePreserveCompleteness", "replace", "absent"] },
         "truncation": {
           "type": "object",
           "required": ["sourcePartial", "responseTruncated", "responseOmittedTurns", "responseOmittedItems"],

@@ -294,6 +294,8 @@ namespace ai::openai::codex::frontend {
         switch (authority) {
             case ThreadReadStateEffectAuthority::Merge:
                 return "merge";
+            case ThreadReadStateEffectAuthority::MergePreserveCompleteness:
+                return "mergePreserveCompleteness";
             case ThreadReadStateEffectAuthority::Replace:
                 return "replace";
             case ThreadReadStateEffectAuthority::Absent:
@@ -482,6 +484,9 @@ namespace ai::openai::codex::frontend {
     std::optional<ThreadReadStateEffectAuthority> threadReadStateEffectAuthorityFromString(std::string_view value) noexcept {
         if (value == "merge") {
             return ThreadReadStateEffectAuthority::Merge;
+        }
+        if (value == "mergePreserveCompleteness") {
+            return ThreadReadStateEffectAuthority::MergePreserveCompleteness;
         }
         if (value == "replace") {
             return ThreadReadStateEffectAuthority::Replace;

@@ -2099,7 +2099,8 @@ namespace {
         result.expectTrue(capacity != nullptr && rollingDrop != nullptr && rollingCapacity &&
                               !rollingCapacity.value().snapshotRequired && unrelatedThread &&
                               unrelatedThread->thread.id == model::ThreadIdentity{"thread-unrelated"} &&
-                              !unrelatedThread->thread.fullyLoaded && !unrelatedThread->replaceDescendants &&
+                              !unrelatedThread->thread.fullyLoaded &&
+                              unrelatedThread->authority == model::ThreadUpsertAuthority::Header &&
                               unrelatedThread->turns.empty() && unrelatedThread->items.empty(),
                           "counter-only and nominal rolling-capacity changes remain incremental while thread headers never copy retained history");
         result.expectTrue(mutatingCapacity && mutatingCapacity.value().snapshotRequired,
@@ -2118,7 +2119,8 @@ namespace {
                           "an authoritative full thread read remains requester-local and emits no global invalidation");
         result.expectTrue(summaryThread && !summaryThread.value().snapshotRequired && summaryUpdate &&
                               summaryUpdate->thread.id == model::ThreadIdentity{"thread-unrelated"} &&
-                              !summaryUpdate->thread.fullyLoaded && !summaryUpdate->replaceDescendants &&
+                              !summaryUpdate->thread.fullyLoaded &&
+                              summaryUpdate->authority == model::ThreadUpsertAuthority::Header &&
                               summaryUpdate->turns.empty() && summaryUpdate->items.empty(),
                           "a summary thread upsert remains a bounded header merge without retained descendant history");
 

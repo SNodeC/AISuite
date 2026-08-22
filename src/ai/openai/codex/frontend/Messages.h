@@ -52,7 +52,7 @@ namespace ai::openai::codex::frontend {
 
     enum class SessionRole { Observer, Controller };
     enum class SyncMode { Replay, Snapshot };
-    enum class ThreadReadStateEffectAuthority { Merge, Replace, Absent };
+    enum class ThreadReadStateEffectAuthority { Merge, MergePreserveCompleteness, Replace, Absent };
 
     // Transport delivery has three distinct outcomes. Backpressured retains
     // the exact message in the bounded ServerCore queue for a later retry;
@@ -213,13 +213,20 @@ namespace ai::openai::codex::frontend {
         const ThreadReadStateEffect& value) noexcept {
         const bool omitted = value.responseOmittedTurns != 0
                              || value.responseOmittedItems != 0;
-        const bool structuralPartial = value.sourcePartial
-                                       || value.responseTruncated;
-        return value.responseTruncated == omitted
-               && (value.authority == ThreadReadStateEffectAuthority::Merge)
-                      == structuralPartial
-               && !(value.authority == ThreadReadStateEffectAuthority::Absent
-                    && structuralPartial);
+        if (value.responseTruncated != omitted) {
+            return false;
+        }
+        switch (value.authority) {
+            case ThreadReadStateEffectAuthority::Merge:
+                return value.sourcePartial;
+            case ThreadReadStateEffectAuthority::MergePreserveCompleteness:
+                return !value.sourcePartial && value.responseTruncated;
+            case ThreadReadStateEffectAuthority::Replace:
+                return !value.sourcePartial && !value.responseTruncated;
+            case ThreadReadStateEffectAuthority::Absent:
+                return !value.sourcePartial && !value.responseTruncated;
+        }
+        return false;
     }
 
     [[nodiscard]] constexpr bool threadReadStateEffectAuthorityMatchesPayload(
@@ -227,6 +234,8 @@ namespace ai::openai::codex::frontend {
         switch (authority) {
             case ThreadReadStateEffectAuthority::Merge:
                 return threadFullyLoaded.has_value() && !*threadFullyLoaded;
+            case ThreadReadStateEffectAuthority::MergePreserveCompleteness:
+                return threadFullyLoaded.has_value() && *threadFullyLoaded;
             case ThreadReadStateEffectAuthority::Replace:
                 return threadFullyLoaded.has_value() && *threadFullyLoaded;
             case ThreadReadStateEffectAuthority::Absent:

@@ -2566,7 +2566,7 @@ namespace ai::openai::codex::frontend::internal::server {
                                              ? std::get_if<model::ThreadUpsertedOccurrence>(
                                                    &projected->expandedPayloads().front())
                                              : nullptr;
-                    if (update != nullptr && !update->replaceDescendants) {
+                    if (update != nullptr && update->authority != model::ThreadUpsertAuthority::Replace) {
                         // Legacy thread.updated always replaces the nested
                         // turns array. A bounded header merge therefore has no
                         // lossless legacy event representation; rebase only

@@ -863,6 +863,20 @@ namespace {
             replacementChange != nullptr && replacementChange->threadId == model::ThreadIdentity{"thread-effect"};
 
         updates.clear();
+        const core::Submission suffixMerge = submitRead();
+        const frontend::Json suffixMergeResult{
+            {"thread", threadBody("thread-effect", true, {"suffix-turn"})},
+            {"stateEffect", stateEffect("mergePreserveCompleteness", false, 1)}};
+        const bool suffixMergeAccepted =
+            suffixMerge && client.receive(generation,
+                                          frontend::ServerMessage{frontend::Response::success(*suffixMerge.requestId,
+                                                                                              suffixMergeResult)});
+        const model::ThreadState* suffixMergedThread = client.state()->thread("thread-effect");
+        const bool suffixMergeApplied = suffixMergedThread != nullptr && suffixMergedThread->fullyLoaded &&
+                                        client.state()->turn("new-turn") != nullptr &&
+                                        client.state()->turn("suffix-turn") != nullptr;
+
+        updates.clear();
         const core::Submission merge = submitRead();
         const frontend::Json mergeResult{{"thread", threadBody("thread-effect", false, {"merged-turn"})},
                                          {"stateEffect", stateEffect("merge", true)}};
@@ -903,12 +917,13 @@ namespace {
         result.expectTrue(seeded && optedIn && replaceAccepted && replacementApplied && replacementChangeIsIdentityOnly &&
                               updateObservedBeforeCompletion &&
                               authoritativeCompletionIsMetadataOnly &&
+                              suffixMergeAccepted && suffixMergeApplied &&
                               mergeAccepted && mergeApplied && mergeChangeIsIdentityOnly && absentAccepted && absentPublished &&
                               repeatedAbsentAccepted &&
                               missingRemovalStillPublished && completions == 1 && cursorAdvances == cursorsBeforeEffects,
-                          "negotiated thread.read state effects publish replacement, downgrade a full cache on partial merge while "
-                          "preserving descendants, retain only an identity change, and publish idempotent absence before completion "
-                          "without advancing the journal cursor");
+                          "negotiated thread.read state effects replace complete descendants, preserve completeness for a transport-"
+                          "truncated suffix, downgrade on genuine source partiality, and publish idempotent absence without advancing "
+                          "the journal cursor");
 
         Harness legacyHarness;
         core::ClientCore legacyClient(clientOptions());
