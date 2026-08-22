@@ -29,6 +29,7 @@ namespace {
     namespace generated = ai::openai::codex::frontend::generated;
     namespace model = ai::openai::codex::frontend::internal::model;
     namespace server = ai::openai::codex::frontend::internal::server;
+    namespace typed = ai::openai::codex::typed;
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
 
@@ -1649,6 +1650,30 @@ namespace {
     }
 
     void testDeferredThreadReadCapacityIsBoundedAndReleased(tests::support::TestResult& result) {
+        const std::string largeHeaderId(model::ThreadIdentity::MaximumBytes, 'h');
+        backend::ThreadSnapshot smallHeaderProbeSidecar;
+        smallHeaderProbeSidecar.id = largeHeaderId;
+        typed::ThreadReadResponse successfulHeader;
+        successfulHeader.thread.id = typed::ThreadId{largeHeaderId};
+        backend::CommandCompletion successfulHeaderCompletion{
+            "deferred-success-header-probe",
+            backend::CommandResult::succeeded(std::move(successfulHeader)),
+            backend::ThreadSnapshotAtSequence{backend::SequenceNumber{1}, std::move(smallHeaderProbeSidecar)}};
+        backend::CommandCompletion sidecarOnlyCompletion = successfulHeaderCompletion;
+        sidecarOnlyCompletion.result = {};
+        backend::detail::resetThreadSnapshotEncodingInstrumentation();
+        const std::size_t successfulHeaderBytes =
+            server::BackendCoreBridgeTestAccess::deferredThreadReadBytesFor(successfulHeaderCompletion);
+        const std::size_t sidecarOnlyBytes =
+            server::BackendCoreBridgeTestAccess::deferredThreadReadBytesFor(sidecarOnlyCompletion);
+        const backend::detail::ThreadSnapshotEncodingInstrumentation headerAccountingInstrumentation =
+            backend::detail::threadSnapshotEncodingInstrumentation();
+        result.expectTrue(successfulHeaderBytes == sidecarOnlyBytes + largeHeaderId.size() &&
+                              headerAccountingInstrumentation.jsonConstructions == 0 &&
+                              headerAccountingInstrumentation.dumpCalls == 0,
+                          "a successful deferred completion charges its large stripped result-header thread ID in addition to its "
+                          "small sidecar without constructing or dumping JSON");
+
         backend::TurnSnapshot accountingTurn;
         for (std::size_t index = 0; index < 9; ++index) {
             backend::ItemSnapshot accountingItem;
