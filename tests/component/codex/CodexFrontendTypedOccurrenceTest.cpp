@@ -260,6 +260,126 @@ namespace {
                           "copy-preserving occurrence reduction leaves its source unchanged");
     }
 
+    void testThreadReadMergePreservation(tests::support::TestResult& result) {
+        const auto detail = [](std::string key, std::string value) {
+            return *model::SafeDetail::fromJson(frontend::Json{{std::move(key), std::move(value)}});
+        };
+
+        model::ThreadState existing{model::ThreadIdentity{"merge-thread"}};
+        existing.title = "existing-title";
+        existing.createdAtMs = 101;
+        existing.updatedAtMs = 202;
+        existing.fullyLoaded = true;
+        existing.freshness = model::Freshness::Stale;
+        existing.stamp.generation = 303;
+        existing.stamp.freshness = model::Freshness::Stale;
+        existing.stamp.extensions = detail("stampDetail", "existing-stamp");
+        existing.stampKnown = false;
+        existing.safeDetails = detail("safeDetail", "existing-safe");
+        existing.legacyExtensions = detail("legacyDetail", "existing-legacy");
+
+        model::CanonicalSnapshot source;
+        source.threadsPresent = true;
+        source.threads.push_back(existing);
+
+        const auto reduce = [&](model::ThreadState incoming,
+                                model::ThreadUpsertAuthority authority,
+                                std::uint64_t sequence,
+                                std::string group) {
+            model::ThreadUpsertedOccurrence update{std::move(incoming)};
+            update.authority = authority;
+            auto identity = occurrenceIdentity(sequence, std::move(group));
+            identity.threadId = model::ThreadIdentity{"merge-thread"};
+            const auto occurrence = model::makeOccurrence(std::move(identity), std::move(update));
+            return occurrence ? model::reduceOccurrence(source, occurrence.value())
+                              : model::ModelResult<model::CanonicalSnapshot>{
+                                    {model::ModelErrorCode::InvalidShape, "/event", "creation failed"}};
+        };
+
+        model::ThreadState mergeInput{model::ThreadIdentity{"merge-thread"}};
+        mergeInput.fullyLoaded = false;
+        mergeInput.freshness = model::Freshness::Current;
+        mergeInput.stamp.generation = 404;
+        mergeInput.stamp.freshness = model::Freshness::Current;
+        mergeInput.stampKnown = true;
+        const auto merged = reduce(std::move(mergeInput),
+                                   model::ThreadUpsertAuthority::MergeApplyCompleteness,
+                                   33,
+                                   "thread-read-merge");
+        const model::ThreadState* mergedThread = merged ? &merged.value().threads.front() : nullptr;
+        const bool mergePreservedEveryUnownedField =
+            mergedThread != nullptr && mergedThread->id == existing.id && mergedThread->title == existing.title &&
+            mergedThread->createdAtMs == existing.createdAtMs && mergedThread->updatedAtMs == existing.updatedAtMs &&
+            !mergedThread->fullyLoaded && mergedThread->freshness == existing.freshness &&
+            mergedThread->stamp == existing.stamp && mergedThread->stampKnown == existing.stampKnown &&
+            mergedThread->safeDetails == existing.safeDetails && mergedThread->legacyExtensions == existing.legacyExtensions;
+
+        model::ThreadState preserveInput{model::ThreadIdentity{"merge-thread"}};
+        preserveInput.fullyLoaded = false;
+        preserveInput.freshness = model::Freshness::Current;
+        preserveInput.stamp.generation = 505;
+        preserveInput.stamp.freshness = model::Freshness::Current;
+        preserveInput.stampKnown = true;
+        const auto completenessPreserved = reduce(std::move(preserveInput),
+                                                  model::ThreadUpsertAuthority::MergePreserveCompleteness,
+                                                  34,
+                                                  "thread-read-merge-preserve-completeness");
+        const model::ThreadState* completenessPreservedThread =
+            completenessPreserved ? &completenessPreserved.value().threads.front() : nullptr;
+        const bool preserveMergeRetainedEveryField =
+            completenessPreservedThread != nullptr && *completenessPreservedThread == existing;
+
+        model::ThreadState authoredInput{model::ThreadIdentity{"merge-thread"}};
+        authoredInput.title = "incoming-title";
+        authoredInput.createdAtMs = 606;
+        authoredInput.updatedAtMs = 707;
+        authoredInput.fullyLoaded = false;
+        authoredInput.freshness = model::Freshness::Current;
+        authoredInput.stamp.generation = 808;
+        authoredInput.stamp.freshness = model::Freshness::Current;
+        authoredInput.stampKnown = true;
+        authoredInput.safeDetails = detail("safeDetail", "incoming-safe");
+        authoredInput.legacyExtensions = detail("legacyDetail", "incoming-legacy");
+        const model::SafeDetail authoredSafeDetails = authoredInput.safeDetails;
+        const model::SafeDetail authoredLegacyExtensions = authoredInput.legacyExtensions;
+        const auto authored = reduce(std::move(authoredInput),
+                                     model::ThreadUpsertAuthority::MergePreserveCompleteness,
+                                     35,
+                                     "thread-read-authored-fields");
+        const model::ThreadState* authoredThread = authored ? &authored.value().threads.front() : nullptr;
+        const bool incomingAuthorityApplied =
+            authoredThread != nullptr && authoredThread->title == std::optional<std::string>{"incoming-title"} &&
+            authoredThread->createdAtMs == std::optional<std::int64_t>{606} &&
+            authoredThread->updatedAtMs == std::optional<std::int64_t>{707} && authoredThread->fullyLoaded &&
+            authoredThread->freshness == existing.freshness && authoredThread->stamp == existing.stamp &&
+            authoredThread->stampKnown == existing.stampKnown && authoredThread->safeDetails == authoredSafeDetails &&
+            authoredThread->legacyExtensions == authoredLegacyExtensions;
+
+        model::ThreadState replacement{model::ThreadIdentity{"merge-thread"}};
+        replacement.title = "replacement-title";
+        replacement.createdAtMs = 909;
+        replacement.updatedAtMs = 1'010;
+        replacement.fullyLoaded = false;
+        replacement.freshness = model::Freshness::Unknown;
+        replacement.stamp.generation = 1'111;
+        replacement.stamp.freshness = model::Freshness::Unknown;
+        replacement.stamp.extensions = detail("stampDetail", "replacement-stamp");
+        replacement.stampKnown = true;
+        replacement.safeDetails = detail("safeDetail", "replacement-safe");
+        replacement.legacyExtensions = detail("legacyDetail", "replacement-legacy");
+        const model::ThreadState expectedReplacement = replacement;
+        const auto replaced = reduce(std::move(replacement),
+                                     model::ThreadUpsertAuthority::Replace,
+                                     36,
+                                     "thread-read-replace");
+        const model::ThreadState* replacedThread = replaced ? &replaced.value().threads.front() : nullptr;
+
+        result.expectTrue(mergePreservedEveryUnownedField && preserveMergeRetainedEveryField && incomingAuthorityApplied &&
+                              replacedThread != nullptr && *replacedThread == expectedReplacement,
+                          "thread-read merge authorities preserve every unowned ThreadState member, apply owned fields and "
+                          "completeness, and leave replacement authoritative");
+    }
+
     void testAuthoritativeThreadMoveApplication(tests::support::TestResult& result) {
         model::ThreadUpsertedOccurrence update{model::ThreadState{model::ThreadIdentity{"move-thread"}}};
         update.authority = model::ThreadUpsertAuthority::Replace;
@@ -1775,6 +1895,7 @@ int main() {
     testLegacyExtensionWireShape(result);
     testGeneratedMultiFamilyGroup(result);
     testInPlaceAndCopyPreservingReduction(result);
+    testThreadReadMergePreservation(result);
     testAuthoritativeThreadMoveApplication(result);
     testItemContentPresence(result);
     testNegotiatedItemContentAppend(result);

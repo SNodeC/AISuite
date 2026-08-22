@@ -461,6 +461,12 @@ namespace ai::openai::codex::frontend::internal::model {
             : id(std::move(threadId)) {
         }
 
+        // Merge a non-replacing projection by retaining this recipient's
+        // state first, then overlaying only fields owned by the incoming
+        // projection. New ThreadState members are therefore preserved until
+        // their authority is deliberately added here.
+        void mergeFrom(ThreadState incoming, bool completenessIsAuthoritative, bool sourceMetadataIsAuthoritative);
+
         bool operator==(const ThreadState&) const = default;
     };
 

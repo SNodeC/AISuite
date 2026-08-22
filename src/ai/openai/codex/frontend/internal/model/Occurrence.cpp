@@ -2602,29 +2602,20 @@ namespace ai::openai::codex::frontend::internal::model {
                                         return value.id == threadId;
                                     });
                                 if (update.authority != ThreadUpsertAuthority::Replace && existing != reduced.threads.end()) {
-                                    if (!thread.title.has_value()) {
-                                        thread.title = existing->title;
-                                    }
-                                    if (!thread.createdAtMs.has_value()) {
-                                        thread.createdAtMs = existing->createdAtMs;
-                                    }
-                                    if (!thread.updatedAtMs.has_value()) {
-                                        thread.updatedAtMs = existing->updatedAtMs;
-                                    }
-                                    if (thread.safeDetails.empty()) {
-                                        thread.safeDetails = existing->safeDetails;
-                                    }
-                                    if (thread.legacyExtensions.empty()) {
-                                        thread.legacyExtensions = existing->legacyExtensions;
-                                    }
-                                }
-                                if (update.authority == ThreadUpsertAuthority::Header ||
-                                    update.authority == ThreadUpsertAuthority::MergePreserveCompleteness) {
-                                    // A header/merge occurrence carries no
-                                    // descendant authority. Preserve the
-                                    // recipient's local completeness bit; a newly
-                                    // discovered summary starts incomplete.
-                                    thread.fullyLoaded = existing != reduced.threads.end() && existing->fullyLoaded;
+                                    const bool completenessIsAuthoritative =
+                                        update.authority == ThreadUpsertAuthority::MergeApplyCompleteness;
+                                    const bool sourceMetadataIsAuthoritative = update.authority == ThreadUpsertAuthority::Header;
+                                    ThreadState merged = *existing;
+                                    merged.mergeFrom(std::move(thread),
+                                                     completenessIsAuthoritative,
+                                                     sourceMetadataIsAuthoritative);
+                                    thread = std::move(merged);
+                                } else if (update.authority == ThreadUpsertAuthority::Header ||
+                                           update.authority == ThreadUpsertAuthority::MergePreserveCompleteness) {
+                                    // A newly discovered header/merge begins
+                                    // incomplete. Existing recipients retain
+                                    // completeness through ThreadState::mergeFrom.
+                                    thread.fullyLoaded = false;
                                 }
                                 upsert(reduced.threads, std::move(thread), [&](const ThreadState& value) {
                                     return value.id == threadId;

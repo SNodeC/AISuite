@@ -1673,6 +1673,34 @@ namespace ai::openai::codex::frontend::internal::model {
         }
     }
 
+    void ThreadState::mergeFrom(ThreadState incoming,
+                                bool completenessIsAuthoritative,
+                                bool sourceMetadataIsAuthoritative) {
+        if (incoming.title.has_value()) {
+            title = std::move(incoming.title);
+        }
+        if (incoming.createdAtMs.has_value()) {
+            createdAtMs = incoming.createdAtMs;
+        }
+        if (incoming.updatedAtMs.has_value()) {
+            updatedAtMs = incoming.updatedAtMs;
+        }
+        if (completenessIsAuthoritative) {
+            fullyLoaded = incoming.fullyLoaded;
+        }
+        if (sourceMetadataIsAuthoritative) {
+            freshness = incoming.freshness;
+            stamp = std::move(incoming.stamp);
+            stampKnown = incoming.stampKnown;
+        }
+        if (!incoming.safeDetails.empty()) {
+            safeDetails = std::move(incoming.safeDetails);
+        }
+        if (!incoming.legacyExtensions.empty()) {
+            legacyExtensions = std::move(incoming.legacyExtensions);
+        }
+    }
+
     ModelResult<Json> encodeItemContentOverflowV1(const ItemContentOverflowV1& overflow) noexcept {
         try {
             const bool validUtf8 = frontendUtf8PrefixLength(overflow.suffix, overflow.suffix.size()) == overflow.suffix.size();
