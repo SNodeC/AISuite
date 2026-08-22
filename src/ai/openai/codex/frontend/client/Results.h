@@ -122,7 +122,18 @@ namespace ai::openai::codex::frontend::client {
 
     using ThreadStartResult = ProjectedThreadResult;
     using ThreadResumeResult = ProjectedThreadResult;
-    using ThreadReadResult = ProjectedThreadResult;
+
+    struct ThreadReadResult {
+        typed::ThreadId threadId;
+        // Present for legacy/non-authoritative reads. A negotiated complete
+        // read publishes its body into Client::state() exactly once and
+        // returns only threadId plus stateEffect here.
+        std::optional<ThreadResultState> thread;
+        // Missing for a legacy peer or a read that did not request descendants.
+        // When present, it describes the authoritative mutation already
+        // reflected by Client::state() before the completion callback runs.
+        std::optional<frontend::ThreadReadStateEffect> stateEffect;
+    };
 
     struct ThreadListResult {
         std::vector<ThreadResultState> threads;

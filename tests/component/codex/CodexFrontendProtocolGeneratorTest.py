@@ -345,6 +345,90 @@ def validate_additive_schema_contract(
     if branches[:15] != template_branches:
         raise AssertionError("additive generation changed an original method schema")
 
+    thread_read = next(
+        branch
+        for branch in branches
+        if branch["properties"]["method"]["const"] == "thread.read"
+    )
+    if thread_read["properties"].get("threadReadStateEffectVersion") != {
+        "const": 1
+    }:
+        raise AssertionError("thread.read state-effect opt-in schema changed")
+    if any(
+        "threadReadStateEffectVersion" in branch["properties"]
+        for branch in branches
+        if branch is not thread_read
+    ):
+        raise AssertionError("thread.read state-effect opt-in leaked to another method")
+
+    state_effect = definitions.get("ThreadReadStateEffect")
+    if not isinstance(state_effect, dict) or state_effect.get("required") != [
+        "scope",
+        "authority",
+        "truncation",
+    ]:
+        raise AssertionError("thread.read state-effect result schema changed")
+    if state_effect["properties"].get("scope") != {"const": "thread"} or state_effect[
+        "properties"
+    ].get("authority") != {"enum": ["merge", "mergePreserveCompleteness", "replace", "absent"]}:
+        raise AssertionError("thread.read state-effect authority schema changed")
+    if "throughSequence" in state_effect["properties"]:
+        raise AssertionError("thread.read state effect must use ordered response delivery, not a global sequence fence")
+    truncation = state_effect["properties"].get("truncation")
+    if not isinstance(truncation, dict) or truncation.get("required") != [
+        "sourcePartial",
+        "responseTruncated",
+        "responseOmittedTurns",
+        "responseOmittedItems",
+    ]:
+        raise AssertionError("thread.read state-effect truncation schema changed")
+    if set(truncation.get("properties", {})) != {
+        "sourcePartial",
+        "responseTruncated",
+        "responseOmittedTurns",
+        "responseOmittedItems",
+    }:
+        raise AssertionError("thread.read state-effect truncation fields changed")
+
+    thread_read_result = definitions.get("ThreadReadResult")
+    result_branches = (
+        thread_read_result.get("oneOf")
+        if isinstance(thread_read_result, dict)
+        else None
+    )
+    if not isinstance(result_branches, list) or len(result_branches) != 4:
+        raise AssertionError(
+            "thread.read result must have legacy thread, legacy thread-id, negotiated, and absent branches"
+        )
+    legacy_result, legacy_id_result, negotiated_result, absent_result = result_branches
+    if (
+        legacy_result.get("required") != ["thread"]
+        or legacy_result.get("properties", {}).get("thread")
+        != {"$ref": "#/$defs/ThreadState"}
+        or legacy_id_result.get("required") != ["threadId"]
+        or legacy_id_result.get("properties", {}).get("threadId")
+        != {"type": "string", "minLength": 1}
+        or negotiated_result.get("required") != ["thread", "stateEffect"]
+        or negotiated_result.get("properties", {}).get("thread")
+        != {"$ref": "#/$defs/ThreadState"}
+        or absent_result.get("required") != ["threadId", "stateEffect"]
+        or "thread" in absent_result.get("properties", {})
+    ):
+        raise AssertionError(
+            "thread.read branch bodies no longer match the frozen nested ThreadState contract"
+        )
+    legacy_exclusions = legacy_result.get("not", {}).get("anyOf", [])
+    legacy_id_exclusions = legacy_id_result.get("not", {}).get("anyOf", [])
+    if (
+        [branch.get("required") for branch in legacy_exclusions]
+        != [["stateEffect"], ["threadId"]]
+        or [branch.get("required") for branch in legacy_id_exclusions]
+        != [["stateEffect"], ["thread"]]
+        or negotiated_result.get("not", {}).get("required") != ["threadId"]
+        or absent_result.get("not", {}).get("required") != ["thread"]
+    ):
+        raise AssertionError("thread.read result branches are no longer disjoint")
+
     for row in methods:
         parameter_name = row["parameterSchema"].rsplit("/", 1)[-1]
         result_name = row["resultSchema"].rsplit("/", 1)[-1]
@@ -681,6 +765,25 @@ def main() -> int:
         raise AssertionError(
             "command.exec generated fixtures must exercise a non-empty argv"
         )
+    thread_read_fixture = next(
+        row
+        for row in generated_fixtures["methods"]
+        if row["method"] == "thread.read"
+    )
+    complete_thread_read = thread_read_fixture["completeResult"]
+    if (
+        thread_read_fixture["completeParams"].get("includeTurns") is not True
+        or complete_thread_read["thread"].get("fullyLoaded") is not True
+        or complete_thread_read["stateEffect"].get("authority") != "replace"
+        or "throughSequence" in complete_thread_read["stateEffect"]
+        or any(
+            complete_thread_read["stateEffect"]["truncation"][name]
+            for name in ("sourcePartial", "responseTruncated")
+        )
+    ):
+        raise AssertionError(
+            "thread.read complete fixture must model a negotiated authoritative replacement"
+        )
     if generated_fixtures != json.loads(args.fixtures.read_text(encoding="utf-8")):
         raise AssertionError("committed frontend golden fixtures are stale")
     if (
@@ -827,7 +930,7 @@ def main() -> int:
         "defaultAvailableMethods": 90,
         "defaultRemotePermittedMethods": 53,
         "localTrustedPermittedMethods": 90,
-        "implementedMechanismCapabilities": 13,
+        "implementedMechanismCapabilities": 14,
         "runtimeTopologyCapabilities": 1,
         "futureProductCapabilities": 4,
         "reviewedIdentities": 234,

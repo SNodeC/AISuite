@@ -17,10 +17,12 @@
 #include "ai/openai/codex/frontend/internal/server/BackendProjection.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <map>
 #include <optional>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -79,6 +81,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     return "Codex App Server is unavailable";
             }
             return "frontend command failed";
+        }
+
+        bool authoritativeThreadReadAbsence(const backend::CommandCompletion& completion,
+                                            const backend::ThreadSnapshotAtSequence* captured) noexcept {
+            return captured && !captured->thread && completion.result.error &&
+                   completion.result.error->code == backend::CommandErrorCode::NotFound;
         }
 
         bool isFrontendV1MetadataOnlyItem(std::string_view type) noexcept {
@@ -193,6 +201,62 @@ namespace ai::openai::codex::frontend::internal::server {
                         {"retainedContentItems", retainedItems}};
         }
 
+        std::string_view freshnessName(backend::Freshness freshness) noexcept {
+            switch (freshness) {
+                case backend::Freshness::Unknown:
+                    return "unknown";
+                case backend::Freshness::Current:
+                    return "current";
+                case backend::Freshness::Stale:
+                    return "stale";
+            }
+            return "unknown";
+        }
+
+        Json sourceStampJson(const backend::SourceStamp& stamp) {
+            return Json{{"generation", stamp.generation}, {"freshness", std::string(freshnessName(stamp.freshness))}};
+        }
+
+        Json turnPlanJson(const backend::TurnPlanState& plan) {
+            Json encoded{{"steps", Json::array()},
+                         {"statuses", Json::array()},
+                         {"totalSteps", plan.totalSteps},
+                         {"truncated", plan.truncated}};
+            if (plan.explanation) {
+                encoded["explanation"] = *plan.explanation;
+            }
+            for (const backend::TurnPlanStepState& step : plan.steps) {
+                encoded["steps"].push_back(step.step);
+                encoded["statuses"].push_back(step.status.value);
+            }
+            return encoded;
+        }
+
+        Json realtimeSnapshotJson(const backend::RealtimeThreadSnapshot& realtime) {
+            Json encoded{{"lifecycle", realtime.lifecycle},
+                         {"transcript", realtime.transcript},
+                         {"itemCount", realtime.itemCount},
+                         {"receivedAudioBytes", realtime.receivedAudioBytes},
+                         {"droppedAudioBytes", realtime.droppedAudioBytes},
+                         {"transcriptTruncated", realtime.transcriptTruncated},
+                         {"sourceGeneration", realtime.stamp.generation},
+                         {"sourceFreshness", std::string(freshnessName(realtime.stamp.freshness))}};
+            if (realtime.lastError) {
+                encoded["lastError"] = *realtime.lastError;
+                encoded["errorDetailsOmitted"] = false;
+            }
+            if (realtime.sessionId) {
+                encoded["sessionId"] = *realtime.sessionId;
+            }
+            if (realtime.version) {
+                encoded["version"] = *realtime.version;
+            }
+            if (realtime.lastSdpBytes) {
+                encoded["lastSdpBytes"] = *realtime.lastSdpBytes;
+            }
+            return encoded;
+        }
+
         Json legacyItemSnapshotJson(const backend::ItemSnapshot& item) {
             const Json frontendData = isFrontendV1MetadataOnlyItem(item.type)
                                           ? Json::object({{"codexType", item.type}})
@@ -208,7 +272,10 @@ namespace ai::openai::codex::frontend::internal::server {
                          {"droppedContentBytes", item.droppedContentBytes},
                          {"contentTruncated", item.contentTruncated},
                          {"data", frontendData},
-                         {"extensions", item.extensions}};
+                         {"extensions", item.extensions},
+                         {"generation", item.stamp.generation},
+                         {"freshness", std::string(freshnessName(item.stamp.freshness))},
+                         {"connectionInvalidated", item.connectionInvalidated}};
             if (item.startedAtMs) {
                 encoded["startedAtMs"] = *item.startedAtMs;
             }
@@ -225,12 +292,23 @@ namespace ai::openai::codex::frontend::internal::server {
                          {"active", turn.active},
                          {"terminal", turn.terminal},
                          {"items", Json::array()},
-                         {"extensions", turn.extensions}};
+                         {"extensions", turn.extensions},
+                         {"stamp", sourceStampJson(turn.stamp)},
+                         {"connectionInvalidated", turn.connectionInvalidated}};
             if (turn.failure) {
                 encoded["failure"] = *turn.failure;
             }
             if (turn.tokenUsage) {
                 encoded["tokenUsage"] = *turn.tokenUsage;
+            }
+            if (turn.plan) {
+                encoded["plan"] = turnPlanJson(*turn.plan);
+            }
+            if (turn.effectiveExecutionConfiguration) {
+                encoded["effectiveExecutionConfiguration"] = *turn.effectiveExecutionConfiguration;
+            }
+            if (turn.effectiveExecutionConfigurationProvenance) {
+                encoded["effectiveExecutionConfigurationProvenance"] = *turn.effectiveExecutionConfigurationProvenance;
             }
             for (const backend::ItemSnapshot& item : turn.items) {
                 encoded["items"].push_back(legacyItemSnapshotJson(item));
@@ -239,8 +317,12 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         Json threadSnapshotJson(const backend::ThreadSnapshot& thread) {
-            Json encoded{
-                {"id", thread.id}, {"fullyLoaded", thread.fullyLoaded}, {"turns", Json::array()}, {"extensions", thread.extensions}};
+            Json encoded{{"id", thread.id},
+                         {"fullyLoaded", thread.fullyLoaded},
+                         {"turns", Json::array()},
+                         {"extensions", thread.extensions},
+                         {"stamp", sourceStampJson(thread.stamp)},
+                         {"realtime", realtimeSnapshotJson(thread.realtime)}};
             if (thread.title) {
                 encoded["title"] = *thread.title;
             }
@@ -259,6 +341,15 @@ namespace ai::openai::codex::frontend::internal::server {
             if (thread.status) {
                 encoded["status"] = *thread.status;
             }
+            if (thread.ephemeral) {
+                encoded["ephemeral"] = *thread.ephemeral;
+            }
+            if (thread.archived) {
+                encoded["archived"] = *thread.archived;
+            }
+            if (thread.executionConfiguration) {
+                encoded["executionConfiguration"] = *thread.executionConfiguration;
+            }
             if (thread.createdAt) {
                 encoded["createdAt"] = *thread.createdAt;
             }
@@ -269,6 +360,183 @@ namespace ai::openai::codex::frontend::internal::server {
                 encoded["turns"].push_back(turnSnapshotJson(turn));
             }
             return encoded;
+        }
+
+        std::uint64_t saturatedCount(std::size_t value) noexcept {
+            if constexpr (sizeof(std::size_t) > sizeof(std::uint64_t)) {
+                return value > std::numeric_limits<std::uint64_t>::max() ? std::numeric_limits<std::uint64_t>::max()
+                                                                         : static_cast<std::uint64_t>(value);
+            }
+            return static_cast<std::uint64_t>(value);
+        }
+
+        std::uint64_t saturatedAdd(std::uint64_t left, std::uint64_t right) noexcept {
+            return right > std::numeric_limits<std::uint64_t>::max() - left ? std::numeric_limits<std::uint64_t>::max()
+                                                                            : left + right;
+        }
+
+        struct BoundedThreadReadResult {
+            Json value = Json::object();
+            ThreadReadStateEffect effect;
+        };
+
+        BoundedThreadReadResult boundedThreadReadResult(const typed::ThreadId& id,
+                                                        const std::optional<backend::ThreadSnapshot>& source,
+                                                        std::size_t maximumBytes) {
+            BoundedThreadReadResult projected;
+            projected.effect.sourcePartial = source && !source->fullyLoaded;
+
+            const auto finalize = [&](Json value, std::uint64_t omittedTurns, std::uint64_t omittedItems) {
+                projected.effect.responseOmittedTurns = omittedTurns;
+                projected.effect.responseOmittedItems = omittedItems;
+                projected.effect.responseTruncated = omittedTurns != 0 || omittedItems != 0;
+                projected.effect.authority = projected.effect.sourcePartial
+                                                 ? ThreadReadStateEffectAuthority::Merge
+                                                 : projected.effect.responseTruncated
+                                                       ? ThreadReadStateEffectAuthority::MergePreserveCompleteness
+                                                       : ThreadReadStateEffectAuthority::Replace;
+                const std::optional<Json> effect = encodeThreadReadStateEffect(projected.effect);
+                if (!effect) {
+                    throw std::logic_error("frontend thread-read state effect could not be encoded");
+                }
+                value["stateEffect"] = *effect;
+                return value;
+            };
+            const auto fits = [&](const Json& value) { return value.dump().size() <= maximumBytes; };
+
+            if (!source) {
+                projected.effect.authority = ThreadReadStateEffectAuthority::Absent;
+                const std::optional<Json> effect = encodeThreadReadStateEffect(projected.effect);
+                if (!effect) {
+                    throw std::logic_error("frontend absent thread-read state effect could not be encoded");
+                }
+                projected.value = Json{{"threadId", id.value}, {"stateEffect", *effect}};
+                if (!fits(projected.value)) {
+                    throw std::length_error("frontend command result exceeds outbound capacity");
+                }
+                return projected;
+            }
+
+            Json completeThread = threadSnapshotJson(*source);
+            Json complete = finalize(Json{{"thread", completeThread}}, 0, 0);
+            if (fits(complete)) {
+                projected.value = std::move(complete);
+                return projected;
+            }
+            if (source->turns.empty()) {
+                throw std::length_error("frontend command result exceeds outbound capacity");
+            }
+
+            // Preserve a deterministic newest suffix. Encode every retained
+            // entity once; fit probes account for the already-encoded JSON
+            // fragments instead of repeatedly materializing the growing body.
+            Json encodedTurns = std::move(completeThread["turns"]);
+            Json threadHeader = std::move(completeThread);
+            threadHeader["fullyLoaded"] = !projected.effect.sourcePartial;
+            threadHeader["turns"] = Json::array();
+            std::vector<std::uint64_t> itemPrefix(source->turns.size() + 1, 0);
+            std::vector<std::size_t> encodedTurnBytes;
+            encodedTurnBytes.reserve(encodedTurns.size());
+            for (std::size_t index = 0; index < source->turns.size(); ++index) {
+                itemPrefix[index + 1] = saturatedAdd(itemPrefix[index], saturatedCount(source->turns[index].items.size()));
+                encodedTurnBytes.push_back(encodedTurns[index].dump().size());
+            }
+            const auto arrayBytes = [](std::span<const std::size_t> elements) {
+                if (elements.empty()) {
+                    return std::size_t{2};
+                }
+                std::size_t bytes = elements.size() + 1;
+                for (const std::size_t element : elements) {
+                    if (element > std::numeric_limits<std::size_t>::max() - bytes) {
+                        return std::numeric_limits<std::size_t>::max();
+                    }
+                    bytes += element;
+                }
+                return bytes;
+            };
+            const auto projectedBytes = [&](const Json& header,
+                                            std::span<const std::size_t> elements,
+                                            std::uint64_t omittedTurns,
+                                            std::uint64_t omittedItems) {
+                Json shell = finalize(Json{{"thread", header}}, omittedTurns, omittedItems);
+                const std::size_t shellBytes = shell.dump().size();
+                const std::size_t bodyBytes = arrayBytes(elements);
+                return bodyBytes > std::numeric_limits<std::size_t>::max() - (shellBytes - 2)
+                           ? std::numeric_limits<std::size_t>::max()
+                           : shellBytes - 2 + bodyBytes;
+            };
+
+            std::size_t omittedTurnCount = 1;
+            for (; omittedTurnCount <= encodedTurns.size(); ++omittedTurnCount) {
+                const std::span<const std::size_t> suffix =
+                    std::span<const std::size_t>(encodedTurnBytes).subspan(omittedTurnCount);
+                if (projectedBytes(threadHeader,
+                                   suffix,
+                                   saturatedCount(omittedTurnCount),
+                                   itemPrefix[omittedTurnCount]) <= maximumBytes) {
+                    break;
+                }
+            }
+            Json bounded;
+
+            // If even the newest complete turn is too large, keep that turn's
+            // header and the largest newest item suffix instead of dropping
+            // the entire active turn.
+            if (omittedTurnCount == encodedTurns.size()) {
+                Json emptyThread = threadHeader;
+                bounded = finalize(Json{{"thread", std::move(emptyThread)}},
+                                   saturatedCount(encodedTurns.size()),
+                                   itemPrefix.back());
+                Json encodedItems = std::move(encodedTurns.back()["items"]);
+                Json turnHeader = std::move(encodedTurns.back());
+                turnHeader["items"] = Json::array();
+                std::vector<std::size_t> encodedItemBytes;
+                encodedItemBytes.reserve(encodedItems.size());
+                for (const Json& item : encodedItems) {
+                    encodedItemBytes.push_back(item.dump().size());
+                }
+                std::size_t omittedItemCount = 0;
+                for (; omittedItemCount <= encodedItems.size(); ++omittedItemCount) {
+                    const std::span<const std::size_t> suffix =
+                        std::span<const std::size_t>(encodedItemBytes).subspan(omittedItemCount);
+                    const std::size_t itemArrayBytes = arrayBytes(suffix);
+                    Json candidateTurnHeader = turnHeader;
+                    candidateTurnHeader["items"] = Json::array();
+                    const std::size_t turnShellBytes = candidateTurnHeader.dump().size();
+                    const std::size_t turnBytes = turnShellBytes - 2 + itemArrayBytes;
+                    const std::array<std::size_t, 1> turnElementBytes{turnBytes};
+                    if (projectedBytes(threadHeader,
+                                       turnElementBytes,
+                                       saturatedCount(source->turns.size() - 1),
+                                       saturatedAdd(itemPrefix[source->turns.size() - 1],
+                                                    saturatedCount(omittedItemCount))) <= maximumBytes) {
+                        Json turn = std::move(turnHeader);
+                        for (std::size_t index = omittedItemCount; index < encodedItems.size(); ++index) {
+                            turn["items"].push_back(std::move(encodedItems[index]));
+                        }
+                        Json thread = threadHeader;
+                        thread["turns"].push_back(std::move(turn));
+                        bounded = finalize(Json{{"thread", std::move(thread)}},
+                                           saturatedCount(source->turns.size() - 1),
+                                           saturatedAdd(itemPrefix[source->turns.size() - 1],
+                                                        saturatedCount(omittedItemCount)));
+                        break;
+                    }
+                }
+            } else if (omittedTurnCount < encodedTurns.size()) {
+                Json thread = threadHeader;
+                for (std::size_t index = omittedTurnCount; index < encodedTurns.size(); ++index) {
+                    thread["turns"].push_back(std::move(encodedTurns[index]));
+                }
+                bounded = finalize(Json{{"thread", std::move(thread)}},
+                                   saturatedCount(omittedTurnCount),
+                                   itemPrefix[omittedTurnCount]);
+            }
+            if (bounded.empty() || !fits(bounded)) {
+                throw std::length_error("frontend command result exceeds outbound capacity");
+            }
+            projected.value = std::move(bounded);
+            return projected;
         }
 
         const backend::ThreadSnapshot* findThread(const backend::Snapshot& snapshot, std::string_view id) noexcept {
@@ -328,14 +596,30 @@ namespace ai::openai::codex::frontend::internal::server {
             backend::CommandCompletion completion;
         };
 
+        struct DeferredThreadReadCompletion {
+            backend::SequenceNumber requiredThrough;
+            std::string key;
+            backend::CommandCompletion completion;
+            std::size_t retainedBytes = 0;
+            TimerCancellation cancelDeadline;
+        };
+
         struct DeferredSessionClose {
             backend::SequenceNumber requiredThrough;
             std::string reason;
         };
 
-        State(backend::detail::BackendCoreRuntime& runtime, std::size_t maximumResultBytes)
+        State(backend::detail::BackendCoreRuntime& runtime,
+              std::size_t maximumResultBytes,
+              std::size_t maximumThreadReadResultBytes,
+              TimerScheduler timerScheduler)
             : runtime(runtime)
-            , maximumResultBytes(maximumResultBytes) {
+            , maximumResultBytes(maximumResultBytes)
+            , maximumThreadReadResultBytes(maximumThreadReadResultBytes)
+            , maximumDeferredThreadReadBytes(
+                  backend::DefaultMaximumBackendSnapshotBytes
+                  * MaximumDeferredThreadReadCompletions)
+            , timerScheduler(std::move(timerScheduler)) {
         }
 
         void bind(ServerCore& configuredCore) noexcept {
@@ -416,6 +700,14 @@ namespace ai::openai::codex::frontend::internal::server {
             deferredObserverEvents.clear();
             resynchronizationPendingDuringAdmission = false;
             deferredControllerCompletion.reset();
+            for (auto& [identity, deferred] : deferredThreadReadCompletions) {
+                static_cast<void>(identity);
+                if (deferred.cancelDeadline) {
+                    deferred.cancelDeadline();
+                }
+            }
+            deferredThreadReadCompletions.clear();
+            deferredThreadReadBytes = 0;
             deferredSessionCloses.clear();
         }
 
@@ -520,6 +812,48 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
+        std::size_t deferredThreadReadBytesFor(const backend::CommandCompletion& completion) const noexcept {
+            // BackendCore already admits every immutable capture against its
+            // snapshot budget. Charge that structural upper bound directly;
+            // exact JSON sizing would encode and allocate the complete thread
+            // a second time on the ordering-deferral path.
+            static_cast<void>(completion);
+            return backend::DefaultMaximumBackendSnapshotBytes;
+        }
+
+        void releaseDeferredThreadReadBytes(std::size_t bytes) noexcept {
+            deferredThreadReadBytes = bytes >= deferredThreadReadBytes ? 0 : deferredThreadReadBytes - bytes;
+        }
+
+        void eraseDeferredThreadReadsForSession(std::string_view key) noexcept {
+            for (auto deferred = deferredThreadReadCompletions.begin(); deferred != deferredThreadReadCompletions.end();) {
+                if (deferred->first.first != key) {
+                    ++deferred;
+                    continue;
+                }
+                if (deferred->second.cancelDeadline) {
+                    deferred->second.cancelDeadline();
+                }
+                releaseDeferredThreadReadBytes(deferred->second.retainedBytes);
+                deferred = deferredThreadReadCompletions.erase(deferred);
+            }
+        }
+
+        void expireDeferredThreadRead(const std::pair<std::string, std::string>& identity) noexcept {
+            const auto deferred = deferredThreadReadCompletions.find(identity);
+            if (deferred == deferredThreadReadCompletions.end()) {
+                return;
+            }
+            const std::string key = deferred->second.key;
+            const std::string requestId = deferred->second.completion.requestId;
+            releaseDeferredThreadReadBytes(deferred->second.retainedBytes);
+            deferredThreadReadCompletions.erase(deferred);
+            valueFailure(key,
+                         requestId,
+                         ErrorCode::Conflict,
+                         "thread-read state effect timed out waiting for observer synchronization");
+        }
+
         void closeSession(const FrontendSessionToken& token) noexcept {
             const auto found = sessions.find(token.session.value());
             if (found == sessions.end() || found->second.token != token) {
@@ -528,6 +862,7 @@ namespace ai::openai::codex::frontend::internal::server {
             if (deferredControllerCompletion && deferredControllerCompletion->key == token.session.value()) {
                 deferredControllerCompletion.reset();
             }
+            eraseDeferredThreadReadsForSession(token.session.value());
             std::shared_ptr<backend::FrontendSession> session = std::move(found->second.backendSession);
             sessions.erase(found);
             if (session) {
@@ -634,10 +969,154 @@ namespace ai::openai::codex::frontend::internal::server {
                     return;
                 }
             }
-            finishCompletion(key, completion);
+            const bool fullThreadRead =
+                pending->second.method == generated::MethodId::ThreadRead && pending->second.threadReadIncludesTurns;
+            const bool successfulFullRead =
+                !completion.result.error && std::holds_alternative<typed::ThreadReadResponse>(completion.result.value);
+            const bool absentFullRead = completion.threadReadSnapshot &&
+                                        authoritativeThreadReadAbsence(completion, &*completion.threadReadSnapshot);
+            if (fullThreadRead && (successfulFullRead || absentFullRead)) {
+                attemptThreadReadCompletion(key, completion);
+                return;
+            }
+            finishCompletion(key, completion, nullptr);
         }
 
-        void finishCompletion(const std::string& key, const backend::CommandCompletion& completion) noexcept {
+        void attemptThreadReadCompletion(const std::string& key, const backend::CommandCompletion& completion) noexcept {
+            const auto session = sessions.find(key);
+            if (session == sessions.end()) {
+                return;
+            }
+            const auto pending = session->second.pending.find(completion.requestId);
+            if (pending == session->second.pending.end()) {
+                return;
+            }
+            if (!completion.threadReadSnapshot) {
+                valueFailure(key,
+                             completion.requestId,
+                             ErrorCode::InternalError,
+                             "backend thread-read completion lacks its requester-local state capture");
+                return;
+            }
+            const backend::ThreadSnapshotAtSequence& captured = *completion.threadReadSnapshot;
+            const bool absent = authoritativeThreadReadAbsence(completion, &captured);
+            if (pending->second.threadReadStateEffectVersion != 1 && absent) {
+                // Only negotiated reads may reinterpret the provider's
+                // authoritative NotFound as a State mutation. Legacy reads
+                // retain the NotFound command failure without an observer
+                // fence.
+                finishCompletion(key, completion, &captured);
+                return;
+            }
+            if (!pending->second.threadReadTarget) {
+                valueFailure(key,
+                             completion.requestId,
+                             ErrorCode::InternalError,
+                             "backend thread-read completion lacks its requested target");
+                return;
+            }
+            if (!absent) {
+                const auto* response = std::get_if<typed::ThreadReadResponse>(&completion.result.value);
+                if (completion.result.error || response == nullptr) {
+                    valueFailure(key,
+                                 completion.requestId,
+                                 ErrorCode::InternalError,
+                                 "backend thread-read completion lacks its requester-local result");
+                    return;
+                }
+                if (response->thread.id.value != *pending->second.threadReadTarget) {
+                    valueFailure(key,
+                                 completion.requestId,
+                                 ErrorCode::TypedDecodingFailure,
+                                 "backend thread-read completion targets a different thread");
+                    return;
+                }
+                if (!captured.thread) {
+                    valueFailure(key,
+                                 completion.requestId,
+                                 ErrorCode::InternalError,
+                                 "backend thread-read completion lacks its requester-local state capture");
+                    return;
+                }
+                if (captured.thread->id != response->thread.id.value) {
+                    valueFailure(key,
+                                 completion.requestId,
+                                 ErrorCode::TypedDecodingFailure,
+                                 "backend thread-read state capture targets a different thread");
+                    return;
+                }
+            }
+            if (pending->second.threadReadStateEffectVersion != 1) {
+                // A successful legacy full read is requester-local raw result
+                // data and never mutates synchronized State.
+                finishCompletion(key, completion, &captured);
+                return;
+            }
+            if (observerProcessedThrough.value() > captured.sequence.value()) {
+                // A separately drained observer callback can overtake the
+                // command completion after BackendCore captures the private
+                // read body. Applying that older body after the already-
+                // published suffix could roll the requester's thread State
+                // backwards.
+                valueFailure(key,
+                             completion.requestId,
+                             ErrorCode::Conflict,
+                             "thread-read state effect was superseded by observer synchronization");
+                return;
+            }
+            if (observerProcessedThrough.value() < captured.sequence.value()) {
+                const std::size_t retainedBytes = deferredThreadReadBytesFor(completion);
+                if (deferredThreadReadCompletions.size() >= MaximumDeferredThreadReadCompletions ||
+                    retainedBytes > maximumDeferredThreadReadBytes ||
+                    deferredThreadReadBytes > maximumDeferredThreadReadBytes - retainedBytes) {
+                    valueFailure(key,
+                                 completion.requestId,
+                                 ErrorCode::CapacityExceeded,
+                                 "backend thread-read completion ordering capacity was exceeded");
+                    return;
+                }
+                try {
+                    const auto identity = std::pair{key, completion.requestId};
+                    const auto [entry, inserted] = deferredThreadReadCompletions.emplace(
+                        identity, DeferredThreadReadCompletion{captured.sequence, key, completion, retainedBytes, {}});
+                    if (!inserted) {
+                        valueFailure(key,
+                                     completion.requestId,
+                                     ErrorCode::InternalError,
+                                     "backend thread-read completion ordering identity was duplicated");
+                        return;
+                    }
+                    deferredThreadReadBytes += retainedBytes;
+                    if (!timerScheduler) {
+                        expireDeferredThreadRead(identity);
+                        return;
+                    }
+                    const std::weak_ptr<State> weak = weak_from_this();
+                    TimerCancellation cancellation = timerScheduler(DeferredThreadReadDeadlineMs, [weak, identity] {
+                        if (const std::shared_ptr<State> self = weak.lock()) {
+                            self->expireDeferredThreadRead(identity);
+                        }
+                    });
+                    const auto retained = deferredThreadReadCompletions.find(identity);
+                    if (retained != deferredThreadReadCompletions.end()) {
+                        retained->second.cancelDeadline = std::move(cancellation);
+                    } else if (cancellation) {
+                        cancellation();
+                    }
+                } catch (...) {
+                    valueFailure(key,
+                                 completion.requestId,
+                                 ErrorCode::InternalError,
+                                 "backend thread-read completion ordering could not be retained");
+                }
+                return;
+            }
+            finishCompletion(key, completion, &captured);
+        }
+
+        void finishCompletion(const std::string& key,
+                              const backend::CommandCompletion& completion,
+                              const backend::ThreadSnapshotAtSequence* capturedThreadRead) noexcept {
             const auto found = sessions.find(key);
             if (found == sessions.end()) {
                 return;
@@ -647,21 +1126,26 @@ namespace ai::openai::codex::frontend::internal::server {
                 return;
             }
             CommandToken token = pending->second;
+            const bool fullThreadRead = token.method == generated::MethodId::ThreadRead && token.threadReadIncludesTurns;
             found->second.pending.erase(pending);
             const std::shared_ptr<ServerCore> target = lockCore();
             if (!target) {
                 return;
             }
-
             BackendCompletionValue value =
                 BackendCommandFailure{ErrorCode::InternalError, "failed to normalize backend command completion", std::nullopt};
             try {
-                if (completion.result.error) {
+                const bool negotiatedAbsence = fullThreadRead && token.threadReadStateEffectVersion == 1 &&
+                                               authoritativeThreadReadAbsence(completion, capturedThreadRead);
+                if (completion.result.error && !negotiatedAbsence) {
                     value = BackendCommandFailure{frontendErrorCode(completion.result.error->code),
                                                   frontendErrorMessage(completion.result.error->code),
                                                   std::nullopt};
                 } else {
-                    Json projected = resultJson(token, completion.result.value);
+                    Json projected = resultJson(token,
+                                                completion.result.value,
+                                                token.threadReadStateEffectVersion == 1,
+                                                capturedThreadRead);
                     value = BackendCommandSuccess{generated::makeResult(token.method, std::move(projected))};
                 }
             } catch (const std::length_error&) {
@@ -673,7 +1157,14 @@ namespace ai::openai::codex::frontend::internal::server {
             } catch (...) {
             }
             if (bindingCurrent(target)) {
-                static_cast<void>(target->complete(BackendCompletion{std::move(token), std::move(value)}));
+                const bool negotiatedStateEffect = token.threadReadStateEffectVersion == 1;
+                BackendCompletion normalized{std::move(token), std::move(value)};
+                if (fullThreadRead && negotiatedStateEffect &&
+                    std::holds_alternative<BackendCommandSuccess>(normalized.value)) {
+                    static_cast<void>(target->completeThreadRead(std::move(normalized)));
+                } else {
+                    static_cast<void>(target->complete(std::move(normalized)));
+                }
             }
         }
 
@@ -694,7 +1185,39 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
-        [[nodiscard]] Json resultJson(const CommandToken& token, const backend::CommandValue& value) const {
+        [[nodiscard]] Json resultJson(const CommandToken& token,
+                                      const backend::CommandValue& value,
+                                      bool threadReadStateEffect,
+                                      const backend::ThreadSnapshotAtSequence* capturedThreadRead) const {
+            if (token.method == generated::MethodId::ThreadRead && token.threadReadIncludesTurns) {
+                if (!capturedThreadRead) {
+                    throw std::logic_error("backend thread-read result lacks its ordered state capture");
+                }
+                if (threadReadStateEffect && !capturedThreadRead->thread) {
+                    if (!token.threadReadTarget) {
+                        throw std::logic_error("backend absent thread-read result lacks its requested target");
+                    }
+                    return boundedThreadReadResult(
+                               typed::ThreadId{*token.threadReadTarget}, std::nullopt, maximumThreadReadResultBytes)
+                        .value;
+                }
+                const auto* response = std::get_if<typed::ThreadReadResponse>(&value);
+                if (response == nullptr || !capturedThreadRead->thread) {
+                    throw std::logic_error("backend thread-read result lacks its ordered state capture");
+                }
+                if (threadReadStateEffect) {
+                    return boundedThreadReadResult(response->thread.id,
+                                                   capturedThreadRead->thread,
+                                                   maximumThreadReadResultBytes)
+                        .value;
+                }
+                Json legacy = capturedThreadRead->thread ? Json{{"thread", threadSnapshotJson(*capturedThreadRead->thread)}}
+                                                         : Json{{"threadId", response->thread.id.value}};
+                if (legacy.dump().size() > maximumThreadReadResultBytes) {
+                    throw std::length_error("frontend command result exceeds outbound capacity");
+                }
+                return legacy;
+            }
             const detail::ProviderResultProjection projected = detail::projectProviderResult(token.method, value, maximumResultBytes);
             switch (projected.status) {
                 case detail::ProviderResultProjectionStatus::Success:
@@ -826,6 +1349,7 @@ namespace ai::openai::codex::frontend::internal::server {
             if (deferredControllerCompletion && deferredControllerCompletion->key == key) {
                 deferredControllerCompletion.reset();
             }
+            eraseDeferredThreadReadsForSession(key);
             deferredSessionCloses.erase(key);
             if (const std::shared_ptr<ServerCore> target = lockCore()) {
                 // The tombstone is the ordering fence: any BackendCore
@@ -856,7 +1380,44 @@ namespace ai::openai::codex::frontend::internal::server {
             processEvents(events);
         }
 
-        void processEvents(const std::vector<backend::SequencedBackendEvent>& events) noexcept {
+        void processEvents(std::span<const backend::SequencedBackendEvent> events) noexcept {
+            std::size_t begin = 0;
+            while (begin < events.size()) {
+                drainDeferredThreadReadCompletions();
+                std::optional<backend::SequenceNumber> fence;
+                for (const auto& [identity, deferred] : deferredThreadReadCompletions) {
+                    static_cast<void>(identity);
+                    if (deferred.requiredThrough.value() <= observerProcessedThrough.value() ||
+                        deferred.requiredThrough.value() > events.back().sequence.value()) {
+                        continue;
+                    }
+                    if (!fence || deferred.requiredThrough < *fence) {
+                        fence = deferred.requiredThrough;
+                    }
+                }
+
+                std::size_t end = events.size();
+                if (fence) {
+                    end = begin;
+                    while (end < events.size() && events[end].sequence.value() <= fence->value()) {
+                        ++end;
+                    }
+                    if (end == begin) {
+                        // Observing a later backend sequence proves that an
+                        // empty sequence gap has been crossed.  Complete at
+                        // the retained fence before staging the suffix.
+                        observerProcessedThrough = *fence;
+                        drainDeferredThreadReadCompletions();
+                        continue;
+                    }
+                }
+                processEventSegment(events.subspan(begin, end - begin), fence.has_value());
+                begin = end;
+            }
+        }
+
+        void processEventSegment(std::span<const backend::SequencedBackendEvent> events,
+                                 bool boundedByThreadReadFence) noexcept {
             std::shared_ptr<ServerCore> target = lockCore();
             if (!target) {
                 return;
@@ -870,6 +1431,22 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (projectedEvents.empty()) {
                         return ProjectedFlushResult::Staged;
                     }
+                    const backend::SequenceNumber projectionThrough = projectedEvents.back().sequence;
+                    const auto publishCurrentResynchronization = [&](const backend::Snapshot& current,
+                                                                     std::optional<backend::SequenceNumber> minimum = std::nullopt) {
+                        projectedEvents.clear();
+                        if ((minimum && current.sequence < *minimum) || !applyResynchronization(current, *target)) {
+                            return ProjectedFlushResult::Failed;
+                        }
+                        if (current.sequence.value() > observerProcessedThrough.value()) {
+                            observerProcessedThrough = current.sequence;
+                        }
+                        drainDeferredThreadReadsAfterResynchronization(current.sequence);
+                        drainDeferredControllerCompletion();
+                        drainDeferredThreadReadCompletions();
+                        drainDeferredSessionCloses();
+                        return ProjectedFlushResult::SnapshotPublished;
+                    };
                     std::optional<ProjectedBackendBatch> projectedBatch;
                     std::optional<backend::SequenceNumber> contentCoverageThrough;
                     const std::optional<std::vector<backend::SequencedBackendEvent>> contentEvents =
@@ -885,31 +1462,31 @@ namespace ai::openai::codex::frontend::internal::server {
                         if (contentItems && !contentEvents->empty()) {
                             const backend::SequenceNumber eventSequence = contentEvents->back().sequence;
                             const bool snapshotAhead = itemContentSnapshotIsAhead(eventSequence, contentItems->sequence);
+                            if (snapshotAhead && boundedByThreadReadFence) {
+                                // The exact-item helper is live state, not an
+                                // historical view. Even an active item can
+                                // already contain a same-entity suffix beyond
+                                // this read's fence, so no payload from it may
+                                // precede the older command body.
+                                const backend::Snapshot current = runtime.snapshot();
+                                return publishCurrentResynchronization(current, contentItems->sequence);
+                            }
                             if (contentItems->sequence == eventSequence || snapshotAhead) {
                                 // A live exact-item view may already include a
                                 // later observer drain. Publish that channel as
                                 // one authoritative occurrence and remember its
                                 // per-key coverage; never advance the unrelated
                                 // global observer fence to avoid a full rebase.
-                                model::ModelResult<ProjectedBackendBatch> direct =
-                                    projection.projectItemContentOccurrences(*contentEvents, contentItems->items, snapshotAhead);
+                                model::ModelResult<ProjectedBackendBatch> direct = projection.projectItemContentOccurrences(
+                                    *contentEvents, contentItems->items, snapshotAhead && !boundedByThreadReadFence);
                                 if (direct && !direct.value().snapshotRequired) {
                                     projectedBatch = std::move(direct).value();
-                                    if (snapshotAhead) {
+                                    if (snapshotAhead && !boundedByThreadReadFence) {
                                         contentCoverageThrough = contentItems->sequence;
                                     }
-                                } else if (snapshotAhead) {
+                                } else if (snapshotAhead && !boundedByThreadReadFence) {
                                     const backend::Snapshot current = runtime.snapshot();
-                                    projectedEvents.clear();
-                                    if (current.sequence < contentItems->sequence || !applyResynchronization(current, *target)) {
-                                        return ProjectedFlushResult::Failed;
-                                    }
-                                    if (current.sequence.value() > observerProcessedThrough.value()) {
-                                        observerProcessedThrough = current.sequence;
-                                    }
-                                    drainDeferredControllerCompletion();
-                                    drainDeferredSessionCloses();
-                                    return ProjectedFlushResult::SnapshotPublished;
+                                    return publishCurrentResynchronization(current, contentItems->sequence);
                                 }
                             }
                         }
@@ -918,6 +1495,15 @@ namespace ai::openai::codex::frontend::internal::server {
                     std::optional<backend::Snapshot> snapshot;
                     if (!projectedBatch) {
                         snapshot = runtime.snapshot();
+                        if (boundedByThreadReadFence && snapshot->sequence > projectionThrough) {
+                            // projectOccurrences selects family payloads from
+                            // this live snapshot. A later snapshot would leak
+                            // suffix values into the bounded prefix for any
+                            // family, not just item content. Publish the later
+                            // authoritative Snapshot and supersede the older
+                            // command-local effect instead.
+                            return publishCurrentResynchronization(*snapshot);
+                        }
                         model::ModelResult<ProjectedBackendBatch> projected =
                             projection.projectOccurrences(projectedEvents, *snapshot);
                         if (!projected) {
@@ -938,7 +1524,9 @@ namespace ai::openai::codex::frontend::internal::server {
                         if (snapshot->sequence.value() > observerProcessedThrough.value()) {
                             observerProcessedThrough = snapshot->sequence;
                         }
+                        drainDeferredThreadReadsAfterResynchronization(snapshot->sequence);
                         drainDeferredControllerCompletion();
+                        drainDeferredThreadReadCompletions();
                         drainDeferredSessionCloses();
                         return ProjectedFlushResult::SnapshotPublished;
                     }
@@ -1063,6 +1651,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 pruneItemContentCoverage();
                 drainDeferredControllerCompletion();
+                drainDeferredThreadReadCompletions();
                 drainDeferredSessionCloses();
             } catch (...) {
                 if (const std::shared_ptr<ServerCore> current = lockCore()) {
@@ -1092,7 +1681,9 @@ namespace ai::openai::codex::frontend::internal::server {
             if (backendSnapshot.sequence.value() > observerProcessedThrough.value()) {
                 observerProcessedThrough = backendSnapshot.sequence;
             }
+            drainDeferredThreadReadsAfterResynchronization(backendSnapshot.sequence);
             drainDeferredControllerCompletion();
+            drainDeferredThreadReadCompletions();
             drainDeferredSessionCloses();
         }
 
@@ -1137,7 +1728,78 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             DeferredControllerCompletion ready = std::move(*deferredControllerCompletion);
             deferredControllerCompletion.reset();
-            finishCompletion(ready.key, ready.completion);
+            finishCompletion(ready.key, ready.completion, nullptr);
+        }
+
+        void drainDeferredThreadReadCompletions() noexcept {
+            for (auto deferred = deferredThreadReadCompletions.begin(); deferred != deferredThreadReadCompletions.end();) {
+                if (observerProcessedThrough.value() < deferred->second.requiredThrough.value()) {
+                    ++deferred;
+                    continue;
+                }
+                DeferredThreadReadCompletion ready = std::move(deferred->second);
+                deferred = deferredThreadReadCompletions.erase(deferred);
+                if (ready.cancelDeadline) {
+                    ready.cancelDeadline();
+                }
+                releaseDeferredThreadReadBytes(ready.retainedBytes);
+                const auto session = sessions.find(ready.key);
+                if (session == sessions.end()) {
+                    continue;
+                }
+                const auto pending = session->second.pending.find(ready.completion.requestId);
+                if (pending == session->second.pending.end()) {
+                    continue;
+                }
+                if (pending->second.threadReadStateEffectVersion != 1) {
+                    valueFailure(ready.key,
+                                 ready.completion.requestId,
+                                 ErrorCode::InternalError,
+                                 "deferred thread-read completion lacks negotiated state-effect authority");
+                    continue;
+                }
+                if (observerProcessedThrough.value() > ready.requiredThrough.value()) {
+                    // The ordinary event path may also overtake a retained
+                    // completion through an independent observer drain. As
+                    // with Snapshot supersession below, preserve the newer
+                    // synchronized State and fail only this command.
+                    valueFailure(ready.key,
+                                 ready.completion.requestId,
+                                 ErrorCode::Conflict,
+                                 "thread-read state effect was superseded by observer synchronization");
+                    continue;
+                }
+                // The body and its backend fence were captured atomically once
+                // at completion time.  Re-capturing here could chase an
+                // indefinitely streaming thread forever; observer batching is
+                // split at this exact fence instead.
+                finishCompletion(ready.key,
+                                 ready.completion,
+                                 ready.completion.threadReadSnapshot ? &*ready.completion.threadReadSnapshot : nullptr);
+            }
+        }
+
+        void drainDeferredThreadReadsAfterResynchronization(backend::SequenceNumber through) noexcept {
+            for (auto deferred = deferredThreadReadCompletions.begin(); deferred != deferredThreadReadCompletions.end();) {
+                if (deferred->second.requiredThrough.value() > through.value()) {
+                    ++deferred;
+                    continue;
+                }
+                DeferredThreadReadCompletion ready = std::move(deferred->second);
+                deferred = deferredThreadReadCompletions.erase(deferred);
+                if (ready.cancelDeadline) {
+                    ready.cancelDeadline();
+                }
+                releaseDeferredThreadReadBytes(ready.retainedBytes);
+                // Only negotiated state effects enter this queue. The
+                // authoritative snapshot has advanced the requester beyond
+                // the captured effect fence, so returning that older effect as
+                // success would violate exact pre-application.
+                valueFailure(ready.key,
+                             ready.completion.requestId,
+                             ErrorCode::CapacityExceeded,
+                             "thread-read state effect was superseded by snapshot synchronization");
+            }
         }
 
         void drainDeferredSessionCloses() noexcept {
@@ -1209,7 +1871,9 @@ namespace ai::openai::codex::frontend::internal::server {
                     if (current.sequence.value() > observerProcessedThrough.value()) {
                         observerProcessedThrough = current.sequence;
                     }
+                    drainDeferredThreadReadsAfterResynchronization(current.sequence);
                     drainDeferredControllerCompletion();
+                    drainDeferredThreadReadCompletions();
                     drainDeferredSessionCloses();
                     return;
                 }
@@ -1341,7 +2005,11 @@ namespace ai::openai::codex::frontend::internal::server {
         }
 
         backend::detail::BackendCoreRuntime& runtime;
+        static constexpr std::size_t MaximumDeferredThreadReadCompletions = 8;
+        static constexpr std::uint64_t DeferredThreadReadDeadlineMs = 5000;
         const std::size_t maximumResultBytes;
+        const std::size_t maximumThreadReadResultBytes;
+        const std::size_t maximumDeferredThreadReadBytes;
         ServerCore* coreIdentity = nullptr;
         std::weak_ptr<ServerCore> coreLifetime;
         BackendProjection projection;
@@ -1359,11 +2027,20 @@ namespace ai::openai::codex::frontend::internal::server {
         bool resynchronizationPendingDuringAdmission = false;
         std::vector<backend::SequencedBackendEvent> deferredObserverEvents;
         std::optional<DeferredControllerCompletion> deferredControllerCompletion;
+        std::map<std::pair<std::string, std::string>, DeferredThreadReadCompletion> deferredThreadReadCompletions;
+        std::size_t deferredThreadReadBytes = 0;
+        TimerScheduler timerScheduler;
         std::map<std::string, DeferredSessionClose, std::less<>> deferredSessionCloses;
     };
 
-    BackendCoreBridge::BackendCoreBridge(backend::detail::BackendCoreRuntime& backend, std::size_t maximumResultBytes)
-        : state(std::make_shared<State>(backend, maximumResultBytes)) {
+    BackendCoreBridge::BackendCoreBridge(backend::detail::BackendCoreRuntime& backend,
+                                         std::size_t maximumResultBytes,
+                                         std::size_t maximumThreadReadResultBytes,
+                                         TimerScheduler timerScheduler)
+        : state(std::make_shared<State>(backend,
+                                        maximumResultBytes,
+                                        maximumThreadReadResultBytes,
+                                        std::move(timerScheduler))) {
     }
 
     BackendCoreBridge::~BackendCoreBridge() {
@@ -1457,6 +2134,12 @@ namespace ai::openai::codex::frontend::internal::server {
     bool BackendCoreBridgeTestAccess::itemContentSnapshotIsAhead(backend::SequenceNumber eventSequence,
                                                                  backend::SequenceNumber snapshotSequence) noexcept {
         return ::ai::openai::codex::frontend::internal::server::itemContentSnapshotIsAhead(eventSequence, snapshotSequence);
+    }
+
+    Json BackendCoreBridgeTestAccess::boundedThreadReadResult(const typed::ThreadId& id,
+                                                              const std::optional<backend::ThreadSnapshot>& source,
+                                                              std::size_t maximumBytes) {
+        return ::ai::openai::codex::frontend::internal::server::boundedThreadReadResult(id, source, maximumBytes).value;
     }
 
 } // namespace ai::openai::codex::frontend::internal::server

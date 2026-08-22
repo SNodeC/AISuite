@@ -2,10 +2,10 @@
   "formatVersion": 2,
   "description": "Authority-derived coverage identities and runtime invariants retained from the passed P2 old/new differential gate.",
   "authorities": {
-    "docs/ai/openai/codex/frontend-protocol-v1.manifest.json": "6195387f2f67229067ffa2ae4ac99bf7dfa99d0a8d9c991d15da91a340c12db3",
-    "docs/ai/openai/codex/frontend-protocol-v1.schema.json": "3beb5fe66fe1e74f06107ec3844a1010f52149ad099fc0a87212e5ea8af40c8d",
+    "docs/ai/openai/codex/frontend-protocol-v1.manifest.json": "1c04bfa5858b1d0d1271d71dcff747a79a4a85a60463895f2f0e6a8773de2473",
+    "docs/ai/openai/codex/frontend-protocol-v1.schema.json": "ead5cda5296e967b16148fc2ece0efc8c922e4fbf265796238d69fed12e09882",
     "tests/component/codex/fixtures/frontend-client-reducer/conformance.json": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7",
-    "tests/component/codex/fixtures/frontend-protocol-v1.generated.json": "fafa57acbd9e178bbde2f26f6fbeb2d2149a577e6f44bf1711cc3f0bcf451f70",
+    "tests/component/codex/fixtures/frontend-protocol-v1.generated.json": "1957df097a2505f5fa5b157268eeb022228a8ac56d4e0d1a0c5e9420a22035e4",
     "tools/frontend/cpp-client-bindings.json": "bad7b4fa514df2c035ab3fb558546ebe97743ab82a8feb83cac36d0031f59bc2",
     "tools/frontend/frontend-registry-source.json": "455c892ad7f6c351ed4f2e7125acd3831082dbd23cc8b79784ac4d8438adb405"
   },
@@ -22,8 +22,8 @@
     "threadItems": 18,
     "pendingRequests": 10,
     "scopes": 12,
-    "capabilities": 18,
-    "staticMechanismCapabilities": 13,
+    "capabilities": 19,
+    "staticMechanismCapabilities": 14,
     "conditionalTopologyCapabilities": 1,
     "productCapabilities": 4
   },
@@ -4779,6 +4779,15 @@
         "capability:complete_thread_items:advertisement",
         "capability:complete_thread_items:negotiation",
         "capability:complete_thread_items:client-validation"
+      ]
+    },
+    {
+      "key": "thread_read_state_effects",
+      "category": "static_mechanism",
+      "cases": [
+        "capability:thread_read_state_effects:advertisement",
+        "capability:thread_read_state_effects:negotiation",
+        "capability:thread_read_state_effects:client-validation"
       ]
     },
     {

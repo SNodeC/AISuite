@@ -198,6 +198,13 @@ namespace ai::openai::codex::backend {
         bool operator==(const ThreadSnapshot&) const = default;
     };
 
+    struct ThreadSnapshotAtSequence {
+        SequenceNumber sequence;
+        std::optional<ThreadSnapshot> thread;
+
+        bool operator==(const ThreadSnapshotAtSequence&) const = default;
+    };
+
     struct PendingRequestSnapshot {
         PendingRequestId id;
         std::string type;
@@ -538,6 +545,8 @@ namespace ai::openai::codex::backend {
     };
 
     Snapshot makeSnapshot(const BackendState& state);
+    [[nodiscard]] std::optional<ThreadSnapshot> makeThreadSnapshot(const BackendState& state, const typed::ThreadId& id);
+    std::size_t threadSnapshotSizeBytes(const ThreadSnapshot& snapshot) noexcept;
     [[nodiscard]] std::optional<ItemSnapshotBatch> makeItemSnapshotBatch(const BackendState& state,
                                                                          std::span<const ItemSnapshotKey> keys);
     [[nodiscard]] std::optional<ItemContentSnapshotBatch>

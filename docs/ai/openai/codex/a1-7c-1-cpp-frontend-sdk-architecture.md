@@ -334,6 +334,12 @@ Do not expose:
 
 The SDK transport boundary works with complete compact JSON objects.
 
+An encoded receive first bounds the exact transport frame and then dispatches
+the decoded value with that size already trusted. It must not serialize and
+dump the full decoded message a second time merely to repeat the same inbound
+capacity check. Direct in-memory object injection has no trusted frame size and
+therefore measures its canonical encoding before dispatch.
+
 It does not know whether an object came from:
 
 - one JSONL record;
@@ -1871,9 +1877,24 @@ Unknown safe `codex.extension` information remains bounded and observable.
 An unknown top-level event type outside the allowed compatibility mechanism is
 a protocol/state failure rather than a silently invented state transition.
 
-Do not synthesize state changes from successful ordinary command results.
+Do not synthesize state changes from successful ordinary command results. The
+single negotiated exception is a `thread.read` result carrying an explicit
+`ThreadReadStateEffect`. Its frontend sequence fence must already have been
+applied, and its `merge`, `replace`, or `absent` authority is validated before
+the result mutates one private state candidate transactionally. Publish that
+immutable State before invoking the operation callback, without advancing the
+journal cursor.
 
-State authority comes from snapshot and event synchronization.
+State authority comes from snapshot and event synchronization plus that narrow
+explicit result authority. A legacy `thread.read` result without a state effect
+does not mutate synchronized State.
+
+An opted-in authoritative read validates the defined result in place and
+decodes its full thread body only while applying it to the private canonical
+candidate. After publication, its completion retains only the thread identity
+and state-effect metadata; the body is available through the newly published
+State. This avoids keeping a second public thread tree alive. Legacy reads keep
+their full typed completion representation.
 
 ======================================================================
 35. State memory and immutable snapshots

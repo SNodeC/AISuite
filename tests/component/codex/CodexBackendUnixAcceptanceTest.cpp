@@ -263,7 +263,10 @@ namespace {
     };
 
     frontend::ClientMessage hello(std::optional<frontend::SequenceNumber> resumeAfter = std::nullopt) {
-        return frontend::Hello{resumeAfter, Json::object()};
+        return frontend::Hello{
+            resumeAfter,
+            Json::object(),
+            std::vector<frontend::FrontendCapability>{frontend::FrontendCapability::DedicatedNotificationEvents}};
     }
 
     frontend::ClientMessage command(std::string requestId, frontend::CommandParameters parameters) {
@@ -529,7 +532,8 @@ namespace {
                 value.pendingRequestId = event.data["request"].value("id", "");
             } else if (event.type == "request.resolved") {
                 value.requestResolved = true;
-            } else if (event.type == "turn.updated" && event.data.contains("turn") && event.data["turn"].value("terminal", false)) {
+            } else if ((event.type == "turn.updated" || event.type == "turn.upserted") && event.data.contains("turn") &&
+                       event.data["turn"].value("terminal", false)) {
                 value.terminalTurn = true;
                 value.terminalTurnSequence = event.sequence.value();
             } else if (event.type == "codex.extension") {

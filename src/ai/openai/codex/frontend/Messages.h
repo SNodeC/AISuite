@@ -8,6 +8,7 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_MESSAGES_H
 #define AI_OPENAI_CODEX_FRONTEND_MESSAGES_H
 
+#include "ai/openai/codex/frontend/Protocol.h"
 #include "ai/openai/codex/frontend/Security.h"
 
 #include <compare>
@@ -51,6 +52,7 @@ namespace ai::openai::codex::frontend {
 
     enum class SessionRole { Observer, Controller };
     enum class SyncMode { Replay, Snapshot };
+    enum class ThreadReadStateEffectAuthority { Merge, MergePreserveCompleteness, Replace, Absent };
 
     // Transport delivery has three distinct outcomes. Backpressured retains
     // the exact message in the bounded ServerCore queue for a later retry;
@@ -101,6 +103,7 @@ namespace ai::openai::codex::frontend {
         DedicatedPendingRequests,
         DedicatedNotificationEvents,
         CompleteThreadItems,
+        ThreadReadStateEffects,
         AuthenticatedFrontend,
         ScopeProjectedState,
         ProviderLifecycle,
@@ -184,6 +187,7 @@ namespace ai::openai::codex::frontend {
     [[nodiscard]] std::string_view toString(PendingRequestKind kind) noexcept;
     [[nodiscard]] std::string_view toString(ExpandedEventType type) noexcept;
     [[nodiscard]] std::string_view toString(StateFreshness freshness) noexcept;
+    [[nodiscard]] std::string_view toString(ThreadReadStateEffectAuthority authority) noexcept;
     [[nodiscard]] std::optional<SessionRole> sessionRoleFromString(std::string_view value) noexcept;
     [[nodiscard]] std::optional<SyncMode> syncModeFromString(std::string_view value) noexcept;
     [[nodiscard]] std::optional<ErrorCode> errorCodeFromString(std::string_view value) noexcept;
@@ -192,6 +196,56 @@ namespace ai::openai::codex::frontend {
     [[nodiscard]] std::optional<PendingRequestKind> pendingRequestKindFromString(std::string_view value) noexcept;
     [[nodiscard]] std::optional<ExpandedEventType> expandedEventTypeFromString(std::string_view value) noexcept;
     [[nodiscard]] std::optional<StateFreshness> stateFreshnessFromString(std::string_view value) noexcept;
+    [[nodiscard]] std::optional<ThreadReadStateEffectAuthority>
+    threadReadStateEffectAuthorityFromString(std::string_view value) noexcept;
+
+    struct ThreadReadStateEffect {
+        ThreadReadStateEffectAuthority authority = ThreadReadStateEffectAuthority::Merge;
+        bool sourcePartial = false;
+        bool responseTruncated = false;
+        std::uint64_t responseOmittedTurns = 0;
+        std::uint64_t responseOmittedItems = 0;
+
+        bool operator==(const ThreadReadStateEffect&) const = default;
+    };
+
+    [[nodiscard]] constexpr bool threadReadStateEffectMetadataIsConsistent(
+        const ThreadReadStateEffect& value) noexcept {
+        const bool omitted = value.responseOmittedTurns != 0
+                             || value.responseOmittedItems != 0;
+        if (value.responseTruncated != omitted) {
+            return false;
+        }
+        switch (value.authority) {
+            case ThreadReadStateEffectAuthority::Merge:
+                return value.sourcePartial;
+            case ThreadReadStateEffectAuthority::MergePreserveCompleteness:
+                return !value.sourcePartial && value.responseTruncated;
+            case ThreadReadStateEffectAuthority::Replace:
+                return !value.sourcePartial && !value.responseTruncated;
+            case ThreadReadStateEffectAuthority::Absent:
+                return !value.sourcePartial && !value.responseTruncated;
+        }
+        return false;
+    }
+
+    [[nodiscard]] constexpr bool threadReadStateEffectAuthorityMatchesPayload(
+        ThreadReadStateEffectAuthority authority, std::optional<bool> threadFullyLoaded) noexcept {
+        switch (authority) {
+            case ThreadReadStateEffectAuthority::Merge:
+                return threadFullyLoaded.has_value() && !*threadFullyLoaded;
+            case ThreadReadStateEffectAuthority::MergePreserveCompleteness:
+                return threadFullyLoaded.has_value() && *threadFullyLoaded;
+            case ThreadReadStateEffectAuthority::Replace:
+                return threadFullyLoaded.has_value() && *threadFullyLoaded;
+            case ThreadReadStateEffectAuthority::Absent:
+                return !threadFullyLoaded.has_value();
+        }
+        return false;
+    }
+
+    [[nodiscard]] std::optional<Json> encodeThreadReadStateEffect(const ThreadReadStateEffect& value) noexcept;
+    [[nodiscard]] std::optional<ThreadReadStateEffect> decodeThreadReadStateEffect(const Json& value, std::string& error) noexcept;
 
     using FrontendMethod = std::string;
 
@@ -326,17 +380,20 @@ namespace ai::openai::codex::frontend {
         Json extensions = Json::object();
         std::optional<std::vector<FrontendCapability>> capabilities;
         std::optional<AuthenticationCredential> authentication;
+        std::optional<std::uint32_t> capabilityVocabularyVersion = CapabilityVocabularyVersion;
 
         Hello() = default;
 
         Hello(std::optional<SequenceNumber> resumeAfter,
               Json extensions = Json::object(),
               std::optional<std::vector<FrontendCapability>> capabilities = std::nullopt,
-              std::optional<AuthenticationCredential> authentication = std::nullopt)
+              std::optional<AuthenticationCredential> authentication = std::nullopt,
+              std::optional<std::uint32_t> capabilityVocabularyVersion = CapabilityVocabularyVersion)
             : resumeAfter(resumeAfter)
             , extensions(std::move(extensions))
             , capabilities(std::move(capabilities))
-            , authentication(std::move(authentication)) {
+            , authentication(std::move(authentication))
+            , capabilityVocabularyVersion(capabilityVocabularyVersion) {
         }
 
         bool operator==(const Hello&) const = default;

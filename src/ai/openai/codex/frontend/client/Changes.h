@@ -20,6 +20,7 @@ namespace ai::openai::codex::frontend::client {
         SnapshotFallback,
         ExplicitSnapshot,
         ExplicitReplay,
+        CommandStateEffect,
         Live,
         ConnectionBecameStale,
         SynchronizationCompleted,

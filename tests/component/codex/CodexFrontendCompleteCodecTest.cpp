@@ -233,6 +233,15 @@ namespace {
                           "credential-named unknown result fields are rejected by the generated safe-result schema");
     }
 
+    void testLegacyThreadReadThreadIdResult(tests::support::TestResult& result) {
+        const frontend::Json legacyResult{{"threadId", "legacy-thread"}};
+        const auto decoded = frontend::Codec::decodeDefinedResult(generated::MethodId::ThreadRead, legacyResult);
+        const auto reencoded = decoded ? frontend::Codec::encodeDefinedResult(decoded.value())
+                                       : frontend::CodecResult<frontend::Json>{decoded.error()};
+        result.expectTrue(decoded.hasValue() && reencoded.hasValue() && reencoded.value() == legacyResult,
+                          "a current client accepts and preserves the original v1 thread.read threadId-only result");
+    }
+
     void testRuntimeGate(tests::support::TestResult& result) {
         const frontend::Json additiveCommand{
             {"protocol", frontend::ProtocolIdentity},
@@ -432,6 +441,7 @@ int main() {
     static_assert(std::variant_size_v<generated::CompleteCommandParameters> == 105);
     testAllDefinedMethods(result);
     testRequiredFieldsAndExactLookup(result);
+    testLegacyThreadReadThreadIdResult(result);
     testRuntimeGate(result);
     testExpandedStateAndEvents(result);
     testDiscoveryAndErrorExtensions(result);

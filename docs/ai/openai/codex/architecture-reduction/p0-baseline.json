@@ -5741,10 +5741,10 @@
     "protocol": {
       "authorityCanonicalSha256": {
         "cppClientBindings": "bad7b4fa514df2c035ab3fb558546ebe97743ab82a8feb83cac36d0031f59bc2",
-        "generatedFixture": "fafa57acbd9e178bbde2f26f6fbeb2d2149a577e6f44bf1711cc3f0bcf451f70",
+        "generatedFixture": "1957df097a2505f5fa5b157268eeb022228a8ac56d4e0d1a0c5e9420a22035e4",
         "ownerReviewedRegistry": "455c892ad7f6c351ed4f2e7125acd3831082dbd23cc8b79784ac4d8438adb405",
-        "protocolManifest": "6195387f2f67229067ffa2ae4ac99bf7dfa99d0a8d9c991d15da91a340c12db3",
-        "protocolSchema": "3beb5fe66fe1e74f06107ec3844a1010f52149ad099fc0a87212e5ea8af40c8d",
+        "protocolManifest": "1c04bfa5858b1d0d1271d71dcff747a79a4a85a60463895f2f0e6a8773de2473",
+        "protocolSchema": "ead5cda5296e967b16148fc2ece0efc8c922e4fbf265796238d69fed12e09882",
         "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
       },
       "authorityPaths": {
@@ -5842,6 +5842,11 @@
           "staticRuntimeImplementation": true
         },
         {
+          "category": "static_mechanism",
+          "key": "thread_read_state_effects",
+          "staticRuntimeImplementation": true
+        },
+        {
           "category": "product",
           "key": "typescript_client_sdk",
           "staticRuntimeImplementation": false
@@ -5870,10 +5875,11 @@
           "method_discovery",
           "provider_lifecycle",
           "scope_projected_state",
-          "security_scopes"
+          "security_scopes",
+          "thread_read_state_effects"
         ]
       },
-      "capabilityCount": 18,
+      "capabilityCount": 19,
       "evidence": {
         "classes": [
           "generated-authority-derived"
@@ -5921,8 +5927,8 @@
       ],
       "expandedEventFamilyCount": 26,
       "featureCompleteRuntimeCapabilityTruth": {
-        "definedCount": 18,
-        "derivation": "13 generated static mechanisms plus topology-derived multi_transport and build-derived cpp_client_sdk",
+        "definedCount": 19,
+        "derivation": "14 generated static mechanisms plus topology-derived multi_transport and build-derived cpp_client_sdk",
         "implemented": [
           "authenticated_frontend",
           "complete_backend_domains",
@@ -5938,15 +5944,16 @@
           "multi_transport",
           "provider_lifecycle",
           "scope_projected_state",
-          "security_scopes"
+          "security_scopes",
+          "thread_read_state_effects"
         ],
-        "implementedCount": 15,
+        "implementedCount": 16,
         "notImplemented": [
           "browser_ui",
           "qt_ui",
           "typescript_client_sdk"
         ],
-        "permittedCount": 15
+        "permittedCount": 16
       },
       "identity": "snodec.codex-frontend",
       "messageKindCount": 8,
@@ -6921,9 +6928,9 @@
             "include/aisuite/ai/openai/codex/typed/Types.h",
             "include/aisuite/ai/openai/codex/typed/WindowsSandbox.h"
           ],
-          "soversion": 6,
+          "soversion": 7,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.5.0"
+          "version": "0.6.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexBackend",
@@ -6938,9 +6945,9 @@
             "include/aisuite/ai/openai/codex/backend/Reducer.h",
             "include/aisuite/ai/openai/codex/backend/Snapshot.h"
           ],
-          "soversion": 6,
+          "soversion": 7,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.5.0"
+          "version": "0.6.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontend",
@@ -6957,9 +6964,9 @@
             "include/aisuite/ai/openai/codex/frontend/Security.h",
             "include/aisuite/ai/openai/codex/frontend/UpdateBatch.h"
           ],
-          "soversion": 6,
+          "soversion": 7,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.5.0"
+          "version": "0.6.0"
         },
         {
           "importedTarget": "AISuite::OpenAICodexFrontendClient",
@@ -7000,9 +7007,9 @@
             "include/aisuite/ai/openai/codex/frontend/client/Types.h",
             "include/aisuite/ai/openai/codex/frontend/client/WindowsSandbox.h"
           ],
-          "soversion": 6,
+          "soversion": 7,
           "targetType": "SHARED_LIBRARY",
-          "version": "0.5.0"
+          "version": "0.6.0"
         }
       ]
     },
@@ -7049,7 +7056,7 @@
       "serverComparisonBorder": "equivalent BackendCore typed inputs/state/occurrences -> old and greenfield server cores -> canonical Frontend Protocol v1 output",
       "startingCorpus": {
         "canonicalSha256": {
-          "generatedProtocolFixture": "fafa57acbd9e178bbde2f26f6fbeb2d2149a577e6f44bf1711cc3f0bcf451f70",
+          "generatedProtocolFixture": "1957df097a2505f5fa5b157268eeb022228a8ac56d4e0d1a0c5e9420a22035e4",
           "reducerConformanceFixture": "5f80268b4285efcaa884baaefbb0cb8af8c0e407ca2bf550fa29afbf07ba0bc7"
         },
         "generatedProtocolFixture": "tests/component/codex/fixtures/frontend-protocol-v1.generated.json",

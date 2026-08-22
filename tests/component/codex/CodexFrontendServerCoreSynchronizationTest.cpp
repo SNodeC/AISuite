@@ -1721,8 +1721,9 @@ namespace {
                                                                      {"turn", {{"id", "turn-a-2"}, {"threadId", "thread-a"}}}});
         const auto* exactTurn = solePayload<model::TurnUpsertedOccurrence>(exactNestedTurn);
         result.expectTrue(exactTurn && exactTurn->turn.id == model::TurnIdentity{"turn-a-2"} &&
-                              exactTurn->turn.threadId == model::ThreadIdentity{"thread-a"},
-                          "a nested turn identity selects that exact turn rather than the first turn under its parent");
+                              exactTurn->turn.threadId == model::ThreadIdentity{"thread-a"} &&
+                              !exactTurn->replaceItems && exactTurn->items.empty(),
+                          "a nested turn identity selects one bounded turn header rather than retained item history");
 
         const auto missingTurn =
             projectExtension(projection, source, "thread/tokenUsage/updated", frontend::Json{{"threadId", "thread-a"}});
@@ -2098,9 +2099,10 @@ namespace {
         result.expectTrue(capacity != nullptr && rollingDrop != nullptr && rollingCapacity &&
                               !rollingCapacity.value().snapshotRequired && unrelatedThread &&
                               unrelatedThread->thread.id == model::ThreadIdentity{"thread-unrelated"} &&
-                              unrelatedThread->turns.size() == 1 && unrelatedThread->items.size() == 1 &&
-                              model::itemData(unrelatedThread->items.front()).id == model::ItemIdentity{"known-unrelated"},
-                          "counter-only and nominal rolling-capacity changes remain incremental alongside unrelated projected state");
+                              !unrelatedThread->thread.fullyLoaded &&
+                              unrelatedThread->authority == model::ThreadUpsertAuthority::Header &&
+                              unrelatedThread->turns.empty() && unrelatedThread->items.empty(),
+                          "counter-only and nominal rolling-capacity changes remain incremental while thread headers never copy retained history");
         result.expectTrue(mutatingCapacity && mutatingCapacity.value().snapshotRequired,
                           "capacity side effects that rewrite canonical entities force an authoritative snapshot rebase");
 
@@ -2113,11 +2115,14 @@ namespace {
             {backend::SequenceNumber{55}, backend::ThreadUpserted{std::move(authoritativeThread), backend::EntityLoad::Summary}}};
         const auto summaryThread = projection.projectOccurrences(summaryThreadEvents, source);
         const auto* summaryUpdate = solePayload<model::ThreadUpsertedOccurrence>(summaryThread);
-        result.expectTrue(fullThread && fullThread.value().snapshotRequired && fullThread.value().occurrences.empty(),
-                          "an authoritative full thread read forces Snapshot reconciliation because expanded upserts cannot remove stale descendants");
+        result.expectTrue(fullThread && !fullThread.value().snapshotRequired && fullThread.value().occurrences.empty(),
+                          "an authoritative full thread read remains requester-local and emits no global invalidation");
         result.expectTrue(summaryThread && !summaryThread.value().snapshotRequired && summaryUpdate &&
-                              summaryUpdate->thread.id == model::ThreadIdentity{"thread-unrelated"},
-                          "a summary thread upsert remains a narrow incremental update without claiming descendant completeness");
+                              summaryUpdate->thread.id == model::ThreadIdentity{"thread-unrelated"} &&
+                              !summaryUpdate->thread.fullyLoaded &&
+                              summaryUpdate->authority == model::ThreadUpsertAuthority::Header &&
+                              summaryUpdate->turns.empty() && summaryUpdate->items.empty(),
+                          "a summary thread upsert remains a bounded header merge without retained descendant history");
 
         const auto targetedUnknown = projectExtension(projection,
                                                       source,

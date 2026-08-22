@@ -1719,16 +1719,11 @@ namespace ai::openai::codex::frontend::internal::server {
                         return std::nullopt;
                     }
                     model::ThreadUpsertedOccurrence update{*thread};
-                    for (const model::TurnState& turn : snapshot.turns) {
-                        if (turn.threadId == thread->id) {
-                            update.turns.push_back(turn);
-                        }
-                    }
-                    for (const model::ThreadItem& item : snapshot.items) {
-                        if (model::itemData(item).threadId == std::optional<model::ThreadIdentity>{thread->id}) {
-                            update.items.push_back(item);
-                        }
-                    }
+                    // Global thread families publish bounded headers. They
+                    // carry no descendant replacement authority; recipients
+                    // retain their existing turns and may hydrate explicitly.
+                    update.thread.fullyLoaded = false;
+                    update.authority = model::ThreadUpsertAuthority::Header;
                     return model::OccurrencePayload{std::move(update)};
                 }
                 case ExpandedEventType::ThreadRemoved:
@@ -1743,13 +1738,10 @@ namespace ai::openai::codex::frontend::internal::server {
                         return std::nullopt;
                     }
                     model::TurnUpsertedOccurrence update{*turn};
-                    for (const model::ThreadItem& item : snapshot.items) {
-                        const model::ItemData& data = model::itemData(item);
-                        if (data.threadId == std::optional<model::ThreadIdentity>{turn->threadId} &&
-                            data.turnId == std::optional<model::TurnIdentity>{turn->id}) {
-                            update.items.push_back(item);
-                        }
-                    }
+                    // Turn lifecycle/status notifications carry no item-list
+                    // authority. Keep the global occurrence bounded to the
+                    // turn header represented by the canonical snapshot.
+                    update.replaceItems = false;
                     return model::OccurrencePayload{std::move(update)};
                 }
                 case ExpandedEventType::ItemUpserted: {
@@ -2889,9 +2881,15 @@ namespace ai::openai::codex::frontend::internal::server {
                             // after applying this potentially large typed input.
                             // Retaining both would duplicate one semantic change.
                         } else if constexpr (std::is_same_v<Event, backend::ProviderOperationStateChanged>) {
-                            projected.snapshotRequired = true;
-                            if (const auto family = providerDomainFamily(event.method)) {
-                                appendFamily(sequenced.sequence, *family, {}, OccurrenceFlushUrgency::Deferred, std::nullopt, event.method);
+                            // thread/read has a dedicated ThreadUpserted marker
+                            // for summary reads; full reads are requester-local
+                            // and emit neither global marker.
+                            if (event.method != "thread/read") {
+                                projected.snapshotRequired = true;
+                                if (const auto family = providerDomainFamily(event.method)) {
+                                    appendFamily(
+                                        sequenced.sequence, *family, {}, OccurrenceFlushUrgency::Deferred, std::nullopt, event.method);
+                                }
                             }
                         } else if constexpr (std::is_same_v<Event, backend::ProviderResourceAdmissionRequested>) {
                             OccurrenceSelection selection;
@@ -2921,20 +2919,19 @@ namespace ai::openai::codex::frontend::internal::server {
                             projected.snapshotRequired = true;
                         } else if constexpr (std::is_same_v<Event, backend::ThreadUpserted>) {
                             if (event.load == backend::EntityLoad::Full) {
-                                // A full thread read is authoritative for its
-                                // complete descendant set. Expanded thread
-                                // upserts cannot encode removal of turns/items
-                                // absent from that set, so rebase clients from
-                                // the post-reduction snapshot.
-                                projected.snapshotRequired = true;
-                            } else {
-                                OccurrenceSelection selection;
-                                selection.threadId = model::ThreadIdentity::parse(event.thread.id.value);
-                                appendFamily(sequenced.sequence,
-                                             ExpandedEventType::ThreadUpserted,
-                                             std::move(selection),
-                                             OccurrenceFlushUrgency::Deferred);
+                                // Full thread reads are delivered only to the
+                                // requester through the negotiated state
+                                // effect. Publishing even a bounded header
+                                // here would leak requester-local hydration to
+                                // every synchronized observer.
+                                return;
                             }
+                            OccurrenceSelection selection;
+                            selection.threadId = model::ThreadIdentity::parse(event.thread.id.value);
+                            appendFamily(sequenced.sequence,
+                                         ExpandedEventType::ThreadUpserted,
+                                         std::move(selection),
+                                         OccurrenceFlushUrgency::Deferred);
                         } else if constexpr (std::is_same_v<Event, backend::ThreadStatusUpdated>) {
                             OccurrenceSelection selection;
                             selection.threadId = model::ThreadIdentity::parse(event.threadId.value);

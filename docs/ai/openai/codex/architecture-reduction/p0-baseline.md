@@ -238,8 +238,8 @@ rejected through a hand-maintained symbol allow-list.
 | expanded event families | 26 |
 | ThreadItem discriminators | 18 |
 | scopes | 12 |
-| defined capabilities | 18 (13 static mechanisms, 1 conditional topology, 4 products) |
-| implemented in the feature-complete P0 runtime | 15 (13 static + `multi_transport` + `cpp_client_sdk`) |
+| defined capabilities | 19 (14 static mechanisms, 1 conditional topology, 4 products) |
+| implemented in the feature-complete P0 runtime | 16 (14 static + `multi_transport` + `cpp_client_sdk`) |
 
 The exact method-ID/wire-name/ownership set, event-family set, discriminator
 set, scope set, capability catalog/categories/runtime truth, and canonical

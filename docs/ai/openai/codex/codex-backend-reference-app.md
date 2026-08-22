@@ -57,8 +57,10 @@ denominator.
 
 Optional hello/welcome discovery fields distinguish capabilities that are
 defined, implemented, and permitted, and distinguish available methods from
-connection-permitted methods. The service advertises 13 static mechanism
-capabilities. `multi_transport` is separate conditional topology truth: one
+connection-permitted methods. The service advertises 14 static mechanism
+capabilities, including the additive `thread_read_state_effects` mechanism used
+by negotiated authoritative `thread.read(includeTurns=true)` results.
+`multi_transport` is separate conditional topology truth: one
 declared transport family yields false and more than one yields true. This
 application keeps no duplicate listener registry; SNode.C owns listener
 configuration and lifecycle.

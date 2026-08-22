@@ -1684,6 +1684,8 @@ namespace ai::openai::codex::frontend::internal::client {
             PhysicalGeneration generation = 0;
             OperationCompletion completion;
             bool synchronization = false;
+            bool threadReadStateEffectOptIn = false;
+            std::optional<model::ThreadIdentity> threadReadTarget;
         };
 
         struct DeferredCommand {
@@ -1733,6 +1735,7 @@ namespace ai::openai::codex::frontend::internal::client {
         void transportDisconnected(PhysicalGeneration generation, std::optional<TransportError> error);
         void detach(PhysicalGeneration generation, std::string_view reason);
         bool receive(PhysicalGeneration generation, const ServerMessage& message);
+        bool receiveDecoded(PhysicalGeneration generation, const ServerMessage& message, bool measureEncodedSize);
         bool receiveEncoded(PhysicalGeneration generation, std::string_view message);
         Submission submit(generated::CompleteCommandParameters parameters, OperationCompletion completion);
         void close(std::string_view reason);
@@ -1805,6 +1808,8 @@ namespace ai::openai::codex::frontend::internal::client {
         void handleEvents(const EventBatch& batch);
         void handleSyncComplete(const SyncComplete& message);
         void handleResponse(const Response& response);
+        [[nodiscard]] std::optional<ClientError>
+        applyThreadReadStateEffect(const PendingOperation& operation, const Json& result);
         void handleProtocolError(const ProtocolErrorMessage& error, bool& accepted, bool& observeAfterClosure);
         std::optional<model::CanonicalSnapshot> decodeSnapshot(const Snapshot& snapshot, RepresentationMode& representation);
         bool validateAndApplyBatch(model::CanonicalSnapshot& candidate,
@@ -3629,6 +3634,26 @@ namespace ai::openai::codex::frontend::internal::client {
             return {std::nullopt, localError(ClientErrorCode::SynchronizationAlreadyActive, "frontend synchronization is already active")};
         }
 
+        bool threadReadStateEffectOptIn = false;
+        std::optional<model::ThreadIdentity> threadReadTarget;
+        if (method == generated::MethodId::ThreadRead) {
+            const Json& threadReadParameters = std::visit(
+                [](const auto& value) -> const Json& {
+                    return value.value;
+                },
+                parameters);
+            const auto id = threadReadParameters.find("threadId");
+            const auto includeTurns = threadReadParameters.find("includeTurns");
+            const bool completeRead = includeTurns != threadReadParameters.end() && includeTurns->is_boolean() &&
+                                      includeTurns->get<bool>();
+            if (id != threadReadParameters.end() && id->is_string()) {
+                threadReadTarget = model::ThreadIdentity::parse(id->get<std::string>());
+            }
+            threadReadStateEffectOptIn = completeRead && threadReadTarget.has_value() && capabilities.has_value() &&
+                                         contains(capabilities->implemented, FrontendCapability::ThreadReadStateEffects) &&
+                                         contains(capabilities->permitted, FrontendCapability::ThreadReadStateEffects);
+        }
+
         std::optional<std::string> reverseIdentity = reverseResponseIdentity(parameters);
         if (metadata->category == generated::MethodCategory::ReverseResponse) {
             if (!reverseIdentity.has_value()) {
@@ -3648,6 +3673,9 @@ namespace ai::openai::codex::frontend::internal::client {
             return {std::nullopt, localError(ClientErrorCode::RequestIdExhausted, "frontend request IDs are exhausted")};
         }
         generated::DefinedCommand command{*requestId, std::move(parameters), Json::object(), Json::object()};
+        if (threadReadStateEffectOptIn) {
+            command.extensions["threadReadStateEffectVersion"] = 1;
+        }
         parameterGuard.run();
         auto validated = Codec::encodeDefinedCommand(command);
         if (!validated) {
@@ -3681,7 +3709,13 @@ namespace ai::openai::codex::frontend::internal::client {
         }
 
         const PhysicalGeneration submittingGeneration = attachment->generation;
-        PendingOperation operation{*requestId, method, submittingGeneration, std::move(completion), requestsSynchronization};
+        PendingOperation operation{*requestId,
+                                   method,
+                                   submittingGeneration,
+                                   std::move(completion),
+                                   requestsSynchronization,
+                                   threadReadStateEffectOptIn,
+                                   threadReadStateEffectOptIn ? std::move(threadReadTarget) : std::nullopt};
         pending.push_back(operation);
 
         if (requestsSynchronization) {
@@ -3763,6 +3797,167 @@ namespace ai::openai::codex::frontend::internal::client {
         return {std::move(requestId), std::nullopt};
     }
 
+    std::optional<ClientError>
+    ClientCore::Impl::applyThreadReadStateEffect(const PendingOperation& operation, const Json& result) {
+        const auto effectMember = result.find("stateEffect");
+        const bool hasEffect = effectMember != result.end();
+        if (!operation.threadReadStateEffectOptIn) {
+            if (hasEffect) {
+                return protocolError(ClientErrorCode::ResponseTypeMismatch,
+                                     "thread.read returned an unnegotiated state effect");
+            }
+            return std::nullopt;
+        }
+        if (!hasEffect || !operation.threadReadTarget.has_value()) {
+            return protocolError(ClientErrorCode::ResponseTypeMismatch,
+                                 "negotiated thread.read result lacks its state effect");
+        }
+
+        std::string decodeError;
+        std::optional<ThreadReadStateEffect> effect = decodeThreadReadStateEffect(*effectMember, decodeError);
+        if (!effect.has_value()) {
+            return protocolError(ClientErrorCode::ResponseTypeMismatch,
+                                 "thread.read state effect is invalid: " + decodeError);
+        }
+        if (!published->snapshot || !published->visibleSequence.has_value()) {
+            return protocolError(ClientErrorCode::StateDivergence,
+                                 "thread.read state effect has no published state authority");
+        }
+
+        const auto threadMember = result.find("thread");
+        const auto threadIdMember = result.find("threadId");
+        const bool hasThread = threadMember != result.end();
+        const bool hasThreadId = threadIdMember != result.end();
+        if (hasThread == hasThreadId) {
+            return protocolError(ClientErrorCode::ResponseTypeMismatch,
+                                 "thread.read state effect result has ambiguous thread authority");
+        }
+
+        // Server responses and state publications share one ordered transport.
+        // Apply the command-local cache population to the exact State that is
+        // current when this response is processed; it does not advance the
+        // global journal cursor and therefore also works at initial cursor 0.
+        const model::FrontendSequence through = *published->visibleSequence;
+        std::optional<model::ThreadUpsertedOccurrence> decodedThread;
+        if (hasThread) {
+            // handleResponse() validated the complete negotiated result before
+            // entering this state-effect path. Consume that exact member
+            // without walking the same large ThreadState schema a second time.
+            auto decoded = model::decodeValidatedThreadReadStateEffectThread(*threadMember, through);
+            if (!decoded) {
+                throw std::invalid_argument(decoded.error().path + ": " + decoded.error().message);
+            }
+            decodedThread = std::move(decoded).value();
+        }
+        const std::optional<bool> threadFullyLoaded =
+            decodedThread ? std::optional<bool>{decodedThread->thread.fullyLoaded} : std::nullopt;
+        if (!threadReadStateEffectAuthorityMatchesPayload(effect->authority, threadFullyLoaded)) {
+            throw std::invalid_argument("thread.read state authority contradicts its thread payload");
+        }
+
+        model::CanonicalSnapshot candidate = *published->snapshot;
+        std::vector<Change> changes;
+        std::size_t payloadIndex = 0;
+        const auto applyPayload = [&](model::OccurrencePayload payload, bool retainPayloadChange = true) -> std::optional<ClientError> {
+            model::OccurrenceIdentity identity{
+                through,
+                model::OccurrenceGroupIdentity{"command-state-effect:" + operation.requestId + ":" + std::to_string(payloadIndex++)},
+                0,
+                1,
+                model::SourceStamp{"command-state-effect:thread.read"}};
+            identity.threadId = operation.threadReadTarget;
+            auto occurrence = model::makeOccurrence(std::move(identity), std::move(payload));
+            if (!occurrence) {
+                return protocolError(ClientErrorCode::ResponseTypeMismatch, occurrence.error().path + ": " + occurrence.error().message);
+            }
+            auto applied = retainPayloadChange ? model::applyOccurrence(candidate, occurrence.value())
+                                               : model::applyOccurrence(candidate, std::move(occurrence).value());
+            if (!applied) {
+                return protocolError(ClientErrorCode::StateDivergence, applied.error().path + ": " + applied.error().message);
+            }
+            if (retainPayloadChange) {
+                std::visit(
+                    [&changes](const auto& value) {
+                        changes.emplace_back(value);
+                    },
+                    occurrence.value().expandedPayloads().front());
+            }
+            return std::nullopt;
+        };
+
+        if (effect->authority == ThreadReadStateEffectAuthority::Absent) {
+            if (!threadIdMember->is_string()) {
+                throw std::invalid_argument("absent thread.read state effect has an invalid thread ID");
+            }
+            const auto target = model::ThreadIdentity::parse(threadIdMember->get<std::string>());
+            if (!target.has_value() || *target != *operation.threadReadTarget) {
+                throw std::invalid_argument("thread.read state effect targets a different thread");
+            }
+            if (std::optional<ClientError> error = applyPayload(model::ThreadRemovedOccurrence{*target}); error.has_value()) {
+                return error;
+            }
+        } else {
+            model::ThreadUpsertedOccurrence update = std::move(*decodedThread);
+            if (update.thread.id != *operation.threadReadTarget) {
+                throw std::invalid_argument("thread.read state effect targets a different thread");
+            }
+            const bool replace = effect->authority == ThreadReadStateEffectAuthority::Replace;
+            if (replace) {
+                update.authority = model::ThreadUpsertAuthority::Replace;
+                if (std::optional<ClientError> error = applyPayload(std::move(update), false); error.has_value()) {
+                    return error;
+                }
+            } else {
+                update.authority = effect->authority == ThreadReadStateEffectAuthority::Merge
+                                       ? model::ThreadUpsertAuthority::MergeApplyCompleteness
+                                       : model::ThreadUpsertAuthority::MergePreserveCompleteness;
+                if (std::optional<ClientError> error = applyPayload(std::move(update), false); error.has_value()) {
+                    return error;
+                }
+            }
+            changes.emplace_back(ThreadReadUpsertedChange{*operation.threadReadTarget});
+        }
+
+        std::string capacityError;
+        if (!stateWithinCapacity(candidate,
+                                 options.limits,
+                                 nextPublicationRevision(),
+                                 published->freshness,
+                                 published->representation,
+                                 published->synchronizedThrough,
+                                 session ? &*session : nullptr,
+                                 activeProjectionFingerprint,
+                                 std::nullopt,
+                                 std::nullopt,
+                                 options.publicationPreparationEnforcesByteCapacity,
+                                 capacityError)) {
+            return protocolError(
+                ClientErrorCode::StateCapacityExceeded, std::move(capacityError), ErrorCode::CapacityExceeded);
+        }
+
+        const LifecycleCheckpoint publicationCheckpoint = lifecycleCheckpoint();
+        const std::uint64_t publicationRevision = nextPublicationRevision();
+        if (!publish(std::move(candidate),
+                     published->freshness,
+                     published->representation,
+                     published->synchronizedThrough,
+                     false,
+                     true,
+                     changes)) {
+            return localError(ClientErrorCode::StateCapacityExceeded,
+                              "thread.read state effect could not be published");
+        }
+        // Publication is a public callback boundary. A callback may close,
+        // replace the physical generation, or publish a newer revision
+        // reentrantly. Do not describe the superseded publication through a
+        // later state-update callback in any of those cases.
+        if (!continues(publicationCheckpoint) || published->revision != publicationRevision) {
+            return std::nullopt;
+        }
+        notifyStateUpdate(UpdateCause::CommandStateEffect, through, through, std::move(changes));
+        return std::nullopt;
+    }
+
     void ClientCore::Impl::handleResponse(const Response& response) {
         if (projectionSnapshotRequestId.has_value() && response.requestId == *projectionSnapshotRequestId) {
             if (!synchronization.has_value() || !response.ok || !response.result.has_value()) {
@@ -3828,8 +4023,23 @@ namespace ai::openai::codex::frontend::internal::client {
             }
             return;
         }
-        auto decoded = Codec::decodeDefinedResult(operation.method, *response.result);
-        if (!decoded || generated::commandMethod(decoded.value()) != operation.method) {
+        const bool authoritativeThreadRead =
+            operation.method == generated::MethodId::ThreadRead && operation.threadReadStateEffectOptIn;
+        std::optional<generated::CompleteCommandResult> decoded;
+        bool resultMatches = false;
+        if (authoritativeThreadRead) {
+            // The full thread body is authoritative cache input. Validate it
+            // in place, then consume it once into canonical State below; do
+            // not duplicate it in a generated completion wrapper.
+            resultMatches = static_cast<bool>(Codec::validateDefinedResult(operation.method, *response.result));
+        } else {
+            auto decodedResult = Codec::decodeDefinedResult(operation.method, *response.result);
+            resultMatches = decodedResult && generated::commandMethod(decodedResult.value()) == operation.method;
+            if (resultMatches) {
+                decoded = std::move(decodedResult).value();
+            }
+        }
+        if (!resultMatches) {
             const ClientError error =
                 protocolError(ClientErrorCode::ResponseTypeMismatch, "frontend response result does not match request");
             const std::optional<PhysicalGeneration> completingGeneration =
@@ -3845,7 +4055,7 @@ namespace ai::openai::codex::frontend::internal::client {
                 [](const auto& value) {
                     return value.value;
                 },
-                decoded.value());
+                *decoded);
             if (operation.method == generated::MethodId::EventsReplay &&
                 synchronizationResult.value("syncMode", std::string{"replay"}) == "snapshot") {
                 synchronization->mode = SyncMode::Snapshot;
@@ -3858,13 +4068,54 @@ namespace ai::openai::codex::frontend::internal::client {
             }
             synchronization->responseAccepted = true;
             synchronization->acceptedOperation = std::move(operation);
-            synchronization->acceptedResult = std::move(decoded).value();
+            synchronization->acceptedResult = std::move(*decoded);
             if (connectionState == ConnectionState::Ready) {
                 transition(ConnectionState::Synchronizing);
             }
             return;
         }
-        complete(std::move(operation), std::move(decoded).value(), std::nullopt);
+        if (operation.method == generated::MethodId::ThreadRead) {
+            std::optional<ClientError> stateEffectError;
+            try {
+                stateEffectError = applyThreadReadStateEffect(operation, *response.result);
+            } catch (const std::exception& error) {
+                stateEffectError = protocolError(ClientErrorCode::ResponseTypeMismatch,
+                                                 std::string{"thread.read state effect is invalid: "} + error.what());
+            } catch (...) {
+                stateEffectError = protocolError(ClientErrorCode::ResponseTypeMismatch,
+                                                 "thread.read state effect could not be applied");
+            }
+            if (stateEffectError.has_value()) {
+                const std::optional<PhysicalGeneration> completingGeneration =
+                    attachment ? std::optional<PhysicalGeneration>{attachment->generation} : std::nullopt;
+                complete(std::move(operation), std::nullopt, *stateEffectError);
+                if (completingGeneration.has_value() && owns(*completingGeneration)) {
+                    failConnection(*stateEffectError, "frontend thread.read state effect rejected", true);
+                }
+                return;
+            }
+            if (!owns(operation.generation) || connectionState == ConnectionState::Disconnected ||
+                connectionState == ConnectionState::Closing || connectionState == ConnectionState::Closed) {
+                const ClientError lifecycleError =
+                    connectionState == ConnectionState::Closed
+                        ? localError(ClientErrorCode::Closed, "frontend client closed during thread.read state publication")
+                        : localError(ClientErrorCode::NotConnected,
+                                     "frontend thread.read connection was retired during state publication",
+                                     true);
+                complete(std::move(operation), std::nullopt, lifecycleError);
+                return;
+            }
+        }
+        if (authoritativeThreadRead) {
+            Json completion = Json::object();
+            completion["threadId"] = operation.threadReadTarget->value();
+            completion["stateEffect"] = response.result->at("stateEffect");
+            complete(std::move(operation),
+                     generated::makeResult(generated::MethodId::ThreadRead, std::move(completion)),
+                     std::nullopt);
+            return;
+        }
+        complete(std::move(operation), std::move(*decoded), std::nullopt);
     }
 
     void ClientCore::Impl::handleProtocolError(const ProtocolErrorMessage& error, bool& accepted, bool& observeAfterClosure) {
@@ -3914,33 +4165,44 @@ namespace ai::openai::codex::frontend::internal::client {
     }
 
     bool ClientCore::Impl::receive(PhysicalGeneration generation, const ServerMessage& message) {
+        return receiveDecoded(generation, message, true);
+    }
+
+    bool ClientCore::Impl::receiveDecoded(PhysicalGeneration generation,
+                                          const ServerMessage& message,
+                                          bool measureEncodedSize) {
         if (disconnectCommitInProgress || !owns(generation) || !attachment->connected || connectionState == ConnectionState::Connecting ||
             connectionState == ConnectionState::Disconnected || connectionState == ConnectionState::Closing ||
             connectionState == ConnectionState::Closed) {
             return false;
         }
 
-        const auto encoded = Codec::encodeServer(message);
-        if (!encoded) {
-            failConnection(protocolError(ClientErrorCode::DecodeFailure, "failed to encode frontend server message"),
-                           "frontend server message encoding failed",
-                           true);
-            return false;
-        }
-        try {
-            if (encoded.value().dump().size() > options.limits.maximumInboundMessageBytes) {
-                failConnection(protocolError(ClientErrorCode::DecodeFailure,
-                                             "frontend message exceeds the inbound byte limit",
-                                             ErrorCode::FrameTooLarge),
-                               "frontend message too large",
+        // Object injection has no trusted frame size, so measure its canonical
+        // encoding here. receiveEncoded() has already bounded the exact wire
+        // frame and deliberately skips this full-message re-encode/dump.
+        if (measureEncodedSize) {
+            const auto encoded = Codec::encodeServer(message);
+            if (!encoded) {
+                failConnection(protocolError(ClientErrorCode::DecodeFailure, "failed to encode frontend server message"),
+                               "frontend server message encoding failed",
                                true);
                 return false;
             }
-        } catch (...) {
-            failConnection(protocolError(ClientErrorCode::DecodeFailure, "frontend message size could not be measured"),
-                           "frontend message rejected",
-                           true);
-            return false;
+            try {
+                if (encoded.value().dump().size() > options.limits.maximumInboundMessageBytes) {
+                    failConnection(protocolError(ClientErrorCode::DecodeFailure,
+                                                 "frontend message exceeds the inbound byte limit",
+                                                 ErrorCode::FrameTooLarge),
+                                   "frontend message too large",
+                                   true);
+                    return false;
+                }
+            } catch (...) {
+                failConnection(protocolError(ClientErrorCode::DecodeFailure, "frontend message size could not be measured"),
+                               "frontend message rejected",
+                               true);
+                return false;
+            }
         }
 
         if (dispatchDepth == std::numeric_limits<std::size_t>::max()) {
@@ -4024,7 +4286,7 @@ namespace ai::openai::codex::frontend::internal::client {
                            true);
             return false;
         }
-        return receive(generation, decoded.value());
+        return receiveDecoded(generation, decoded.value(), false);
     }
 
     void ClientCore::Impl::close(std::string_view reason) {

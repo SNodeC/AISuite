@@ -13,6 +13,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
@@ -30,7 +32,13 @@ namespace ai::openai::codex::frontend::internal::server {
     // for each authenticated ServerCore session.
     class BackendCoreBridge final : public BackendPort {
     public:
-        explicit BackendCoreBridge(backend::detail::BackendCoreRuntime& backend, std::size_t maximumResultBytes);
+        using TimerCancellation = std::function<void()>;
+        using TimerScheduler = std::function<TimerCancellation(std::uint64_t, std::function<void()>)>;
+
+        explicit BackendCoreBridge(backend::detail::BackendCoreRuntime& backend,
+                                   std::size_t maximumResultBytes,
+                                   std::size_t maximumThreadReadResultBytes,
+                                   TimerScheduler timerScheduler);
         BackendCoreBridge(const BackendCoreBridge&) = delete;
         BackendCoreBridge(BackendCoreBridge&&) = delete;
         BackendCoreBridge& operator=(const BackendCoreBridge&) = delete;
@@ -70,6 +78,9 @@ namespace ai::openai::codex::frontend::internal::server {
         coalesceItemContentEvents(std::span<const backend::SequencedBackendEvent> events) noexcept;
         [[nodiscard]] static bool itemContentSnapshotIsAhead(backend::SequenceNumber eventSequence,
                                                              backend::SequenceNumber snapshotSequence) noexcept;
+        [[nodiscard]] static Json boundedThreadReadResult(const typed::ThreadId& id,
+                                                          const std::optional<backend::ThreadSnapshot>& source,
+                                                          std::size_t maximumBytes);
     };
 
 } // namespace ai::openai::codex::frontend::internal::server

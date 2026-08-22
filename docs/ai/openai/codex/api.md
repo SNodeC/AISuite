@@ -306,9 +306,9 @@ temporarily deprecated while the final façade shape was undecided. Final A1b
 retained both paths. A1.5 resolves that deferred decision in favor of direct
 domain access and removes the redundant public grouped client.
 
-The Codex libraries use SOVERSION 6 after public frontend State gained lazy,
-structurally shared item storage and verified append publication. The compact
-canonical mutation records preserve Frontend Protocol v1. A1.6a
+The Codex libraries use SOVERSION 7 after the public frontend API gained an
+explicit authoritative `thread.read` state effect. The compact canonical
+mutation records preserve Frontend Protocol v1. A1.6a
 established the backend foundation, and A1.6b completes the trusted BackendCore
 command and canonical-state layer. Frontend Protocol redesign and
 provider-neutral architecture remain separate A1.7 and A2 work.

@@ -310,6 +310,67 @@ namespace {
                           "an exact 4 MiB JSON-expanding command output remains complete inside the default 8 MiB snapshot budget");
     }
 
+    void testSnapshotDescendantOmissionsClearThreadCompleteness(tests::support::TestResult& result) {
+        const auto sourceState = [](bool itemsPresent) {
+            backend::BackendState state;
+            backend::Reducer reducer;
+            backend::ProviderState provider;
+            provider.lifecycle = backend::ProviderLifecycle::Ready;
+            provider.generation = 1;
+            provider.desiredRunning = true;
+            reducer.apply(state, backend::ProviderLifecycleChanged{provider});
+
+            backend::BackendCapacityOptions limits;
+            limits.maxRetainedThreads = 2;
+            limits.maxRetainedTurns = 64;
+            limits.maxRetainedItems = 64;
+            limits.maxAccumulatedContentBytes = 2U * 1024U * 1024U;
+            limits.maxSnapshotBytes = 2U * 1024U * 1024U;
+            reducer.apply(state, backend::CapacityConfigured{limits});
+
+            typed::Thread thread =
+                retainedThread("snapshot-completeness", "active-turn", true, "active-item", "active");
+            for (std::size_t index = 0; index < 16; ++index) {
+                typed::Thread terminal = retainedThread("snapshot-completeness",
+                                                        "terminal-turn-" + std::to_string(index),
+                                                        false,
+                                                        "terminal-item-" + std::to_string(index),
+                                                        std::string(768, static_cast<char>('a' + index % 26)));
+                if (!itemsPresent) {
+                    terminal.turns.front().items.clear();
+                }
+                thread.turns.push_back(std::move(terminal.turns.front()));
+            }
+            reducer.apply(state, backend::ThreadUpserted{std::move(thread), backend::EntityLoad::Full});
+            return state;
+        };
+
+        const auto observesIncompleteThread = [](backend::BackendState state, bool requireTurnOmission) {
+            const std::size_t unboundedBytes = backend::snapshotSizeBytes(backend::makeSnapshot(state));
+            for (std::size_t maximumBytes = 256; maximumBytes < unboundedBytes; maximumBytes += 32) {
+                state.capacity.limits.maxSnapshotBytes = maximumBytes;
+                const backend::Snapshot snapshot = backend::makeSnapshot(state);
+                const auto thread = std::find_if(snapshot.threads.begin(), snapshot.threads.end(), [](const auto& value) {
+                    return value.id == "snapshot-completeness";
+                });
+                const bool targetedOmission = requireTurnOmission
+                                                  ? snapshot.capacity.omittedTurns > 0 && snapshot.capacity.omittedItems == 0
+                                                  : snapshot.capacity.omittedItems > 0 && snapshot.capacity.omittedTurns == 0;
+                if (targetedOmission && thread != snapshot.threads.end()) {
+                    return !thread->fullyLoaded;
+                }
+            }
+            return false;
+        };
+
+        const backend::BackendState itemSource = sourceState(true);
+        const backend::BackendState turnSource = sourceState(false);
+        result.expectTrue(itemSource.threads.at("snapshot-completeness").fullyLoaded &&
+                              turnSource.threads.at("snapshot-completeness").fullyLoaded &&
+                              observesIncompleteThread(itemSource, false) && observesIncompleteThread(turnSource, true),
+                          "bounded snapshots clear thread completeness when either retained items or whole turns are omitted");
+    }
+
     void testReducerCapacityAndFreshness(tests::support::TestResult& result) {
         backend::BackendState state;
         backend::Reducer reducer;
@@ -425,8 +486,10 @@ namespace {
         const backend::ItemState& oldItem = contentState.threads.at("old").turns.at("old-turn").items.at("old-item");
         const backend::ItemState& newItem = contentState.threads.at("new").turns.at("new-turn").items.at("new-item");
         result.expectTrue(oldItem.agentText.empty() && newItem.agentText == "efgh" && oldItem.droppedContentBytes == 4 &&
+                              !contentState.threads.at("old").fullyLoaded &&
                               contentState.capacity.droppedContentBytes == 4 && retentionCountersMatch(contentState),
-                          "global content capacity trims the oldest inactive terminal item and preserves newest content");
+                          "global content capacity trims the oldest inactive terminal item, marks its thread incomplete, and preserves "
+                          "newest content");
 
         backend::BackendState turnState;
         reducer.apply(turnState, backend::ProviderLifecycleChanged{provider});
@@ -441,7 +504,8 @@ namespace {
         reducer.apply(
             turnState,
             backend::ThreadUpserted{retainedThread("second", "second-turn", false, "second-item", "two"), backend::EntityLoad::Full});
-        result.expectTrue(turnState.threads.at("first").turns.empty() && turnState.threads.at("second").turns.contains("second-turn") &&
+        result.expectTrue(turnState.threads.at("first").turns.empty() && !turnState.threads.at("first").fullyLoaded &&
+                              turnState.threads.at("second").turns.contains("second-turn") &&
                               turnState.threads.at("first").turnOrder.empty() &&
                               turnState.threads.at("second").turnOrder == std::vector<typed::TurnId>{typed::TurnId{"second-turn"}} &&
                               turnState.capacity.evictedTurns == 1 && retentionCountersMatch(turnState),
@@ -482,6 +546,7 @@ namespace {
                                             std::nullopt});
         const backend::TurnState& retainedItems = itemState.threads.at("items").turns.at("items-turn");
         result.expectTrue(retainedItems.items.contains("protected-item") && !retainedItems.items.contains("optional-item") &&
+                              !itemState.threads.at("items").fullyLoaded &&
                               itemState.capacity.evictedItems == 0 && itemState.capacity.snapshotOmissions == 1 &&
                               retentionCountersMatch(itemState),
                           "item capacity protects pending-request referenced state and omits the new optional alternative");
@@ -541,6 +606,7 @@ namespace {
         const backend::TurnState& activeTurn = activeTurnItems.threads.at("active-items").turns.at("active-turn");
         result.expectTrue(activeTurn.active && !activeTurn.terminal && !activeTurn.items.contains("old-complete") &&
                               activeTurn.items.contains("new-complete") &&
+                              !activeTurnItems.threads.at("active-items").fullyLoaded &&
                               activeTurn.itemOrder == std::vector<typed::ItemId>{typed::ItemId{"new-complete"}} &&
                               activeTurnItems.capacity.evictedItems == 1 && retentionCountersMatch(activeTurnItems),
                           "global item capacity evicts from an active turn without diverging its map and order vector");
@@ -1914,6 +1980,7 @@ int main(int argc, char* argv[]) {
         testRecoveryPolicyEligibility(result);
         testTargetedItemSnapshotBatch(result);
         testExpansionHeavyCommandOutputSnapshotAccounting(result);
+        testSnapshotDescendantOmissionsClearThreadCompleteness(result);
         testReducerCapacityAndFreshness(result);
         testIncrementalRetentionAndFreshness(result);
         testZeroHandleCapacities(result);

@@ -295,6 +295,10 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
+        void removeCapability(std::vector<FrontendCapability>& capabilities, FrontendCapability capability) {
+            capabilities.erase(std::remove(capabilities.begin(), capabilities.end(), capability), capabilities.end());
+        }
+
         [[nodiscard]] std::vector<FrontendCapability> definedCapabilities() {
             std::vector<FrontendCapability> result;
             result.reserve(generated::AllCapabilities.size());
@@ -451,6 +455,10 @@ namespace ai::openai::codex::frontend::internal::server {
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
             std::vector<FrontendCapability> negotiatedCapabilities;
+            // Static mechanisms advertised as both implemented and permitted
+            // may be opted into per command after Welcome. They are distinct
+            // from representation capabilities selected in Hello.
+            std::vector<FrontendCapability> advertisedCapabilities;
             model::ItemContentWireMode itemContentWireMode = model::ItemContentWireMode::Replacement;
             std::deque<SerializedServerMessage> outbound;
             // A live Snapshot published from inside BackendPort::snapshot()
@@ -534,6 +542,12 @@ namespace ai::openai::codex::frontend::internal::server {
         struct BatchBuildResult {
             BatchBuildStatus status = BatchBuildStatus::Failure;
             std::vector<EventBatch> batches;
+        };
+
+        enum class MaterializedDeliveryStatus { None, Occurrences, Snapshot, Failed };
+
+        struct MaterializedDelivery {
+            MaterializedDeliveryStatus status = MaterializedDeliveryStatus::None;
         };
 
         struct FrozenSnapshotRecipient {
@@ -943,9 +957,11 @@ namespace ai::openai::codex::frontend::internal::server {
                                                               std::span<const model::CanonicalOccurrence> occurrences) const;
         [[nodiscard]] bool enqueueBuiltBatches(ConnectionIdentity identity, std::span<const EventBatch> batches);
         [[nodiscard]] bool emitOccurrencesOrSnapshot(ConnectionToken token, std::span<const model::CanonicalOccurrence> occurrences);
-        void broadcastPendingDelivery();
+        [[nodiscard]] MaterializedDelivery
+        broadcastPendingDelivery(std::optional<ConnectionToken> observedRecipient = std::nullopt);
         void drainDirtyOccurrences();
-        void materializePendingDeliveryLocked();
+        [[nodiscard]] MaterializedDelivery
+        materializePendingDeliveryLocked(std::optional<ConnectionToken> observedRecipient = std::nullopt);
         [[nodiscard]] PublishResult appendAndStageDelivery(model::OccurrenceDraft occurrence, bool scheduleDelivery) noexcept;
         void handleSequenceExhaustion() noexcept;
         [[nodiscard]] bool synchronizeSnapshot(ConnectionToken token, const SnapshotBarrier* suppliedBarrier = nullptr);
@@ -954,7 +970,10 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] SyncMode initialSyncMode(ConnectionIdentity identity,
                                                const Connection& connection,
                                                const std::optional<SequenceNumber>& requestedAfter) const;
-        [[nodiscard]] bool complete(BackendCompletion completion);
+        [[nodiscard]] bool complete(BackendCompletion completion,
+                                    std::optional<MaterializedDelivery> threadReadBarrier = std::nullopt);
+        [[nodiscard]] bool validThreadReadCompletionAuthority(const CommandToken& token,
+                                                              const BackendCommandSuccess& success) const noexcept;
         [[nodiscard]] OccurrenceStageResult
         stageOccurrenceLocked(OccurrenceCoalescingKey key, model::OccurrenceDraft occurrence, OccurrenceFlushUrgency urgency) noexcept;
         [[nodiscard]] std::vector<model::SessionState> sessionStatesLocked() const;
@@ -1455,7 +1474,7 @@ namespace ai::openai::codex::frontend::internal::server {
     void ServerCore::Impl::flushLocked() {
         try {
             drainDirtyOccurrences();
-            broadcastPendingDelivery();
+            static_cast<void>(broadcastPendingDelivery());
         } catch (...) {
             dirtyOccurrences.clear();
             nextDirtyInsertionOrder = 0;
@@ -1688,6 +1707,11 @@ namespace ai::openai::codex::frontend::internal::server {
                                    codecFailure(ErrorCode::AuthenticationFailed, "frontend authentication may only be attempted once"));
         }
         connection->helloAttempted = true;
+        if (hello.capabilityVocabularyVersion == 0) {
+            return protocolFailure(identity,
+                                   codecFailure(ErrorCode::InvalidField,
+                                                "frontend Hello capability vocabulary version must be positive"));
+        }
         const FrontendPeerContext peer = connection->peer;
         const ConnectionContinuation awaitingHello{*token, false, false};
         connection = nullptr;
@@ -1756,6 +1780,16 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         model::SessionIdentity session(std::to_string(nextSessionIdentity++));
         const std::vector<FrontendCapability> implemented = implementedCapabilitiesLocked();
+        const bool understandsCurrentCapabilityVocabulary =
+            hello.capabilityVocabularyVersion.value_or(0) >= CapabilityVocabularyVersion;
+        std::vector<FrontendCapability> advertisedImplemented = implemented;
+        if (!understandsCurrentCapabilityVocabulary) {
+            // The capability enum is closed in older v1 clients. Preserve the
+            // legacy advertisement and result path until the client positively
+            // marks support for the vocabulary revision that introduced this
+            // mechanism name.
+            removeCapability(advertisedImplemented, FrontendCapability::ThreadReadStateEffects);
+        }
         std::vector<FrontendCapability> negotiated;
         for (const FrontendCapability requested : requestedCapabilities) {
             if (containsCapability(implemented, requested)) {
@@ -1791,6 +1825,7 @@ namespace ai::openai::codex::frontend::internal::server {
         }
         connection->principal = principal;
         connection->negotiatedCapabilities = std::move(negotiated);
+        connection->advertisedCapabilities = hello.capabilities ? advertisedImplemented : std::vector<FrontendCapability>{};
         connection->itemContentWireMode = itemContentWireMode;
         const ConnectionContinuation openingSession{*token, false, false};
         const FrontendSessionToken backendSessionToken{token->identity, token->generation, session};
@@ -1838,8 +1873,11 @@ namespace ai::openai::codex::frontend::internal::server {
         if (hello.capabilities) {
             CapabilityAdvertisement advertisement;
             advertisement.defined = definedCapabilities();
-            advertisement.implemented = implemented;
-            advertisement.permitted = implemented;
+            if (!understandsCurrentCapabilityVocabulary) {
+                removeCapability(advertisement.defined, FrontendCapability::ThreadReadStateEffects);
+            }
+            advertisement.implemented = advertisedImplemented;
+            advertisement.permitted = advertisedImplemented;
             welcome.capabilities = std::move(advertisement);
             welcome.availableMethods = availableMethodsLocked();
             welcome.permittedMethods = permittedMethodsLocked(principal);
@@ -1936,7 +1974,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 const model::SessionIdentity session = *connection->session;
                 const FrontendPrincipal principal = *connection->principal;
-                const CommandToken commandToken{identity, token.generation, requestId, metadata.id};
+                CommandToken commandToken;
+                commandToken.connection = identity;
+                commandToken.connectionGeneration = token.generation;
+                commandToken.requestId = requestId;
+                commandToken.method = metadata.id;
                 connection->outstanding.emplace(requestId, metadata.id);
                 controllerTransaction = commandToken;
                 connection = nullptr;
@@ -1979,7 +2021,11 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 const model::SessionIdentity session = *connection->session;
                 const FrontendPrincipal principal = *connection->principal;
-                const CommandToken commandToken{identity, token.generation, requestId, metadata.id};
+                CommandToken commandToken;
+                commandToken.connection = identity;
+                commandToken.connectionGeneration = token.generation;
+                commandToken.requestId = requestId;
+                commandToken.method = metadata.id;
                 connection->outstanding.emplace(requestId, metadata.id);
                 controllerTransaction = commandToken;
                 connection = nullptr;
@@ -2131,7 +2177,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     key.kind = OccurrenceEntityKind::BackendLifecycle;
                     key.entityId = "provider";
                     static_cast<void>(stageOccurrenceLocked(std::move(key), std::move(occurrence), OccurrenceFlushUrgency::Immediate));
-                    materializePendingDeliveryLocked();
+                    static_cast<void>(materializePendingDeliveryLocked());
                     if (!findConnection(active)) {
                         return receiveStatusAfterFailure(identity);
                     }
@@ -2168,6 +2214,56 @@ namespace ai::openai::codex::frontend::internal::server {
             CodecError error = codecFailure(ErrorCode::UnknownMethod, "frontend command method is unavailable", false);
             error.requestId = command.requestId;
             return protocolFailure(identity, std::move(error));
+        }
+        const Json& definedParameters = commandParameters(command);
+        const auto includeTurnsParameter = definedParameters.find("includeTurns");
+        const bool threadReadIncludesTurns = method == generated::MethodId::ThreadRead &&
+                                             includeTurnsParameter != definedParameters.end() &&
+                                             includeTurnsParameter->is_boolean() && includeTurnsParameter->get<bool>();
+        std::optional<std::string> threadReadTarget;
+        if (method == generated::MethodId::ThreadRead) {
+            const auto target = definedParameters.find("threadId");
+            if (target == definedParameters.end() || !target->is_string() || target->get_ref<const std::string&>().empty()) {
+                return rejectCommand(identity, command.requestId, ErrorCode::InvalidField, "thread.read target is invalid");
+            }
+            threadReadTarget = target->get<std::string>();
+        }
+        std::uint32_t threadReadStateEffectVersion = 0;
+        const auto stateEffectVersion = command.extensions.find("threadReadStateEffectVersion");
+        if (stateEffectVersion != command.extensions.end()) {
+            if (method != generated::MethodId::ThreadRead) {
+                return rejectCommand(identity,
+                                     command.requestId,
+                                     ErrorCode::InvalidField,
+                                     "threadReadStateEffectVersion is only valid for thread.read");
+            }
+            bool versionOne = false;
+            try {
+                versionOne = (stateEffectVersion->is_number_unsigned() && stateEffectVersion->get<std::uint64_t>() == 1) ||
+                             (stateEffectVersion->is_number_integer() && !stateEffectVersion->is_number_unsigned() &&
+                              stateEffectVersion->get<std::int64_t>() == 1);
+            } catch (...) {
+                versionOne = false;
+            }
+            if (!versionOne) {
+                return rejectCommand(identity,
+                                     command.requestId,
+                                     ErrorCode::UnsupportedVersion,
+                                     "thread.read state-effect version is unsupported");
+            }
+            if (!threadReadIncludesTurns) {
+                return rejectCommand(identity,
+                                     command.requestId,
+                                     ErrorCode::InvalidField,
+                                     "thread.read state effects require includeTurns=true");
+            }
+            if (!containsCapability(connection->advertisedCapabilities, FrontendCapability::ThreadReadStateEffects)) {
+                return rejectCommand(identity,
+                                     command.requestId,
+                                     ErrorCode::UnsupportedVersion,
+                                     "thread.read state effects were not advertised as implemented and permitted");
+            }
+            threadReadStateEffectVersion = 1;
         }
         const FrontendPrincipal principal = *connection->principal;
         const model::SessionIdentity session = *connection->session;
@@ -2231,7 +2327,14 @@ namespace ai::openai::codex::frontend::internal::server {
             return {executeFrontendNative(*connectionGeneration, command, metadata), std::nullopt};
         }
 
-        const CommandToken token{identity, connectionGeneration->generation, command.requestId, method};
+        const CommandToken token{
+            identity,
+            connectionGeneration->generation,
+            command.requestId,
+            method,
+            threadReadStateEffectVersion,
+            threadReadIncludesTurns,
+            std::move(threadReadTarget)};
         connection->outstanding.emplace(command.requestId, method);
         connection = nullptr;
         BackendSubmitStatus status = BackendSubmitStatus::Rejected;
@@ -2458,6 +2561,35 @@ namespace ai::openai::codex::frontend::internal::server {
                                                      [&](const model::OccurrencePayload& payload) {
                                                          return supportsExpandedOccurrence(connection, model::occurrenceType(payload));
                                                      });
+                if (!useExpanded && legacyKind == model::LegacyCompatibilityKind::ThreadUpdated) {
+                    const auto* update = projected->expandedPayloads().size() == 1
+                                             ? std::get_if<model::ThreadUpsertedOccurrence>(
+                                                   &projected->expandedPayloads().front())
+                                             : nullptr;
+                    if (update != nullptr && update->authority != model::ThreadUpsertAuthority::Replace) {
+                        // Legacy thread.updated always replaces the nested
+                        // turns array. A bounded header merge therefore has no
+                        // lossless legacy event representation; rebase only
+                        // that legacy recipient from a bounded snapshot.
+                        result.status = BatchBuildStatus::SnapshotRequired;
+                        result.batches.clear();
+                        return result;
+                    }
+                }
+                if (!useExpanded && legacyKind == model::LegacyCompatibilityKind::TurnUpdated) {
+                    const auto* update = projected->expandedPayloads().size() == 1
+                                             ? std::get_if<model::TurnUpsertedOccurrence>(
+                                                   &projected->expandedPayloads().front())
+                                             : nullptr;
+                    if (update != nullptr && !update->replaceItems) {
+                        // Legacy turn.updated always replaces the nested item
+                        // array, so a header-only turn merge requires a
+                        // requester-local snapshot for lossless compatibility.
+                        result.status = BatchBuildStatus::SnapshotRequired;
+                        result.batches.clear();
+                        return result;
+                    }
+                }
                 if (legacyKind == model::LegacyCompatibilityKind::DirectExpanded && !useExpanded) {
                     // This family has no legacy representation.  Keep the
                     // canonical journal occurrence, but do not expose an
@@ -2767,9 +2899,14 @@ namespace ai::openai::codex::frontend::internal::server {
         }
     }
 
-    void ServerCore::Impl::broadcastPendingDelivery() {
+    ServerCore::Impl::MaterializedDelivery
+    ServerCore::Impl::broadcastPendingDelivery(std::optional<ConnectionToken> observedRecipient) {
+        MaterializedDelivery observed;
+        const auto isObserved = [&](ConnectionToken token) {
+            return observedRecipient && token.identity == observedRecipient->identity && token.generation == observedRecipient->generation;
+        };
         if (pendingDelivery.empty() && pendingDeliverySnapshotMode == PendingSnapshotSequenceMode::None) {
-            return;
+            return observed;
         }
 
         std::vector<ConnectionToken> recipientTokens;
@@ -2793,7 +2930,7 @@ namespace ai::openai::codex::frontend::internal::server {
                     replayInvalidated = journal->invalidateReplay();
                     break;
                 case PendingSnapshotSequenceMode::None:
-                    return;
+                    return observed;
             }
             // The pending suffix is now represented by this exact journal
             // barrier. Reentrant work belongs to a later suffix and may select
@@ -2816,17 +2953,23 @@ namespace ai::openai::codex::frontend::internal::server {
                 snapshot = backend.snapshot();
             }
             if (!open || terminallyClosed) {
-                return;
+                observed.status = MaterializedDeliveryStatus::Failed;
+                return observed;
             }
             snapshot = applySnapshotBarrier(std::move(snapshot), barrier);
             for (const FrozenSnapshotRecipient& recipient : recipients) {
-                if (findConnection(ConnectionContinuation{recipient.token, true, false}) && !enqueueFrozenSnapshot(recipient, snapshot)) {
+                const bool active = findConnection(ConnectionContinuation{recipient.token, true, false}) != nullptr;
+                const bool delivered = active && enqueueFrozenSnapshot(recipient, snapshot);
+                if (isObserved(recipient.token)) {
+                    observed.status = delivered ? MaterializedDeliveryStatus::Snapshot : MaterializedDeliveryStatus::Failed;
+                }
+                if (active && !delivered) {
                     closeWithProtocolError(
                         recipient.token.identity,
                         ConnectionClose{"frontend snapshot fallback projection or queueing failed", ErrorCode::InternalError, false});
                 }
             }
-            return;
+            return observed;
         }
 
         std::vector<model::CanonicalOccurrence> occurrences = std::move(pendingDelivery);
@@ -2862,7 +3005,8 @@ namespace ai::openai::codex::frontend::internal::server {
             BackendSnapshotScope snapshotScope(*this);
             model::CanonicalSnapshot canonical = backend.snapshot();
             if (!open || terminallyClosed) {
-                return;
+                observed.status = MaterializedDeliveryStatus::Failed;
+                return observed;
             }
             fallbackSnapshot = applySnapshotBarrier(std::move(canonical), barrier);
         }
@@ -2877,17 +3021,28 @@ namespace ai::openai::codex::frontend::internal::server {
             } else if (plan.built.status == BatchBuildStatus::SnapshotRequired && plan.snapshotRecipient && fallbackSnapshot) {
                 delivered = enqueueFrozenSnapshot(*plan.snapshotRecipient, *fallbackSnapshot);
             }
+            if (isObserved(plan.token)) {
+                if (!delivered) {
+                    observed.status = MaterializedDeliveryStatus::Failed;
+                } else if (plan.built.status == BatchBuildStatus::SnapshotRequired) {
+                    observed.status = MaterializedDeliveryStatus::Snapshot;
+                } else if (!plan.built.batches.empty()) {
+                    observed.status = MaterializedDeliveryStatus::Occurrences;
+                }
+            }
             if (!delivered && findConnection(ConnectionContinuation{plan.token, true, false})) {
                 closeWithProtocolError(
                     plan.token.identity,
                     ConnectionClose{"frontend occurrence projection or queueing failed", ErrorCode::InternalError, false});
             }
         }
+        return observed;
     }
 
-    void ServerCore::Impl::materializePendingDeliveryLocked() {
+    ServerCore::Impl::MaterializedDelivery
+    ServerCore::Impl::materializePendingDeliveryLocked(std::optional<ConnectionToken> observedRecipient) {
         drainDirtyOccurrences();
-        broadcastPendingDelivery();
+        return broadcastPendingDelivery(observedRecipient);
     }
 
     bool ServerCore::Impl::synchronizeSnapshot(ConnectionToken token, const SnapshotBarrier* suppliedBarrier) {
@@ -2922,7 +3077,60 @@ namespace ai::openai::codex::frontend::internal::server {
         return completed;
     }
 
-    bool ServerCore::Impl::complete(BackendCompletion completion) {
+    bool ServerCore::Impl::validThreadReadCompletionAuthority(const CommandToken& token,
+                                                               const BackendCommandSuccess& success) const noexcept {
+        if (token.method != generated::MethodId::ThreadRead || !token.threadReadIncludesTurns) {
+            return true;
+        }
+        try {
+            if (!token.threadReadTarget || generated::commandMethod(success.result) != token.method) {
+                return false;
+            }
+            const Json& value = std::visit([](const auto& result) -> const Json& { return result.value; }, success.result);
+            const auto thread = value.find("thread");
+            const auto threadId = value.find("threadId");
+            const bool hasThread = thread != value.end();
+            const bool hasThreadId = threadId != value.end();
+            if (hasThread == hasThreadId) {
+                return false;
+            }
+
+            const auto stateEffectMember = value.find("stateEffect");
+            const bool hasStateEffect = stateEffectMember != value.end();
+            const bool requestedStateEffect = token.threadReadStateEffectVersion == 1;
+            if (hasStateEffect != requestedStateEffect || (hasStateEffect && !stateEffectMember->is_object())) {
+                return false;
+            }
+            std::optional<ThreadReadStateEffect> stateEffect;
+            if (hasStateEffect) {
+                std::string error;
+                stateEffect = decodeThreadReadStateEffect(*stateEffectMember, error);
+                if (!stateEffect) {
+                    return false;
+                }
+            }
+
+            if (hasThread) {
+                model::OccurrenceResult<model::ThreadUpsertedOccurrence> decoded =
+                    model::decodeThreadReadStateEffectThread(*thread, model::FrontendSequence{});
+                if (!decoded || decoded.value().thread.id.value() != *token.threadReadTarget) {
+                    return false;
+                }
+                return !stateEffect ||
+                       threadReadStateEffectAuthorityMatchesPayload(stateEffect->authority, decoded.value().thread.fullyLoaded);
+            }
+
+            if (!threadId->is_string() || threadId->get_ref<const std::string&>() != *token.threadReadTarget) {
+                return false;
+            }
+            return !stateEffect || stateEffect->authority == ThreadReadStateEffectAuthority::Absent;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    bool ServerCore::Impl::complete(BackendCompletion completion,
+                                    std::optional<MaterializedDelivery> threadReadBarrier) {
         const ConnectionToken token{completion.token.connection, completion.token.connectionGeneration};
         Connection* connection = findConnection(ConnectionContinuation{token, true, false});
         if (!connection) {
@@ -2961,9 +3169,54 @@ namespace ai::openai::codex::frontend::internal::server {
                                   ErrorCode::TypedDecodingFailure,
                                   "backend completion result method does not match its command");
         }
+        if (!validThreadReadCompletionAuthority(completion.token, success)) {
+            connection->outstanding.erase(pending);
+            clearControllerTransaction();
+            connection = nullptr;
+            return respondFailure(completion.token.connection,
+                                  std::move(completion.token.requestId),
+                                  ErrorCode::TypedDecodingFailure,
+                                  "backend thread-read completion violates its negotiated target or state authority");
+        }
+        if (completion.token.method == generated::MethodId::ThreadRead && completion.token.threadReadIncludesTurns) {
+            const bool requestedStateEffect = completion.token.threadReadStateEffectVersion == 1;
+            // completeThreadRead materializes every prior semantic update in
+            // this same dispatch transaction. Ordered transport is the
+            // command-local barrier: the response patches the State current
+            // at receipt time and does not manufacture a global occurrence.
+            const MaterializedDelivery materialized = threadReadBarrier.value_or(MaterializedDelivery{});
+            if (requestedStateEffect) {
+                if (!threadReadBarrier || materialized.status == MaterializedDeliveryStatus::Snapshot) {
+                    connection->outstanding.erase(completion.token.requestId);
+                    clearControllerTransaction();
+                    connection = nullptr;
+                    return respondFailure(completion.token.connection,
+                                          std::move(completion.token.requestId),
+                                          ErrorCode::CapacityExceeded,
+                                          "thread-read state effect was superseded by snapshot synchronization");
+                }
+                if (materialized.status == MaterializedDeliveryStatus::Failed) {
+                    connection->outstanding.erase(completion.token.requestId);
+                    clearControllerTransaction();
+                    connection = nullptr;
+                    return respondFailure(completion.token.connection,
+                                          std::move(completion.token.requestId),
+                                          ErrorCode::InternalError,
+                                          "thread-read state-effect ordering could not be materialized");
+                }
+            }
+        }
         const auto encoded = Codec::encodeDefinedResult(success.result);
         if (!encoded) {
-            connection->outstanding.erase(pending);
+            connection = findConnection(ConnectionContinuation{token, true, false});
+            if (!connection) {
+                return false;
+            }
+            const auto currentPending = connection->outstanding.find(completion.token.requestId);
+            if (currentPending == connection->outstanding.end() || currentPending->second != completion.token.method) {
+                return false;
+            }
+            connection->outstanding.erase(currentPending);
             clearControllerTransaction();
             connection = nullptr;
             return respondFailure(completion.token.connection,
@@ -2990,7 +3243,7 @@ namespace ai::openai::codex::frontend::internal::server {
             controller = completion.token.connection;
             if (changed) {
                 stageControllerChangedLocked();
-                materializePendingDeliveryLocked();
+                static_cast<void>(materializePendingDeliveryLocked());
             }
         } else if (completion.token.method == generated::MethodId::ControllerRelease) {
             if (!controller && externalController) {
@@ -3023,7 +3276,7 @@ namespace ai::openai::codex::frontend::internal::server {
             }
             controller.reset();
             stageControllerChangedLocked();
-            materializePendingDeliveryLocked();
+            static_cast<void>(materializePendingDeliveryLocked());
         }
         connection = findConnection(ConnectionContinuation{token, true, false});
         if (!connection) {
@@ -3440,6 +3693,30 @@ namespace ai::openai::codex::frontend::internal::server {
         try {
             Impl::DispatchScope dispatch(*impl);
             return impl->complete(std::move(completion));
+        } catch (...) {
+            return false;
+        }
+    }
+
+    bool ServerCore::completeThreadRead(BackendCompletion completion) noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            const Impl::ConnectionToken token{completion.token.connection, completion.token.connectionGeneration};
+            if (completion.token.method != generated::MethodId::ThreadRead || !completion.token.threadReadIncludesTurns ||
+                completion.token.threadReadStateEffectVersion != 1) {
+                return false;
+            }
+            Impl::Connection* connection = impl->findConnection(Impl::ConnectionContinuation{token, true, false});
+            if (!connection) {
+                return false;
+            }
+            const auto pending = connection->outstanding.find(completion.token.requestId);
+            if (pending == connection->outstanding.end() || pending->second != completion.token.method) {
+                return false;
+            }
+            connection = nullptr;
+            const Impl::MaterializedDelivery barrier = impl->materializePendingDeliveryLocked(token);
+            return impl->complete(std::move(completion), barrier);
         } catch (...) {
             return false;
         }

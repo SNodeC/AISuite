@@ -602,6 +602,12 @@ namespace ai::openai::codex::backend {
     struct CommandCompletion {
         std::string requestId;
         CommandResult result;
+        // A full thread.read is requester-local cache population.  Its
+        // bounded projection and the canonical ordering fence travel with the
+        // completion instead of being retained in the shared BackendState. A
+        // present sidecar with a null thread is an authoritative provider
+        // NotFound captured atomically at that fence.
+        std::optional<ThreadSnapshotAtSequence> threadReadSnapshot;
     };
 
     const char* commandErrorCodeName(CommandErrorCode code) noexcept;

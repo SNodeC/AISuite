@@ -13,6 +13,20 @@
 #include <utility>
 
 namespace ai::openai::codex::frontend {
+    namespace {
+        std::optional<std::uint64_t> unsignedInteger(const Json& object, std::string_view key) noexcept {
+            try {
+                const auto value = object.find(key);
+                if (value == object.end() || !value->is_number_unsigned()) {
+                    return std::nullopt;
+                }
+                return value->get<std::uint64_t>();
+            } catch (...) {
+                return std::nullopt;
+            }
+        }
+    } // namespace
+
 
     std::string_view toString(SessionRole role) noexcept {
         switch (role) {
@@ -116,6 +130,8 @@ namespace ai::openai::codex::frontend {
                 return "dedicated_notification_events";
             case FrontendCapability::CompleteThreadItems:
                 return "complete_thread_items";
+            case FrontendCapability::ThreadReadStateEffects:
+                return "thread_read_state_effects";
             case FrontendCapability::AuthenticatedFrontend:
                 return "authenticated_frontend";
             case FrontendCapability::ScopeProjectedState:
@@ -274,6 +290,20 @@ namespace ai::openai::codex::frontend {
         return {};
     }
 
+    std::string_view toString(ThreadReadStateEffectAuthority authority) noexcept {
+        switch (authority) {
+            case ThreadReadStateEffectAuthority::Merge:
+                return "merge";
+            case ThreadReadStateEffectAuthority::MergePreserveCompleteness:
+                return "mergePreserveCompleteness";
+            case ThreadReadStateEffectAuthority::Replace:
+                return "replace";
+            case ThreadReadStateEffectAuthority::Absent:
+                return "absent";
+        }
+        return "merge";
+    }
+
     std::optional<SessionRole> sessionRoleFromString(std::string_view value) noexcept {
         if (value == "observer") {
             return SessionRole::Observer;
@@ -345,6 +375,7 @@ namespace ai::openai::codex::frontend {
         FRONTEND_CAPABILITY(DedicatedPendingRequests, "dedicated_pending_requests")
         FRONTEND_CAPABILITY(DedicatedNotificationEvents, "dedicated_notification_events")
         FRONTEND_CAPABILITY(CompleteThreadItems, "complete_thread_items")
+        FRONTEND_CAPABILITY(ThreadReadStateEffects, "thread_read_state_effects")
         FRONTEND_CAPABILITY(AuthenticatedFrontend, "authenticated_frontend")
         FRONTEND_CAPABILITY(ScopeProjectedState, "scope_projected_state")
         FRONTEND_CAPABILITY(ProviderLifecycle, "provider_lifecycle")
@@ -448,6 +479,79 @@ namespace ai::openai::codex::frontend {
         FRONTEND_STATE_FRESHNESS(Stale, "stale")
 #undef FRONTEND_STATE_FRESHNESS
         return std::nullopt;
+    }
+
+    std::optional<ThreadReadStateEffectAuthority> threadReadStateEffectAuthorityFromString(std::string_view value) noexcept {
+        if (value == "merge") {
+            return ThreadReadStateEffectAuthority::Merge;
+        }
+        if (value == "mergePreserveCompleteness") {
+            return ThreadReadStateEffectAuthority::MergePreserveCompleteness;
+        }
+        if (value == "replace") {
+            return ThreadReadStateEffectAuthority::Replace;
+        }
+        if (value == "absent") {
+            return ThreadReadStateEffectAuthority::Absent;
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Json> encodeThreadReadStateEffect(const ThreadReadStateEffect& value) noexcept {
+        try {
+            if (!threadReadStateEffectMetadataIsConsistent(value)) {
+                return std::nullopt;
+            }
+            Json truncation{{"sourcePartial", value.sourcePartial},
+                            {"responseTruncated", value.responseTruncated},
+                            {"responseOmittedTurns", value.responseOmittedTurns},
+                            {"responseOmittedItems", value.responseOmittedItems}};
+            return std::optional<Json>{Json{{"scope", "thread"},
+                                            {"authority", toString(value.authority)},
+                                            {"truncation", std::move(truncation)}}};
+        } catch (...) {
+            return std::nullopt;
+        }
+    }
+
+    std::optional<ThreadReadStateEffect> decodeThreadReadStateEffect(const Json& value, std::string& error) noexcept {
+        try {
+            if (!value.is_object() || value.value("scope", std::string{}) != "thread") {
+                error = "frontend thread-read state effect has an invalid scope";
+                return std::nullopt;
+            }
+            const auto authorityValue = value.find("authority");
+            const auto truncation = value.find("truncation");
+            if (authorityValue == value.end() || !authorityValue->is_string() || truncation == value.end() || !truncation->is_object()) {
+                error = "frontend thread-read state effect is incomplete";
+                return std::nullopt;
+            }
+            const auto authority = threadReadStateEffectAuthorityFromString(authorityValue->get<std::string>());
+            const auto sourcePartial = truncation->find("sourcePartial");
+            const auto responseTruncated = truncation->find("responseTruncated");
+            const auto omittedTurns = unsignedInteger(*truncation, "responseOmittedTurns");
+            const auto omittedItems = unsignedInteger(*truncation, "responseOmittedItems");
+            if (!authority || sourcePartial == truncation->end() || !sourcePartial->is_boolean() ||
+                responseTruncated == truncation->end() || !responseTruncated->is_boolean() || !omittedTurns || !omittedItems) {
+                error = "frontend thread-read state-effect truncation is incomplete";
+                return std::nullopt;
+            }
+            ThreadReadStateEffect decoded;
+            decoded.authority = *authority;
+            decoded.sourcePartial = sourcePartial->get<bool>();
+            decoded.responseTruncated = responseTruncated->get<bool>();
+            decoded.responseOmittedTurns = *omittedTurns;
+            decoded.responseOmittedItems = *omittedItems;
+            if (!threadReadStateEffectMetadataIsConsistent(decoded)) {
+                error = "frontend thread-read state effect is internally inconsistent";
+                return std::nullopt;
+            }
+            error.clear();
+            return decoded;
+        } catch (...) {
+            error = "frontend thread-read state effect could not be decoded";
+            return std::nullopt;
+        }
     }
 
     std::string_view toString(CommandMethod methodValue) noexcept {

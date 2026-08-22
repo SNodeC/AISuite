@@ -113,6 +113,7 @@ CAPABILITIES = (
     "dedicated_pending_requests",
     "dedicated_notification_events",
     "complete_thread_items",
+    "thread_read_state_effects",
     "authenticated_frontend",
     "scope_projected_state",
     "provider_lifecycle",
@@ -135,6 +136,7 @@ MECHANISM_CAPABILITIES = frozenset(
         "dedicated_pending_requests",
         "dedicated_notification_events",
         "complete_thread_items",
+        "thread_read_state_effects",
         "authenticated_frontend",
         "scope_projected_state",
         "provider_lifecycle",
@@ -748,7 +750,7 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             ),
             "futurePhase": (
                 "A1.7b" if key in {"authenticated_frontend", "scope_projected_state", "provider_lifecycle", "multi_transport"}
-                else "A1.7c" if key in {"cpp_client_sdk", "qt_ui"}
+                else "A1.7c" if key in {"thread_read_state_effects", "cpp_client_sdk", "qt_ui"}
                 else "A1.7d" if key in {"typescript_client_sdk", "browser_ui"}
                 else "A1.7a-contract"
             ),
@@ -757,7 +759,7 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
     ]
     implemented_capabilities = {item["key"] for item in capabilities if item["implementedByCurrentRuntime"]}
     if implemented_capabilities != IMPLEMENTED_MECHANISM_CAPABILITIES:
-        raise GenerationError("A1.7b must implement exactly thirteen mechanism/build capabilities")
+        raise GenerationError("the runtime must implement exactly fourteen mechanism/build capabilities")
     if any(item["implementedByCurrentRuntime"] for item in capabilities if item["key"] in FUTURE_CAPABILITIES):
         raise GenerationError("A1.7b claims a future product capability as implemented")
     notifications = [
@@ -926,7 +928,7 @@ def generate_manifest(source: dict[str, Any]) -> dict[str, Any]:
             "defaultAvailableMethods": 90,
             "defaultRemotePermittedMethods": 53,
             "localTrustedPermittedMethods": 90,
-            "implementedMechanismCapabilities": 13,
+            "implementedMechanismCapabilities": 14,
             "runtimeTopologyCapabilities": 1,
             "futureProductCapabilities": 4,
             "reviewedIdentities": 234,
@@ -1536,7 +1538,7 @@ def legacy_result_schema(method: str) -> dict[str, Any]:
             },
             "additionalProperties": True,
         }
-    if method in {"thread.start", "thread.resume", "thread.read"}:
+    if method in {"thread.start", "thread.resume"}:
         return {
             "oneOf": [
                 {
@@ -1549,6 +1551,57 @@ def legacy_result_schema(method: str) -> dict[str, Any]:
                     "type": "object",
                     "required": ["threadId"],
                     "properties": {"threadId": {"type": "string", "minLength": 1}},
+                    "additionalProperties": True,
+                },
+            ]
+        }
+    if method == "thread.read":
+        return {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["thread"],
+                    "properties": {"thread": {"$ref": "#/$defs/ThreadState"}},
+                    "not": {
+                        "anyOf": [
+                            {"required": ["stateEffect"]},
+                            {"required": ["threadId"]},
+                        ]
+                    },
+                    "additionalProperties": True,
+                },
+                {
+                    "type": "object",
+                    "required": ["threadId"],
+                    "properties": {
+                        "threadId": {"type": "string", "minLength": 1},
+                    },
+                    "not": {
+                        "anyOf": [
+                            {"required": ["stateEffect"]},
+                            {"required": ["thread"]},
+                        ]
+                    },
+                    "additionalProperties": True,
+                },
+                {
+                    "type": "object",
+                    "required": ["thread", "stateEffect"],
+                    "properties": {
+                        "thread": {"$ref": "#/$defs/ThreadState"},
+                        "stateEffect": {"$ref": "#/$defs/ThreadReadStateEffect"},
+                    },
+                    "not": {"required": ["threadId"]},
+                    "additionalProperties": True,
+                },
+                {
+                    "type": "object",
+                    "required": ["threadId", "stateEffect"],
+                    "properties": {
+                        "threadId": {"type": "string", "minLength": 1},
+                        "stateEffect": {"$ref": "#/$defs/ThreadReadStateEffect"},
+                    },
+                    "not": {"required": ["thread"]},
                     "additionalProperties": True,
                 },
             ]
@@ -2969,7 +3022,7 @@ def generate_header(manifest: dict[str, Any]) -> str:
             "    static_assert(PrivilegedProviderMethodCount == 22);",
             "    static_assert(ConditionalProviderMethodCount == 15);",
             "    static_assert(ParameterSensitiveProviderMethodCount == 1);",
-            "    static_assert(ImplementedMechanismCapabilityCount == 13);",
+            "    static_assert(ImplementedMechanismCapabilityCount == 14);",
             "    static_assert(ReviewedIdentityCount == 234);",
             "    static_assert(AllNotificationProjections.size() == 68);",
             "    static_assert(AllThreadItemProjections.size() == 18);",
@@ -3365,17 +3418,38 @@ def generate_golden_fixtures(
     for method in manifest["methods"]:
         parameter_schema = resolve_schema_reference(schema, method["parameterSchema"])
         result_schema = resolve_schema_reference(schema, method["resultSchema"])
+        complete_params = schema_example(parameter_schema, schema, complete=True)
+        complete_result_schema = result_schema
+        if method["method"] == "thread.read":
+            # The complete golden form represents the negotiated authoritative
+            # read path, not the first (legacy) oneOf branch. Select that
+            # structurally discriminated branch explicitly so changing schema
+            # example-selection heuristics cannot silently alter this fixture.
+            branches = result_schema.get("oneOf")
+            if not isinstance(branches, list) or len(branches) != 4:
+                raise GenerationError(
+                    "thread.read result must retain legacy thread, legacy thread-id, negotiated, and absent branches"
+                )
+            complete_result_schema = branches[2]
+        complete_result = schema_example(
+            complete_result_schema, schema, complete=True
+        )
+        if method["method"] == "thread.read":
+            # Keep the fixture's cross-field semantics coherent even though
+            # JSON Schema cannot express every relationship between the result
+            # body and its state-effect metadata.
+            complete_params["includeTurns"] = True
+            complete_result["thread"]["fullyLoaded"] = True
+            complete_result["stateEffect"]["authority"] = "replace"
         methods.append(
             {
                 "method": method["method"],
                 "minimalParams": schema_example(
                     parameter_schema, schema, complete=False
                 ),
-                "completeParams": schema_example(
-                    parameter_schema, schema, complete=True
-                ),
+                "completeParams": complete_params,
                 "minimalResult": schema_example(result_schema, schema, complete=False),
-                "completeResult": schema_example(result_schema, schema, complete=True),
+                "completeResult": complete_result,
                 "nullableParams": nullable_top_level_forms(parameter_schema),
                 "nullableResults": nullable_top_level_forms(result_schema),
                 "malformedParams": [],

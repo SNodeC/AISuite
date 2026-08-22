@@ -71,6 +71,30 @@ namespace ai::openai::codex::frontend {
             }
         }
 
+        void validateDefinedResultSemantics(generated::MethodId method, const Json& result) {
+            if (method != generated::MethodId::ThreadRead) {
+                return;
+            }
+            const auto effectMember = result.find("stateEffect");
+            if (effectMember == result.end()) {
+                return;
+            }
+            std::string error;
+            const std::optional<ThreadReadStateEffect> effect = decodeThreadReadStateEffect(*effectMember, error);
+            if (!effect) {
+                fail(ErrorCode::InvalidField, "thread.read result has an invalid state effect: " + error);
+            }
+            const auto threadMember = result.find("thread");
+            const std::optional<bool> fullyLoaded =
+                threadMember != result.end() ? std::optional<bool>{threadMember->at("fullyLoaded").get<bool>()} : std::nullopt;
+            // The wire result must retain the authoritative body for Merge or
+            // Replace. Only the post-application client completion may use
+            // the bodyless {threadId,stateEffect} representation.
+            if (!threadReadStateEffectAuthorityMatchesPayload(effect->authority, fullyLoaded)) {
+                fail(ErrorCode::InvalidField, "thread.read result state authority contradicts its wire payload");
+            }
+        }
+
         bool eventBatchUsesOneRepresentation(std::span<const FrontendEvent> events) noexcept {
             detail::EventRepresentation possible = detail::EventRepresentation::Either;
             for (std::size_t index = 0; index < events.size(); ++index) {
@@ -206,6 +230,14 @@ namespace ai::openai::codex::frontend {
                 fail(ErrorCode::InvalidField, "field '" + std::string(field) + "' exceeds the unsigned 32-bit range");
             }
             return static_cast<std::uint32_t>(value);
+        }
+
+        std::optional<std::uint32_t> optionalPositiveUint32(const Json& object, std::string_view field) {
+            std::optional<std::uint32_t> value = optionalUint32(object, field);
+            if (value == 0) {
+                fail(ErrorCode::InvalidField, "field '" + std::string(field) + "' must be positive");
+            }
+            return value;
         }
 
         bool isKnown(std::string_view key, std::initializer_list<std::string_view> known) {
@@ -417,6 +449,9 @@ namespace ai::openai::codex::frontend {
 
             const auto networkAccess = encoded.find("networkAccess");
             if (networkAccess != encoded.end()) {
+                if (policy.type == "dangerFullAccess") {
+                    fail(ErrorCode::InvalidField, "networkAccess is not supported for dangerFullAccess sandbox policy");
+                }
                 if (policy.type == "externalSandbox") {
                     if (!networkAccess->is_string() || networkAccess->get_ref<const std::string&>().empty()) {
                         fail(ErrorCode::InvalidField, "external sandbox field 'networkAccess' must be a non-empty string");
@@ -670,9 +705,17 @@ namespace ai::openai::codex::frontend {
             const std::string messageKind = validateEnvelope(message);
             if (messageKind == kind::Hello) {
                 return Hello{optionalSequence(message, "resumeAfter"),
-                             extensionsOf(message, {"protocol", "version", "kind", "resumeAfter", "capabilities", "authentication"}),
+                             extensionsOf(message,
+                                          {"protocol",
+                                           "version",
+                                           "kind",
+                                           "resumeAfter",
+                                           "capabilities",
+                                           "authentication",
+                                           "capabilityVocabularyVersion"}),
                              optionalCapabilities(message, "capabilities"),
-                             optionalAuthenticationCredential(message, "authentication")};
+                             optionalAuthenticationCredential(message, "authentication"),
+                             optionalPositiveUint32(message, "capabilityVocabularyVersion")};
             }
             if (messageKind == kind::Command) {
                 Command command;
@@ -851,6 +894,12 @@ namespace ai::openai::codex::frontend {
                         }
                         if (value.authentication.has_value()) {
                             result["authentication"] = encodeAuthenticationCredential(*value.authentication);
+                        }
+                        if (value.capabilityVocabularyVersion.has_value()) {
+                            if (*value.capabilityVocabularyVersion == 0) {
+                                fail(ErrorCode::InvalidField, "field 'capabilityVocabularyVersion' must be positive");
+                            }
+                            result["capabilityVocabularyVersion"] = *value.capabilityVocabularyVersion;
                         }
                         return result;
                     } else {
@@ -1728,20 +1777,32 @@ namespace ai::openai::codex::frontend {
         });
     }
 
+    CodecResult<bool> Codec::validateDefinedResult(generated::MethodId method, const Json& result) noexcept {
+        return guard<bool>([method, &result]() {
+            const generated::MethodMetadata& metadata = definedMethodMetadata(method);
+            validateGeneratedSchema(metadata.resultSchema, result, "result");
+            validateDefinedResultSemantics(method, result);
+            return true;
+        });
+    }
+
     CodecResult<generated::CompleteCommandResult> Codec::decodeDefinedResult(generated::MethodId method, const Json& result) noexcept {
         return guard<generated::CompleteCommandResult>([method, &result]() {
             const generated::MethodMetadata& metadata = definedMethodMetadata(method);
             validateGeneratedSchema(metadata.resultSchema, result, "result");
+            validateDefinedResultSemantics(method, result);
             return generated::makeResult(method, result);
         });
     }
 
     CodecResult<Json> Codec::encodeDefinedResult(const generated::CompleteCommandResult& result) noexcept {
         return guard<Json>([&result]() {
-            const generated::MethodMetadata& metadata = definedMethodMetadata(generated::commandMethod(result));
+            const generated::MethodId method = generated::commandMethod(result);
+            const generated::MethodMetadata& metadata = definedMethodMetadata(method);
             return std::visit(
-                [&metadata]<typename Result>(const Result& value) {
+                [method, &metadata]<typename Result>(const Result& value) {
                     validateGeneratedSchema(metadata.resultSchema, value.value, "result");
+                    validateDefinedResultSemantics(method, value.value);
                     return value.value;
                 },
                 result);

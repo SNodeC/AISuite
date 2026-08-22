@@ -119,7 +119,6 @@
             "modelProvider": "x",
             "personality": "x",
             "sandboxPolicy": {
-              "networkAccess": false,
               "type": "dangerFullAccess"
             },
             "serviceTier": "x",
@@ -190,7 +189,6 @@
             "modelProvider": "x",
             "personality": "x",
             "sandboxPolicy": {
-              "networkAccess": false,
               "type": "dangerFullAccess"
             },
             "serviceTier": "x",
@@ -241,7 +239,7 @@
         "threadId": "x"
       },
       "completeParams": {
-        "includeTurns": false,
+        "includeTurns": true,
         "threadId": "x"
       },
       "minimalResult": {
@@ -253,6 +251,16 @@
         }
       },
       "completeResult": {
+        "stateEffect": {
+          "authority": "replace",
+          "scope": "thread",
+          "truncation": {
+            "responseOmittedItems": 0,
+            "responseOmittedTurns": 0,
+            "responseTruncated": false,
+            "sourcePartial": false
+          }
+        },
         "thread": {
           "archived": false,
           "createdAt": -9223372036854775808,
@@ -279,14 +287,13 @@
             "modelProvider": "x",
             "personality": "x",
             "sandboxPolicy": {
-              "networkAccess": false,
               "type": "dangerFullAccess"
             },
             "serviceTier": "x",
             "summary": "x"
           },
           "extensions": {},
-          "fullyLoaded": false,
+          "fullyLoaded": true,
           "id": "x",
           "model": "x",
           "modelProvider": "x",
@@ -336,7 +343,6 @@
         "outputSchema": null,
         "personality": "x",
         "sandboxPolicy": {
-          "networkAccess": false,
           "type": "dangerFullAccess"
         },
         "serviceTier": "x",
@@ -378,7 +384,6 @@
             "modelProvider": "x",
             "personality": "x",
             "sandboxPolicy": {
-              "networkAccess": false,
               "type": "dangerFullAccess"
             },
             "serviceTier": "x",

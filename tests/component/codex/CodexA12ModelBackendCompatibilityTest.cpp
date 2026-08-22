@@ -318,23 +318,27 @@ namespace {
         core::EventReceiver::atNextTick([&]() {
             outbound.clear();
             transport->inject(rerouted.raw);
-            transport->inject(safety.raw);
-            transport->inject(verification.raw);
         });
 
+        bool extensionInputsInjected = false;
         std::function<void(std::size_t)> waitForEvents;
         waitForEvents = [&](std::size_t remaining) {
             std::size_t extensionCount = 0;
-            bool turnObserved = false;
+            bool rerouteRebased = false;
             for (const frontend::OutboundMessage& message : outbound) {
+                rerouteRebased = rerouteRebased || std::holds_alternative<frontend::Snapshot>(message.message);
                 if (const auto* batch = std::get_if<frontend::EventBatch>(&message.message)) {
                     for (const frontend::FrontendEvent& event : batch->events) {
                         extensionCount += event.type == "codex.extension" ? 1U : 0U;
-                        turnObserved = turnObserved || event.type == "turn.updated";
                     }
                 }
             }
-            if ((extensionCount >= 2 && turnObserved) || remaining == 0) {
+            if (rerouteRebased && !extensionInputsInjected) {
+                extensionInputsInjected = true;
+                transport->inject(safety.raw);
+                transport->inject(verification.raw);
+            }
+            if ((extensionCount >= 2 && rerouteRebased) || remaining == 0) {
                 backendCore.stop();
                 core::SNodeC::stop();
                 return;
@@ -363,17 +367,17 @@ namespace {
                           "actual BackendCore preserves the existing reroute record and exactly two new extension records");
 
         std::vector<const frontend::FrontendEvent*> extensions;
-        bool turnObserved = false;
+        bool rerouteRebased = false;
         bool v1WireShape = true;
         bool rerouteNotExposedAsExtension = true;
         bool noNewRerouteField = true;
         for (const frontend::OutboundMessage& message : outbound) {
+            rerouteRebased = rerouteRebased || std::holds_alternative<frontend::Snapshot>(message.message);
             const codex::Json compact = codex::Json::parse(message.compactJson, nullptr, false);
             v1WireShape = v1WireShape && !compact.is_discarded() && compact.value("protocol", "") == frontend::ProtocolIdentity &&
                           compact.value("version", 0) == frontend::ProtocolVersion;
             if (const auto* batch = std::get_if<frontend::EventBatch>(&message.message)) {
                 for (const frontend::FrontendEvent& event : batch->events) {
-                    turnObserved = turnObserved || event.type == "turn.updated";
                     if (event.type == "codex.extension") {
                         rerouteNotExposedAsExtension = rerouteNotExposedAsExtension && event.data.value("method", "") != "model/rerouted";
                         extensions.push_back(&event);
@@ -414,7 +418,8 @@ namespace {
         }
         result.expectTrue(exactExtensions,
                           "actual frontend v1 codex.extension.params exactly match the two sanitized BackendCore params values");
-        result.expectTrue(turnObserved, "actual frontend v1 retains the existing model/rerouted turn.updated behavior");
+        result.expectTrue(rerouteRebased,
+                          "actual legacy frontend v1 safely rebases the bounded model/rerouted turn merge without erasing items");
         result.expectTrue(rerouteNotExposedAsExtension, "actual frontend v1 does not reclassify modeled model/rerouted as an extension");
         result.expectTrue(noNewRerouteField, "actual frontend v1 adds no model-reroute snapshot or event field");
         result.expectTrue(v1WireShape, "actual frontend adapter output retains the existing protocol identity and version");

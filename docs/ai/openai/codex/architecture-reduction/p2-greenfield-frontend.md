@@ -38,7 +38,7 @@ SNode.C static-link helpers.
 The frozen generated authority has eight message kinds, 105 methods (seven
 frontend-native, 86 provider, and 12 reverse-response), 26 expanded event
 families, 18 `ThreadItem` discriminators, ten pending-request kinds, 12 scopes,
-and 18 capabilities (13 static-mechanism, one conditional-topology, and four
+and 19 capabilities (14 static-mechanism, one conditional-topology, and four
 product capabilities). P2 consumes these authorities without changing their
 external values.
 
@@ -360,7 +360,7 @@ old/new comparison. The required matrix includes:
   and reduction borders; only authority-defined families have live backend
   notification mappings;
 - all 18 item and ten pending-request kinds;
-- all 12 scopes, all 18 capabilities, and all eight message kinds;
+- all 12 scopes, all 19 capabilities, and all eight message kinds;
 - snapshot and replay synchronization, live delivery, and both wire
   representations.
 

@@ -296,10 +296,12 @@ namespace {
 
         typed::Thread resumed = started;
         resumed.title = "Resumed title";
+        resumed.turns = {turn("thread-start", "summary-payload-turn")};
         reducer.apply(state, backend::ThreadUpserted{resumed, backend::EntityLoad::Summary});
         result.expectTrue(state.threads.size() == 1 && state.threadOrder.size() == 1 &&
-                              state.threads.at("thread-start").thread.title == "Resumed title",
-                          "thread/resume result replaces the typed thread without duplicating its order entry");
+                              state.threads.at("thread-start").thread.title == "Resumed title" &&
+                              state.threads.at("thread-start").turns.empty(),
+                          "thread/resume summary replaces the header without duplicating its order entry or hydrating descendants");
 
         typed::ThreadListResponse firstPage;
         firstPage.data = {thread("thread-list-b"), thread("thread-list-a")};

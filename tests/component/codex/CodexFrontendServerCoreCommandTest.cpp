@@ -7,6 +7,7 @@
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -192,6 +193,43 @@ namespace {
                 [&closes](const server::ConnectionClose& close) {
                     closes.push_back(close);
                 }};
+    }
+
+    frontend::Json threadBody(std::string_view id, bool fullyLoaded) {
+        return frontend::Json{{"id", id},
+                              {"fullyLoaded", fullyLoaded},
+                              {"turns", frontend::Json::array()},
+                              {"extensions", frontend::Json::object()}};
+    }
+
+    frontend::Json pendingThreadReadEffect(std::string_view authority = "replace") {
+        return frontend::Json{{"scope", "thread"},
+                              {"authority", authority},
+                              {"truncation",
+                               frontend::Json{{"sourcePartial", false},
+                                              {"responseTruncated", false},
+                                              {"responseOmittedTurns", std::uint64_t{0}},
+                                              {"responseOmittedItems", std::uint64_t{0}}}}};
+    }
+
+    model::OccurrenceDraft threadUpdate(std::string_view id, bool replaceDescendants) {
+        model::ThreadState thread{model::ThreadIdentity{std::string(id)}};
+        thread.fullyLoaded = false;
+        model::ThreadUpsertedOccurrence update{std::move(thread)};
+        update.authority = replaceDescendants ? model::ThreadUpsertAuthority::Replace
+                                              : model::ThreadUpsertAuthority::Header;
+        model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:1"},
+                                          model::OccurrencePayload{std::move(update)}};
+        occurrence.threadId = model::ThreadIdentity{std::string(id)};
+        return occurrence;
+    }
+
+    model::OccurrenceDraft threadRemoval(std::string_view id) {
+        const model::ThreadIdentity threadId{std::string(id)};
+        model::OccurrenceDraft occurrence{model::SourceStamp{"backend-event:1"},
+                                          model::OccurrencePayload{model::ThreadRemovedOccurrence{threadId}}};
+        occurrence.threadId = threadId;
+        return occurrence;
     }
 
     void testGeneratedDispatchAndCorrelation(tests::support::TestResult& result) {
@@ -459,6 +497,198 @@ namespace {
                           "a backend completion after connection close is ignored and cannot emit a stale response");
     }
 
+    void testThreadReadStateEffectOrdering(tests::support::TestResult& result) {
+        const auto run = [](bool optIn,
+                            std::optional<std::size_t> maximumBatchBytes,
+                            bool absent = false,
+                            bool advertiseStateEffects = true,
+                            bool wrongTarget = false,
+                            bool contradictoryReplace = false,
+                            bool stagePrior = true) {
+            struct Outcome {
+                bool synchronized = false;
+                bool submitted = false;
+                bool staged = false;
+                bool completed = false;
+                std::uint64_t initialSequence = 0;
+                std::uint64_t finalSequence = 0;
+                std::vector<frontend::ServerMessage> messages;
+                std::vector<server::ConnectionClose> closes;
+            } outcome;
+
+            Backend backend;
+            server::ServerCoreOptions configured = options();
+            if (maximumBatchBytes) {
+                configured.maxBatchBytes = *maximumBatchBytes;
+            }
+            server::ServerCore core(backend, std::move(configured));
+            core.start();
+            const auto connection = core.openConnection({}, collect(outcome.messages, outcome.closes));
+            frontend::Hello hello;
+            if (optIn && advertiseStateEffects) {
+                // State effects are a post-Welcome per-command mechanism, not
+                // a representation selected in Hello. Select the lossless
+                // expanded notification representation while leaving this
+                // mechanism to the command extension below.
+                hello.capabilities = std::vector{frontend::FrontendCapability::DedicatedNotificationEvents};
+            }
+            outcome.synchronized = connection && core.receive(*connection, frontend::ClientMessage{std::move(hello)}).accepted();
+            outcome.messages.clear();
+            outcome.initialSequence = core.currentSequence().value();
+
+            backend.onSubmit = [&](server::BackendInvocation invocation) {
+                if (stagePrior) {
+                    server::OccurrenceCoalescingKey key;
+                    key.kind = server::OccurrenceEntityKind::Thread;
+                    key.threadId = model::ThreadIdentity{"thread-effect"};
+                    key.entityId = "thread-effect";
+                    outcome.staged = core.stageGroup(std::move(key),
+                                                     absent ? threadRemoval("thread-effect")
+                                                            : threadUpdate("thread-effect", !optIn),
+                                                     server::OccurrenceFlushUrgency::Deferred)
+                                         .accepted();
+                }
+                const std::string bodyId = wrongTarget ? "different-thread" : "thread-effect";
+                frontend::Json value = absent ? frontend::Json{{"threadId", "thread-effect"}}
+                                              : frontend::Json{{"thread", threadBody(bodyId, !contradictoryReplace)}};
+                if (optIn) {
+                    value["stateEffect"] = pendingThreadReadEffect(absent ? "absent" : "replace");
+                }
+                server::BackendCompletion completion{
+                    invocation.token,
+                    server::BackendCommandSuccess{generated::makeResult(invocation.token.method, std::move(value))}};
+                outcome.completed = optIn ? core.completeThreadRead(std::move(completion)) : core.complete(std::move(completion));
+                return server::BackendSubmitStatus::Accepted;
+            };
+
+            generated::DefinedCommand read{
+                "thread-read-effect",
+                generated::makeParameters(generated::MethodId::ThreadRead,
+                                          frontend::Json{{"threadId", "thread-effect"}, {"includeTurns", true}})};
+            if (optIn) {
+                read.extensions["threadReadStateEffectVersion"] = 1;
+            }
+            outcome.submitted = connection && core.receiveDefinedCommand(*connection, read).accepted();
+            outcome.finalSequence = core.currentSequence().value();
+            static constexpr std::string_view TeardownReason = "thread-read state-effect test teardown";
+            core.close(std::string(TeardownReason));
+            if (!outcome.closes.empty() && outcome.closes.back().reason == TeardownReason &&
+                !outcome.closes.back().protocolCode && outcome.closes.back().clean) {
+                outcome.closes.pop_back();
+            }
+            return outcome;
+        };
+
+        const auto normal = run(true, std::nullopt);
+        const auto* normalBatch = normal.messages.size() > 0 ? std::get_if<frontend::EventBatch>(&normal.messages[0]) : nullptr;
+        const auto* normalResponse = normal.messages.size() > 1 ? std::get_if<frontend::Response>(&normal.messages[1]) : nullptr;
+        const frontend::Json* normalResult = normalResponse && normalResponse->ok && normalResponse->result
+                                                 ? &*normalResponse->result
+                                                 : nullptr;
+        const bool orderedEffect = [&] {
+            if (!normalBatch || !normalResult || !normalResult->is_object()) {
+                return false;
+            }
+            const auto stateEffect = normalResult->find("stateEffect");
+            if (stateEffect == normalResult->end() || !stateEffect->is_object()) {
+                return false;
+            }
+            return stateEffect->value("authority", std::string{}) == "replace" &&
+                   !stateEffect->contains("throughSequence");
+        }();
+        result.expectTrue(normal.synchronized && normal.submitted && normal.staged && normal.completed &&
+                              normal.messages.size() == 2 && orderedEffect && normal.closes.empty(),
+                          "an opted-in full thread.read materializes prior state before its command-local effect response");
+
+        const auto absent = run(true, std::nullopt, true);
+        const auto* absentBatch = absent.messages.size() > 0 ? std::get_if<frontend::EventBatch>(&absent.messages[0]) : nullptr;
+        const auto* absentResponse = absent.messages.size() > 1 ? std::get_if<frontend::Response>(&absent.messages[1]) : nullptr;
+        const bool absentFence = [&] {
+            if (!absentBatch || absentBatch->fromSequence.value() != absent.initialSequence + 1 ||
+                absentBatch->toSequence.value() != absent.initialSequence + 1 || !absentResponse ||
+                !absentResponse->ok || !absentResponse->result || !absentResponse->result->is_object()) {
+                return false;
+            }
+            const auto effect = absentResponse->result->find("stateEffect");
+            if (effect == absentResponse->result->end() || !effect->is_object()) {
+                return false;
+            }
+            return !effect->contains("throughSequence") && effect->value("authority", std::string{}) == "absent";
+        }();
+        result.expectTrue(absent.synchronized && absent.submitted && absent.staged && absent.completed &&
+                              absent.finalSequence == absent.initialSequence + 1 &&
+                              absent.messages.size() == 2 && absentFence && absent.closes.empty(),
+                          "an absent full read publishes its prior removal before successful command-local authority");
+
+        const auto zero = run(true, std::nullopt, false, true, false, false, false);
+        const auto* zeroResponse =
+            zero.messages.size() == 1 ? std::get_if<frontend::Response>(&zero.messages.front()) : nullptr;
+        const bool zeroEffect = [&] {
+            if (!zeroResponse || !zeroResponse->ok || !zeroResponse->result || !zeroResponse->result->is_object()) {
+                return false;
+            }
+            const auto effect = zeroResponse->result->find("stateEffect");
+            return effect != zeroResponse->result->end() && effect->is_object() &&
+                   effect->value("authority", std::string{}) == "replace" && !effect->contains("throughSequence");
+        }();
+        result.expectTrue(zero.synchronized && zero.submitted && !zero.staged && zero.completed &&
+                              zero.finalSequence == zero.initialSequence &&
+                              zero.messages.size() == 1 && zeroEffect && zero.closes.empty(),
+                          "an opted-in full read succeeds at cursor zero without inventing a global event or advancing the cursor");
+
+        const auto unnegotiated = run(true, std::nullopt, false, false);
+        const auto* unnegotiatedResponse =
+            unnegotiated.messages.size() == 1 ? std::get_if<frontend::Response>(&unnegotiated.messages.front()) : nullptr;
+        result.expectTrue(unnegotiated.synchronized && !unnegotiated.submitted && !unnegotiated.staged && !unnegotiated.completed &&
+                              unnegotiatedResponse && !unnegotiatedResponse->ok && unnegotiatedResponse->error &&
+                              unnegotiatedResponse->error->code == frontend::ErrorCode::UnsupportedVersion &&
+                              unnegotiated.closes.empty(),
+                          "thread.read state effects require an implemented-and-permitted Welcome advertisement before command opt-in");
+
+        const auto wrongTarget = run(true, std::nullopt, false, true, true);
+        const auto* wrongTargetBatch =
+            wrongTarget.messages.size() > 0 ? std::get_if<frontend::EventBatch>(&wrongTarget.messages.front()) : nullptr;
+        const auto* wrongTargetResponse =
+            wrongTarget.messages.size() > 1 ? std::get_if<frontend::Response>(&wrongTarget.messages[1]) : nullptr;
+        result.expectTrue(wrongTarget.synchronized && wrongTarget.submitted && wrongTarget.staged && wrongTarget.completed &&
+                              wrongTarget.messages.size() == 2 && wrongTargetBatch && wrongTargetResponse &&
+                              !wrongTargetResponse->ok && wrongTargetResponse->error &&
+                              wrongTargetResponse->error->code == frontend::ErrorCode::TypedDecodingFailure &&
+                              wrongTarget.closes.empty(),
+                          "a prior canonical occurrence is materialized before a wrong-target thread.read completion is rejected");
+
+        const auto contradictory = run(true, std::nullopt, false, true, false, true);
+        const auto* contradictoryBatch =
+            contradictory.messages.size() > 0 ? std::get_if<frontend::EventBatch>(&contradictory.messages.front()) : nullptr;
+        const auto* contradictoryResponse =
+            contradictory.messages.size() > 1 ? std::get_if<frontend::Response>(&contradictory.messages[1]) : nullptr;
+        result.expectTrue(contradictory.synchronized && contradictory.submitted && contradictory.staged && contradictory.completed &&
+                              contradictory.messages.size() == 2 && contradictoryBatch && contradictoryResponse &&
+                              !contradictoryResponse->ok && contradictoryResponse->error &&
+                              contradictoryResponse->error->code == frontend::ErrorCode::TypedDecodingFailure &&
+                              contradictory.closes.empty(),
+                          "prior canonical state is materialized before replace authority over an incomplete thread is rejected");
+
+        const auto tiny = run(true, 1);
+        const auto* tinySnapshot = tiny.messages.size() > 0 ? std::get_if<frontend::Snapshot>(&tiny.messages[0]) : nullptr;
+        const auto* tinyResponse = tiny.messages.size() > 1 ? std::get_if<frontend::Response>(&tiny.messages[1]) : nullptr;
+        result.expectTrue(tiny.synchronized && tiny.submitted && tiny.staged && tiny.completed && tiny.messages.size() == 2 &&
+                              tinySnapshot && tinyResponse && !tinyResponse->ok && tinyResponse->error &&
+                              tinyResponse->error->code == frontend::ErrorCode::CapacityExceeded && tiny.closes.empty(),
+                          "a per-recipient batch fallback queues Snapshot first and fails the superseded state effect exactly once");
+
+        const auto legacy = run(false, std::nullopt);
+        const auto* rawResponse = legacy.messages.size() > 0 ? std::get_if<frontend::Response>(&legacy.messages[0]) : nullptr;
+        const auto* legacySnapshot = legacy.messages.size() > 1 ? std::get_if<frontend::Snapshot>(&legacy.messages[1]) : nullptr;
+        result.expectTrue(legacy.synchronized && legacy.submitted && legacy.staged && legacy.completed &&
+                              legacy.messages.size() == 2 && rawResponse && rawResponse->requestId == "thread-read-effect" &&
+                              rawResponse->ok && rawResponse->result && legacySnapshot &&
+                              legacySnapshot->sequence.value() == legacy.finalSequence &&
+                              !rawResponse->result->contains("stateEffect") &&
+                              legacy.closes.empty(),
+                          "a legacy full thread.read returns requester-local raw data before independently publishing its staged snapshot fallback");
+    }
+
     void testUnknownRequestResponseCompatibility(tests::support::TestResult& result) {
         const auto parameters = loadMinimalParameters(result);
         Backend backend;
@@ -664,6 +894,7 @@ int main() {
     testBackendSubmissionErrors(result);
     testOutstandingCapacity(result);
     testSynchronousCompletionAndStaleGeneration(result);
+    testThreadReadStateEffectOrdering(result);
     testUnknownRequestResponseCompatibility(result);
     testControllerRevalidationAfterProviderReady(result);
     testProviderLifecycleReentrancyGeneration(result);

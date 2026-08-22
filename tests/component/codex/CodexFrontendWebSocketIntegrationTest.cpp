@@ -426,7 +426,7 @@ namespace {
                 clientStarted = true;
                 const auto capabilities = service.implementedCapabilities();
                 state.capabilitiesObservedBeforeClients =
-                    service.connectionCount() == 0 && capabilities.size() == 15 &&
+                    service.connectionCount() == 0 && capabilities.size() == 16 &&
                     std::find(capabilities.begin(), capabilities.end(), frontend::FrontendCapability::MultiTransport) != capabilities.end();
                 state.dispatchNext();
             };
@@ -544,7 +544,7 @@ namespace {
             std::size_t{2}, state.listenerSuccesses, "the WebSocket and shared native listener each report one successful ephemeral bind");
         result.expectEqual(std::size_t{0}, state.listenerFailures, "both live listeners bind without failure");
         result.expectTrue(state.capabilitiesObservedBeforeClients,
-                          "the shared service advertises thirteen mechanisms, cpp_client_sdk, and topology-derived multi_transport");
+                          "the shared service advertises fourteen mechanisms, cpp_client_sdk, and topology-derived multi_transport");
         result.expectEqual(caseIndex(CaseKind::Count), state.activeCase, "all six live WebSocket cases complete in order");
         result.expectEqual(std::size_t{3},
                            state.authenticationAttempts,

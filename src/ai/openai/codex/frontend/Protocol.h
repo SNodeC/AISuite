@@ -21,12 +21,16 @@ namespace ai::openai::codex::frontend {
     inline constexpr std::string_view ProtocolIdentity = "snodec.codex-frontend";
     inline constexpr std::uint32_t ProtocolVersion = 1;
     inline constexpr std::array<std::uint32_t, 1> SupportedProtocolVersions{ProtocolVersion};
+    // Hello advertises the newest closed capability-name vocabulary the
+    // client can decode. An older peer ignores this additive field.
+    inline constexpr std::uint32_t CapabilityVocabularyVersion = 1;
 
     // Alternate k-prefixed spellings are provided for consumers that use that
     // convention for public constants.
     inline constexpr std::string_view kProtocolIdentity = ProtocolIdentity;
     inline constexpr std::uint32_t kProtocolVersion = ProtocolVersion;
     inline constexpr auto kSupportedProtocolVersions = SupportedProtocolVersions;
+    inline constexpr std::uint32_t kCapabilityVocabularyVersion = CapabilityVocabularyVersion;
 
     inline constexpr std::size_t DefaultJournalMaxEntries = 4096;
     inline constexpr std::size_t DefaultJournalMaxBytes = 8 * 1024 * 1024;

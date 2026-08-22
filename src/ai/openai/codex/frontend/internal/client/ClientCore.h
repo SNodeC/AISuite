@@ -281,6 +281,7 @@ namespace ai::openai::codex::frontend::internal::client {
         SnapshotFallback,
         ExplicitSnapshot,
         ExplicitReplay,
+        CommandStateEffect,
         Live,
         ConnectionBecameStale,
         SynchronizationCompleted,
@@ -293,6 +294,13 @@ namespace ai::openai::codex::frontend::internal::client {
         model::FrontendSequence sequence;
         bool operator==(const CursorAdvancedChange&) const = default;
     };
+    // A requester-local authoritative thread.read already moved its complete
+    // payload into canonical State. Keep only the identity needed by public
+    // observers instead of retaining a second copy of every descendant.
+    struct ThreadReadUpsertedChange {
+        model::ThreadIdentity threadId;
+        bool operator==(const ThreadReadUpsertedChange&) const = default;
+    };
     struct CompatibilityExtensionChange {
         std::string type;
         model::SafeDetail extensions;
@@ -301,6 +309,7 @@ namespace ai::openai::codex::frontend::internal::client {
 
     using Change = std::variant<StateReplacedChange,
                                 CursorAdvancedChange,
+                                ThreadReadUpsertedChange,
                                 model::ProviderUpdatedOccurrence,
                                 model::ControllerUpdatedOccurrence,
                                 model::SessionsUpdatedOccurrence,

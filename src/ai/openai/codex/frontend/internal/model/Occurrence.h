@@ -91,11 +91,17 @@ namespace ai::openai::codex::frontend::internal::model {
         bool operator==(const ThreadListUpdatedOccurrence&) const = default;
     };
 
+    enum class ThreadUpsertAuthority { Header, MergePreserveCompleteness, MergeApplyCompleteness, Replace };
+
     struct ThreadUpsertedOccurrence {
         ThreadState thread;
         std::vector<TurnState> turns;
         std::vector<ThreadItem> items;
-        bool replaceDescendants = false;
+        // Unknown/future legacy discriminators remain ordered state. An
+        // authoritative nested thread body must carry them alongside typed
+        // items so neither merge nor replacement silently drops them.
+        std::vector<LegacyItemCompatibility> legacyItems;
+        ThreadUpsertAuthority authority = ThreadUpsertAuthority::Header;
         SafeDetail extensions;
         explicit ThreadUpsertedOccurrence(ThreadState value)
             : thread(std::move(value)) {
@@ -445,7 +451,12 @@ namespace ai::openai::codex::frontend::internal::model {
 
         [[nodiscard]] const OccurrenceIdentity& identity() const noexcept;
         [[nodiscard]] const LegacyCompatibilityPayload& legacyCompatibility() const noexcept;
-        [[nodiscard]] const std::vector<OccurrencePayload>& expandedPayloads() const noexcept;
+        [[nodiscard]] const std::vector<OccurrencePayload>& expandedPayloads() const& noexcept;
+        // A consumed command-local occurrence may transfer large authoritative
+        // payload storage into its private reduction candidate. Mutable access
+        // is deliberately restricted to rvalues so retained journal records
+        // remain immutable.
+        [[nodiscard]] std::vector<OccurrencePayload>&& expandedPayloads() && noexcept;
 
         bool operator==(const CanonicalOccurrence&) const = default;
 
@@ -538,6 +549,17 @@ namespace ai::openai::codex::frontend::internal::model {
                            const OccurrenceDecodeContext& context,
                            std::optional<ExpandedEventType> familyHint = std::nullopt) noexcept;
 
+    // Negotiated provider-operation thread bodies retain the frozen nested
+    // ThreadState shape. Decode that shape at the canonical model border so
+    // ClientCore does not depend on the public SDK State decoder.
+    [[nodiscard]] OccurrenceResult<ThreadUpsertedOccurrence>
+    decodeThreadReadStateEffectThread(const Json& thread, FrontendSequence sequence) noexcept;
+    // The caller must have validated the complete ThreadRead result containing
+    // this exact thread member. Kept distinct from the untrusted entry point so
+    // the authoritative client response is schema-walked only once.
+    [[nodiscard]] OccurrenceResult<ThreadUpsertedOccurrence>
+    decodeValidatedThreadReadStateEffectThread(const Json& thread, FrontendSequence sequence) noexcept;
+
     [[nodiscard]] ModelResult<CanonicalSnapshot> reduceOccurrence(const CanonicalSnapshot& snapshot,
                                                                   const CanonicalOccurrence& occurrence) noexcept;
     // Mutates a caller-owned transactional candidate. Callers must discard
@@ -545,6 +567,8 @@ namespace ai::openai::codex::frontend::internal::model {
     // copy-preserving convenience boundary for standalone reductions.
     [[nodiscard]] ModelResult<bool> applyOccurrence(CanonicalSnapshot& candidate,
                                                     const CanonicalOccurrence& occurrence) noexcept;
+    [[nodiscard]] ModelResult<bool> applyOccurrence(CanonicalSnapshot& candidate,
+                                                    CanonicalOccurrence&& occurrence) noexcept;
 
     static_assert(std::variant_size_v<OccurrencePayload> == 26);
 

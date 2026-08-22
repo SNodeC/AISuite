@@ -430,6 +430,8 @@ namespace ai::openai::codex::frontend::client {
                                 publicUpdate.changes.emplace_back(StateReplacedChange{});
                             } else if constexpr (std::is_same_v<Value, core::CursorAdvancedChange>) {
                                 publicUpdate.changes.emplace_back(CursorAdvancedChange{value.sequence.protocolValue()});
+                            } else if constexpr (std::is_same_v<Value, core::ThreadReadUpsertedChange>) {
+                                publicUpdate.changes.emplace_back(ThreadUpsertedChange{typed::ThreadId{value.threadId.value()}});
                             } else if constexpr (std::is_same_v<Value, model::ProviderUpdatedOccurrence>) {
                                 publicUpdate.changes.emplace_back(
                                     ProviderUpdatedChange{currentState.provider().value.value_or(ProviderState{})});

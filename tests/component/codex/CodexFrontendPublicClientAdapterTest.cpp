@@ -1149,6 +1149,107 @@ namespace {
             "item, turn, and thread metadata-only upserts preserve all unchanged per-channel content revisions");
     }
 
+    void testThreadReadIdentityChangeReconcilesDescendantContent(tests::support::TestResult& result) {
+        client::Client adopter(publicOptions());
+        core::PublishedState initialPublication;
+        initialPublication.revision = 20;
+        initialPublication.freshness = core::PublishedFreshness::Current;
+        initialPublication.representation = core::RepresentationMode::ExpandedV1;
+
+        model::CanonicalSnapshot initialSnapshot = canonicalSnapshot(1, 1, "thread.read revisions");
+        initialSnapshot.turns.emplace_back(
+            model::TurnIdentity{"thread-read-turn"}, model::ThreadIdentity{"adapter-thread"});
+        model::ItemData changed{model::ItemIdentity{"thread-read-changed"},
+                                model::ThreadIdentity{"adapter-thread"},
+                                model::TurnIdentity{"thread-read-turn"}};
+        changed.agentText = "before";
+        changed.reasoningText = "stable reasoning";
+        initialSnapshot.items.push_back(model::AgentMessageItem{std::move(changed)});
+        model::ItemData stable{model::ItemIdentity{"thread-read-stable"},
+                               model::ThreadIdentity{"adapter-thread"},
+                               model::TurnIdentity{"thread-read-turn"}};
+        stable.summary = "before metadata";
+        stable.agentText = "stable agent";
+        initialSnapshot.items.push_back(model::AgentMessageItem{std::move(stable)});
+        initialPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(initialSnapshot));
+
+        std::string error;
+        const auto initial = buildCanonicalState(
+            adopter, initialPublication, std::numeric_limits<std::size_t>::max(), 64, error);
+        const auto changedAgentBefore = initial ? initial->itemContentDescriptor(
+                                                      typed::ThreadId{"adapter-thread"},
+                                                      typed::TurnId{"thread-read-turn"},
+                                                      typed::ItemId{"thread-read-changed"},
+                                                      client::ItemContentChannel::AgentText)
+                                                : std::nullopt;
+        const auto changedReasoningBefore = initial ? initial->itemContentDescriptor(
+                                                          typed::ThreadId{"adapter-thread"},
+                                                          typed::TurnId{"thread-read-turn"},
+                                                          typed::ItemId{"thread-read-changed"},
+                                                          client::ItemContentChannel::ReasoningText)
+                                                    : std::nullopt;
+        const auto stableBefore = initial ? initial->itemContentDescriptor(
+                                                typed::ThreadId{"adapter-thread"},
+                                                typed::TurnId{"thread-read-turn"},
+                                                typed::ItemId{"thread-read-stable"},
+                                                client::ItemContentChannel::AgentText)
+                                          : std::nullopt;
+
+        core::PublishedState currentPublication = initialPublication;
+        currentPublication.revision = 21;
+        model::CanonicalSnapshot currentSnapshot = *initialPublication.snapshot;
+        std::get<model::AgentMessageItem>(currentSnapshot.items[0]).value.agentText = "after";
+        std::get<model::AgentMessageItem>(currentSnapshot.items[1]).value.summary = "after metadata";
+        model::ItemData added{model::ItemIdentity{"thread-read-added"},
+                              model::ThreadIdentity{"adapter-thread"},
+                              model::TurnIdentity{"thread-read-turn"}};
+        added.agentText = "new descendant";
+        currentSnapshot.items.push_back(model::AgentMessageItem{std::move(added)});
+        currentPublication.snapshot =
+            std::make_shared<const model::CanonicalSnapshot>(std::move(currentSnapshot));
+
+        const std::array<core::Change, 1> changes{
+            core::Change{core::ThreadReadUpsertedChange{model::ThreadIdentity{"adapter-thread"}}}};
+        const auto current = initial ? buildPreparedCanonicalState(
+                                           adopter, currentPublication, initialPublication, changes, *initial, error)
+                                     : std::nullopt;
+        const auto changedAgentAfter = current ? current->itemContentDescriptor(
+                                                      typed::ThreadId{"adapter-thread"},
+                                                      typed::TurnId{"thread-read-turn"},
+                                                      typed::ItemId{"thread-read-changed"},
+                                                      client::ItemContentChannel::AgentText)
+                                                : std::nullopt;
+        const auto changedReasoningAfter = current ? current->itemContentDescriptor(
+                                                          typed::ThreadId{"adapter-thread"},
+                                                          typed::TurnId{"thread-read-turn"},
+                                                          typed::ItemId{"thread-read-changed"},
+                                                          client::ItemContentChannel::ReasoningText)
+                                                    : std::nullopt;
+        const auto stableAfter = current ? current->itemContentDescriptor(
+                                                typed::ThreadId{"adapter-thread"},
+                                                typed::TurnId{"thread-read-turn"},
+                                                typed::ItemId{"thread-read-stable"},
+                                                client::ItemContentChannel::AgentText)
+                                          : std::nullopt;
+        const auto addedAfter = current ? current->itemContentDescriptor(
+                                               typed::ThreadId{"adapter-thread"},
+                                               typed::TurnId{"thread-read-turn"},
+                                               typed::ItemId{"thread-read-added"},
+                                               client::ItemContentChannel::AgentText)
+                                         : std::nullopt;
+        result.expectTrue(
+            initial && current && error.empty() && changedAgentBefore && changedAgentAfter && changedReasoningBefore &&
+                changedReasoningAfter && stableBefore && stableAfter && addedAfter &&
+                changedAgentBefore->contentRevision != changedAgentAfter->contentRevision &&
+                changedAgentAfter->contentRevision == currentPublication.revision &&
+                changedReasoningBefore->contentRevision == changedReasoningAfter->contentRevision &&
+                stableBefore->contentRevision == stableAfter->contentRevision &&
+                addedAfter->contentRevision == currentPublication.revision,
+            "an identity-only authoritative thread.read change advances only changed or new descendant content channels while "
+            "preserving unchanged merge content revisions");
+    }
+
     void testIndexedStateLookupsAndGroupedOrdering(tests::support::TestResult& result) {
         constexpr std::size_t ThreadCount = 128;
         constexpr std::size_t TurnsPerThread = 4;
@@ -1835,6 +1936,7 @@ int main() {
     testScopedItemIdentities(result);
     testPartialScopeDuplicateUsesExactAppendIdentity(result);
     testMetadataOnlyUpsertsPreserveContentRevisions(result);
+    testThreadReadIdentityChangeReconcilesDescendantContent(result);
     testIndexedStateLookupsAndGroupedOrdering(result);
     testScopedItemChanges(result);
     testVerifiedIncrementalItemPublication(result);

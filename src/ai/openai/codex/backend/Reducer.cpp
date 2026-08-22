@@ -1599,10 +1599,10 @@ namespace ai::openai::codex::backend {
                 iterator->second.stamp = currentStamp(state);
             }
 
-            for (const typed::Turn& turn : value.turns) {
-                upsertTurn(state, turn, contentLimit, insertions);
-            }
             if (load == EntityLoad::Full) {
+                for (const typed::Turn& turn : value.turns) {
+                    upsertTurn(state, turn, contentLimit, insertions);
+                }
                 ThreadState& retainedThread = state.threads.at(value.id.value);
                 std::set<std::string> authoritativeTurnIds;
                 std::vector<typed::TurnId> authoritativeTurnOrder;
@@ -1891,6 +1891,7 @@ namespace ai::openai::codex::backend {
                             accountTurnRemoval(state.capacity, turn->second, true);
                             const std::string id = turnId.value;
                             eraseTurn(state, thread->second, id);
+                            thread->second.fullyLoaded = false;
                             canonicalStateRewritten = true;
                             evicted = true;
                             break;
@@ -1901,7 +1902,7 @@ namespace ai::openai::codex::backend {
                     }
                 }
                 if (!evicted) {
-                    for (auto inserted = insertions.turns.rbegin(); inserted != insertions.turns.rend() && !evicted; ++inserted) {
+                    for (auto inserted = insertions.turns.begin(); inserted != insertions.turns.end() && !evicted; ++inserted) {
                         const auto& [threadId, turnId] = *inserted;
                         auto thread = state.threads.find(threadId);
                         if (thread == state.threads.end()) {
@@ -1911,6 +1912,7 @@ namespace ai::openai::codex::backend {
                         if (turn != thread->second.turns.end()) {
                             accountTurnRemoval(state.capacity, turn->second, false);
                             eraseTurn(state, thread->second, turnId);
+                            thread->second.fullyLoaded = false;
                             canonicalStateRewritten = true;
                             evicted = true;
                         }
@@ -1943,6 +1945,7 @@ namespace ai::openai::codex::backend {
                                 !referenced.items.contains(ItemKey{threadId.value, turnId.value, itemIdValue.value})) {
                                 const std::string id = itemIdValue.value;
                                 eraseItem(state, turn->second, id);
+                                thread->second.fullyLoaded = false;
                                 saturatingAdd(state.capacity.evictedItems);
                                 canonicalStateRewritten = true;
                                 evicted = true;
@@ -1958,7 +1961,7 @@ namespace ai::openai::codex::backend {
                     }
                 }
                 if (!evicted) {
-                    for (auto inserted = insertions.items.rbegin(); inserted != insertions.items.rend() && !evicted; ++inserted) {
+                    for (auto inserted = insertions.items.begin(); inserted != insertions.items.end() && !evicted; ++inserted) {
                         const auto& [threadId, turnId, itemIdValue] = *inserted;
                         auto thread = state.threads.find(threadId);
                         if (thread == state.threads.end()) {
@@ -1967,6 +1970,7 @@ namespace ai::openai::codex::backend {
                         auto turn = thread->second.turns.find(turnId);
                         if (turn != thread->second.turns.end() && turn->second.items.contains(itemIdValue)) {
                             eraseItem(state, turn->second, itemIdValue);
+                            thread->second.fullyLoaded = false;
                             saturatingAdd(state.capacity.snapshotOmissions);
                             canonicalStateRewritten = true;
                             evicted = true;
@@ -1996,7 +2000,8 @@ namespace ai::openai::codex::backend {
                         }
                         if (turn->second.plan && excess != 0) {
                             TurnPlanState& plan = *turn->second.plan;
-                            const auto accountRemoved = [&state, &excess, &plan, &canonicalStateRewritten](std::size_t removed) {
+                            const auto accountRemoved =
+                                [&state, &excess, &plan, &thread, &canonicalStateRewritten](std::size_t removed) {
                                 if (removed == 0) {
                                     return;
                                 }
@@ -2004,6 +2009,7 @@ namespace ai::openai::codex::backend {
                                 guardedSubtractSize(state.capacity.accumulatedContentBytes, removed);
                                 saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
                                 plan.truncated = true;
+                                thread->second.fullyLoaded = false;
                                 canonicalStateRewritten = true;
                             };
                             if (plan.explanation && !plan.explanation->empty()) {
@@ -2040,8 +2046,8 @@ namespace ai::openai::codex::backend {
                             if (item == turn->second.items.end()) {
                                 continue;
                             }
-                            auto trim = [&excess, &item, &state, &canonicalStateRewritten](std::string& content,
-                                                                                         std::uint64_t& channelDropped) {
+                            auto trim = [&excess, &item, &thread, &state, &canonicalStateRewritten](
+                                            std::string& content, std::uint64_t& channelDropped) {
                                 const std::size_t removed =
                                     utf8PrefixRemovalLength(content, std::min(excess, content.size()));
                                 if (removed == 0) {
@@ -2053,6 +2059,7 @@ namespace ai::openai::codex::backend {
                                 saturatingAdd(item->second.droppedContentBytes, saturatingUint64(removed));
                                 saturatingAdd(channelDropped, saturatingUint64(removed));
                                 saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
+                                thread->second.fullyLoaded = false;
                                 canonicalStateRewritten = true;
                             };
                             trim(item->second.agentText, item->second.agentTextDroppedContentBytes);

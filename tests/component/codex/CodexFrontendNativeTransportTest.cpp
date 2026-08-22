@@ -635,9 +635,9 @@ namespace {
             peer.transport = frontend::FrontendTransportKind::Unix;
             connections.push_back(service.openConnection(std::move(peer), {{}, {}}));
         }
-        result.expectTrue(service.connectionCount() == 6 && service.implementedCapabilities().size() == 14 &&
+        result.expectTrue(service.connectionCount() == 6 && service.implementedCapabilities().size() == 15 &&
                               !hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport),
-                          "connections do not affect the thirteen static mechanisms, SDK product truth, or topology capability");
+                          "connections do not affect the fourteen static mechanisms, SDK product truth, or topology capability");
         for (frontend::FrontendConnection& connection : connections) {
             connection.close();
         }
@@ -854,7 +854,7 @@ namespace {
                     service.declareTransportFamily(transportKind(kind));
                 }
                 state.topologyObservedBeforeClients =
-                    service.connectionCount() == 0 && service.implementedCapabilities().size() == 15 &&
+                    service.connectionCount() == 0 && service.implementedCapabilities().size() == 16 &&
                     hasCapability(service.implementedCapabilities(), frontend::FrontendCapability::MultiTransport);
 
                 unixClient.connect(*unixAddress, [&state](const net::un::SocketAddress&, core::socket::State status) {

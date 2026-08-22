@@ -53,7 +53,7 @@ namespace ai::openai::codex {
     struct ClientInfo {
         std::string name = "aisuite";
         std::string title = "AISuite";
-        std::string version = "0.5.0";
+        std::string version = "0.6.0";
     };
 
     struct StateChange {
@@ -135,8 +135,16 @@ namespace ai::openai::codex {
         void setOnDiagnostic(Callbacks::DiagnosticReceived callback);
 
     protected:
+        using CallbackScheduler = std::function<void(std::function<void()>)>;
+
         AppServerClient(std::unique_ptr<detail::Transport> transport, ClientInfo clientInfo);
         AppServerClient(std::unique_ptr<detail::Transport> transport, typed::InitializeParams initializeParams);
+        AppServerClient(std::unique_ptr<detail::Transport> transport,
+                        ClientInfo clientInfo,
+                        CallbackScheduler callbackScheduler);
+        AppServerClient(std::unique_ptr<detail::Transport> transport,
+                        typed::InitializeParams initializeParams,
+                        CallbackScheduler callbackScheduler);
 
     private:
         friend class typed::Events;

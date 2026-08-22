@@ -114,6 +114,18 @@ namespace tests::codex {
             }
         }
 
+        FakeAppServerClient(const std::shared_ptr<FakeTransportState>& state,
+                            std::function<void(std::function<void()>)> callbackScheduler,
+                            FakeAppServerClient** instance = nullptr)
+            : AppServerClient(std::make_unique<FakeTransport>(state),
+                              {"codex_backend_test", "Codex Backend Test", "1"},
+                              std::move(callbackScheduler))
+            , instance(instance) {
+            if (this->instance != nullptr) {
+                *this->instance = this;
+            }
+        }
+
         ~FakeAppServerClient() override {
             if (instance != nullptr) {
                 *instance = nullptr;

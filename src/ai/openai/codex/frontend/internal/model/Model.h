@@ -1338,6 +1338,17 @@ namespace ai::openai::codex::frontend::internal::model {
     [[nodiscard]] ModelResult<Snapshot> encodeLegacySnapshot(const CanonicalSnapshot& snapshot) noexcept;
     [[nodiscard]] ModelResult<CanonicalSnapshot>
     decodeLegacySnapshot(const Snapshot& snapshot, ItemContentWireMode itemContentMode = ItemContentWireMode::Replacement) noexcept;
+    // Decode the operation-level nested ThreadState contract directly.  That
+    // contract deliberately permits complete raw item content and therefore
+    // must not be routed through the bounded ExpandedSnapshot wire schema.
+    [[nodiscard]] ModelResult<CanonicalSnapshot>
+    decodeNestedThreadState(const Json& thread, FrontendSequence sequence) noexcept;
+    // Decode a nested ThreadState that has already passed the complete
+    // ThreadRead result contract. This internal consume-once path deliberately
+    // skips the duplicate schema traversal performed by the untrusted entry
+    // point above; callers must not pass independently sourced JSON.
+    [[nodiscard]] ModelResult<CanonicalSnapshot>
+    decodeValidatedNestedThreadState(const Json& thread, FrontendSequence sequence) noexcept;
 
     struct SnapshotRepresentationSelection {
         bool expandedDomains = false;

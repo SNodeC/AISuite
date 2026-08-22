@@ -90,7 +90,8 @@
           "required": ["kind"],
           "properties": {
             "kind": { "const": "hello" },
-            "resumeAfter": { "$ref": "#/$defs/UInt64" }
+            "resumeAfter": { "$ref": "#/$defs/UInt64" },
+            "capabilityVocabularyVersion": { "type": "integer", "minimum": 1, "maximum": 4294967295 }
           },
           "additionalProperties": true
         }
@@ -210,11 +211,27 @@
         { "$ref": "#/$defs/MentionInput" }
       ]
     },
-    "BooleanNetworkSandbox": {
+    "DangerFullAccessSandbox": {
       "type": "object",
       "required": ["type"],
       "properties": {
-        "type": { "enum": ["dangerFullAccess", "readOnly"] },
+        "type": { "const": "dangerFullAccess" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["networkAccess"] },
+          { "required": ["writableRoots"] },
+          { "required": ["excludeTmpdirEnvVar"] },
+          { "required": ["excludeSlashTmp"] }
+        ]
+      },
+      "additionalProperties": true
+    },
+    "ReadOnlyNetworkSandbox": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "readOnly" },
         "networkAccess": { "type": "boolean" }
       },
       "not": {
@@ -259,7 +276,8 @@
     },
     "SandboxPolicy": {
       "oneOf": [
-        { "$ref": "#/$defs/BooleanNetworkSandbox" },
+        { "$ref": "#/$defs/DangerFullAccessSandbox" },
+        { "$ref": "#/$defs/ReadOnlyNetworkSandbox" },
         { "$ref": "#/$defs/ExternalSandbox" },
         { "$ref": "#/$defs/WorkspaceWriteSandbox" }
       ]
@@ -533,7 +551,8 @@
             {
               "properties": {
                 "method": { "const": "thread.read" },
-                "params": { "$ref": "#/$defs/ThreadReadParams" }
+                "params": { "$ref": "#/$defs/ThreadReadParams" },
+                "threadReadStateEffectVersion": { "const": 1 }
               }
             },
             {
@@ -758,6 +777,26 @@
           "items": { "$ref": "#/$defs/TurnState" }
         },
         "extensions": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "ThreadReadStateEffect": {
+      "type": "object",
+      "required": ["scope", "authority", "truncation"],
+      "properties": {
+        "scope": { "const": "thread" },
+        "authority": { "enum": ["merge", "mergePreserveCompleteness", "replace", "absent"] },
+        "truncation": {
+          "type": "object",
+          "required": ["sourcePartial", "responseTruncated", "responseOmittedTurns", "responseOmittedItems"],
+          "properties": {
+            "sourcePartial": { "type": "boolean" },
+            "responseTruncated": { "type": "boolean" },
+            "responseOmittedTurns": { "$ref": "#/$defs/UInt64" },
+            "responseOmittedItems": { "$ref": "#/$defs/UInt64" }
+          },
+          "additionalProperties": true
+        }
       },
       "additionalProperties": true
     },

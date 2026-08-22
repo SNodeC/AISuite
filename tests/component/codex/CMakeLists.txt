@@ -1795,7 +1795,10 @@ set_tests_properties(
 snodec_add_test(CodexFrontendServiceTest CodexFrontendServiceTest.cpp)
 target_link_libraries(
     CodexFrontendServiceTest
-    PRIVATE snodec-test-support AISuite::OpenAICodexFrontend
+    PRIVATE
+        snodec-test-support
+        AISuite::OpenAICodexFrontend
+        ai-openai-codex-frontend-model
 )
 target_compile_features(CodexFrontendServiceTest PRIVATE cxx_std_20)
 set_tests_properties(
