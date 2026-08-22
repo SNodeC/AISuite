@@ -19,6 +19,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -2270,10 +2271,148 @@ namespace {
         scheduler.drain();
     }
 
+    void testFuturePendingRequestsDoNotPoisonReconnect(tests::support::TestResult& result) {
+        const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+        tests::codex::installInitializingFake(transport);
+        ManualScheduler scheduler;
+        backend::BackendCoreOptions backendOptions;
+        backendOptions.maxEventsPerCallback = 256;
+        backendOptions.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        FakeBackendCore core(std::move(backendOptions), transport, appServerCallbackScheduler(scheduler));
+        const bool providerReady = startProvider(core, scheduler);
+
+        frontend::FrontendServiceOptions options;
+        options.journal = {256, 512U * 1024U, frontend::SequenceNumber{0}};
+        options.batches = {256, 512U * 1024U};
+        options.scheduler = [&scheduler](std::function<void()> callback) {
+            scheduler.schedule(std::move(callback));
+        };
+        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+            return frontend::FrontendTimerCancellation{[] {
+            }};
+        };
+        options.authenticator = [](const frontend::FrontendPeerContext&,
+                                   const frontend::AuthenticationCredential&) -> frontend::AuthenticationResult {
+            frontend::FrontendPrincipal principal;
+            principal.id = "future-pending-principal";
+            principal.profile = "adapter-test";
+            principal.scopes = {frontend::FrontendScope::Observe};
+            return frontend::AuthenticationSuccess{std::move(principal)};
+        };
+        frontend::FrontendService service(core, std::move(options));
+
+        const std::vector<frontend::FrontendCapability> codexUiCapabilities{
+            frontend::FrontendCapability::CompleteBackendDomains,
+            frontend::FrontendCapability::DedicatedPendingRequests,
+            frontend::FrontendCapability::DedicatedNotificationEvents,
+            frontend::FrontendCapability::CompleteThreadItems,
+            frontend::FrontendCapability::ScopeProjectedState,
+        };
+        const auto negotiatedHello = [&](std::optional<frontend::SequenceNumber> resumeAfter = std::nullopt) {
+            frontend::Hello value = hello("future-pending-token");
+            value.resumeAfter = resumeAfter;
+            value.capabilities = codexUiCapabilities;
+            return value;
+        };
+        const auto synchronization = [](const Observations& observations) {
+            const frontend::Welcome* welcome = nullptr;
+            const frontend::SyncComplete* complete = nullptr;
+            std::size_t snapshots = 0;
+            for (const frontend::ServerMessage& message : observations.messages) {
+                if (const auto* value = std::get_if<frontend::Welcome>(&message)) {
+                    welcome = value;
+                } else if (const auto* value = std::get_if<frontend::SyncComplete>(&message)) {
+                    complete = value;
+                } else if (std::holds_alternative<frontend::Snapshot>(message)) {
+                    ++snapshots;
+                }
+            }
+            return std::tuple{welcome, complete, snapshots};
+        };
+
+        Observations initial;
+        frontend::FrontendConnection initialConnection =
+            service.openConnection(remotePeer("127.0.0.1:41050"), callbacksFor(initial, &service));
+        const bool initialAccepted =
+            initialConnection.receive(frontend::ClientMessage{negotiatedHello()}).accepted();
+        scheduler.drain();
+        const auto [initialWelcome, initialComplete, initialSnapshots] = synchronization(initial);
+        const frontend::SequenceNumber resumeAfter = service.currentSequence();
+        result.expectTrue(providerReady && initialAccepted && initialConnection.isOpen() && initialWelcome && initialComplete &&
+                              initialWelcome->syncMode == frontend::SyncMode::Snapshot && initialSnapshots == 1,
+                          "the future-pending reconnect probe establishes an expanded CodexUI-style session");
+
+        constexpr std::size_t FutureRequestCount = 65;
+        for (std::size_t index = 0; index < FutureRequestCount; ++index) {
+            transport->inject({{"method", "future/reverse-request-" + std::to_string(index)},
+                               {"id", "future-pending-" + std::to_string(index)},
+                               {"params", {{"safeOrdinal", index}}}});
+        }
+        scheduler.drain();
+        const backend::Snapshot retained = core.snapshot();
+        result.expectTrue(initialConnection.isOpen() && initial.closes.empty(),
+                          "future-compatible provider state does not terminate the active expanded frontend session");
+        initialConnection.close("future pending reconnect probe disconnect");
+        scheduler.drain();
+        result.expectTrue(retained.pendingRequests.size() == FutureRequestCount &&
+                              std::all_of(retained.pendingRequests.begin(), retained.pendingRequests.end(), [](const auto& request) {
+                                  return request.type == "unknown";
+                              }),
+                          "normal provider decoding and reduction retain every bounded future reverse request");
+
+        Observations resumed;
+        frontend::FrontendConnection resumedConnection =
+            service.openConnection(remotePeer("127.0.0.1:41051"), callbacksFor(resumed, &service));
+        const frontend::ConnectionReceiveResult resumedResult =
+            resumedConnection.receive(frontend::ClientMessage{negotiatedHello(resumeAfter)});
+        scheduler.drain();
+        const auto [resumedWelcome, resumedComplete, resumedSnapshots] = synchronization(resumed);
+        result.expectTrue(resumedResult.accepted() && resumedConnection.isOpen() && resumed.closes.empty() && resumedWelcome &&
+                              resumedWelcome->syncMode == frontend::SyncMode::Snapshot && resumedComplete && resumedSnapshots == 1 &&
+                              core.snapshot().pendingRequests.size() == FutureRequestCount,
+                          "replay-incompatible future requests fall back to one bounded authoritative Snapshot on reconnect");
+
+        resumedConnection.close("future pending resumed connection complete");
+        scheduler.drain();
+        Observations fresh;
+        frontend::FrontendConnection freshConnection =
+            service.openConnection(remotePeer("127.0.0.1:41052"), callbacksFor(fresh, &service));
+        const frontend::ConnectionReceiveResult freshResult =
+            freshConnection.receive(frontend::ClientMessage{negotiatedHello()});
+        scheduler.drain();
+        const auto [freshWelcome, freshComplete, freshSnapshots] = synchronization(fresh);
+        const frontend::Snapshot* freshSnapshot = latestSnapshot(fresh);
+        const frontend::Json pending = freshSnapshot ? freshSnapshot->state.value("pendingRequests", frontend::Json::array())
+                                                     : frontend::Json::array();
+        const frontend::Json* truncation =
+            freshSnapshot && freshSnapshot->state.contains("truncation") && freshSnapshot->state.at("truncation").is_object()
+                ? &freshSnapshot->state.at("truncation")
+                : nullptr;
+        const std::string serializedState = freshSnapshot ? freshSnapshot->state.dump() : std::string{};
+        result.expectTrue(freshResult.accepted() && freshConnection.isOpen() && fresh.closes.empty() && freshWelcome &&
+                              freshWelcome->syncMode == frontend::SyncMode::Snapshot && freshComplete && freshSnapshots == 1 &&
+                              pending.empty() && truncation && truncation->value("truncated", false) &&
+                              truncation->value("omittedEntries", std::uint64_t{0}) == FutureRequestCount &&
+                              truncation->at("omittedFields").size() == 64 &&
+                              serializedState.find("future/reverse-request-") == std::string::npos &&
+                              serializedState.find("safeOrdinal") == std::string::npos,
+                          "a fresh frontend also synchronizes while unsupported future requests remain safely omitted and accounted");
+
+        freshConnection.close("future pending fresh connection complete");
+        service.close("future pending reconnect probe complete");
+        scheduler.drain();
+    }
+
 } // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
     tests::support::TestResult result;
+    if (argc == 2 && std::string_view(argv[1]) == "--reconnect-recovery") {
+        testFuturePendingRequestsDoNotPoisonReconnect(result);
+        return result.processResult();
+    }
     testPublicAdapter(result);
     testBackendSessionAdmissionFailure(result);
     testCapacitySnapshotFeedbackQuiescence(result);

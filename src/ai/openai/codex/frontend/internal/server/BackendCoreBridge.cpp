@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iostream>
 #include <limits>
 #include <map>
 #include <optional>
@@ -34,6 +35,34 @@
 namespace ai::openai::codex::frontend::internal::server {
 
     namespace {
+
+        std::string_view projectionErrorName(model::ModelErrorCode code) noexcept {
+            switch (code) {
+                case model::ModelErrorCode::InvalidShape:
+                    return "invalid-shape";
+                case model::ModelErrorCode::InvalidIdentifier:
+                    return "invalid-identifier";
+                case model::ModelErrorCode::UnsafeDetail:
+                    return "unsafe-detail";
+                case model::ModelErrorCode::UnsupportedDiscriminator:
+                    return "unsupported-discriminator";
+            }
+            return "unknown";
+        }
+
+        void logBackendProjectionFailure(const model::ModelError& error) noexcept {
+            try {
+                constexpr std::size_t MaximumPathBytes = 160;
+                std::string path;
+                path.reserve(std::min(error.path.size(), MaximumPathBytes));
+                for (const unsigned char character : std::string_view(error.path).substr(0, MaximumPathBytes)) {
+                    path.push_back(character >= 0x20U && character < 0x7fU ? static_cast<char>(character) : '?');
+                }
+                std::clog << "codex-frontend: backend projection failed: category=" << projectionErrorName(error.code)
+                          << " path=" << (path.empty() ? "/" : path) << '\n';
+            } catch (...) {
+            }
+        }
 
         ErrorCode frontendErrorCode(backend::CommandErrorCode code) noexcept {
             switch (code) {
@@ -2216,6 +2245,7 @@ namespace ai::openai::codex::frontend::internal::server {
     model::CanonicalSnapshot BackendCoreBridge::snapshot() const {
         model::ModelResult<model::CanonicalSnapshot> projected = state->projection.projectSnapshot(state->runtime.snapshot());
         if (!projected) {
+            logBackendProjectionFailure(projected.error());
             throw std::runtime_error("BackendCore snapshot violates the canonical frontend model");
         }
         return std::move(projected).value();

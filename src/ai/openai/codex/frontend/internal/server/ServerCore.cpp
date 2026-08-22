@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <deque>
+#include <iostream>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -33,6 +34,68 @@ namespace ai::openai::codex::frontend::internal::server {
 
         constexpr std::string_view ItemContentAppendV1Mode = "append-v1";
         constexpr std::string_view ItemContentAppendV2Mode = "append-v2";
+
+        std::string boundedProjectionPath(std::string_view path) {
+            constexpr std::size_t MaximumPathBytes = 160;
+            std::string result;
+            result.reserve(std::min(path.size(), MaximumPathBytes));
+            for (const unsigned char character : path.substr(0, MaximumPathBytes)) {
+                result.push_back(character >= 0x20U && character < 0x7fU ? static_cast<char>(character) : '?');
+            }
+            return result.empty() ? "/" : result;
+        }
+
+        std::string_view projectionErrorName(model::ProjectionErrorCode code) noexcept {
+            switch (code) {
+                case model::ProjectionErrorCode::InvalidRule:
+                    return "invalid-rule";
+                case model::ProjectionErrorCode::InvalidValue:
+                    return "invalid-value";
+                case model::ProjectionErrorCode::UnsafeResult:
+                    return "unsafe-result";
+                case model::ProjectionErrorCode::MissingGeneratedAuthority:
+                    return "missing-generated-authority";
+            }
+            return "unknown";
+        }
+
+        std::string_view projectionErrorName(model::ModelErrorCode code) noexcept {
+            switch (code) {
+                case model::ModelErrorCode::InvalidShape:
+                    return "invalid-shape";
+                case model::ModelErrorCode::InvalidIdentifier:
+                    return "invalid-identifier";
+                case model::ModelErrorCode::UnsafeDetail:
+                    return "unsafe-detail";
+                case model::ModelErrorCode::UnsupportedDiscriminator:
+                    return "unsupported-discriminator";
+            }
+            return "unknown";
+        }
+
+        void logProjectionFailure(ConnectionIdentity identity,
+                                  std::uint64_t generation,
+                                  std::string_view phase,
+                                  const model::ProjectionError& error) noexcept {
+            try {
+                std::clog << "codex-frontend: projection failed: connection=" << identity.value() << " generation=" << generation
+                          << " phase=" << phase << " category=" << projectionErrorName(error.code)
+                          << " path=" << boundedProjectionPath(error.path) << '\n';
+            } catch (...) {
+            }
+        }
+
+        void logProjectionFailure(ConnectionIdentity identity,
+                                  std::uint64_t generation,
+                                  std::string_view phase,
+                                  const model::ModelError& error) noexcept {
+            try {
+                std::clog << "codex-frontend: projection failed: connection=" << identity.value() << " generation=" << generation
+                          << " phase=" << phase << " category=" << projectionErrorName(error.code)
+                          << " path=" << boundedProjectionPath(error.path) << '\n';
+            } catch (...) {
+            }
+        }
 
         [[nodiscard]] model::ItemContentWireMode requestedItemContentMode(const Json& extensions) noexcept {
             try {
@@ -1912,6 +1975,16 @@ namespace ai::openai::codex::frontend::internal::server {
             synchronized = synchronizeSnapshot(*token, &synchronizationBarrier);
         }
         if (!synchronized) {
+            try {
+                std::clog << "codex-frontend: initial synchronization failed: connection=" << identity.value()
+                          << " generation=" << token->generation << " phase=synchronizing ready=false resume-present="
+                          << hello.resumeAfter.has_value()
+                          << " requested-resume=" << (hello.resumeAfter ? hello.resumeAfter->value() : 0)
+                          << " current-sequence=" << synchronizationBarrier.sequence.value()
+                          << " oldest-replayable-after=" << journal->oldestReplayableAfter().value()
+                          << " mode=" << toString(syncMode) << '\n';
+            } catch (...) {
+            }
             if (findConnection(active)) {
                 closeWithProtocolError(
                     identity, ConnectionClose{"frontend initial synchronization failed", ErrorCode::InternalError, false});
@@ -2442,6 +2515,8 @@ namespace ai::openai::codex::frontend::internal::server {
                 model::ProjectionOutcome<model::CanonicalSnapshot> projected =
                     projection.projectSnapshot(canonical, recipient.projection);
                 if (!projected) {
+                    logProjectionFailure(
+                        recipient.token.identity, recipient.token.generation, "snapshot-scope-projection", projected.error());
                     return false;
                 }
                 projectedSnapshot.emplace(std::move(projected).value());
@@ -2450,9 +2525,19 @@ namespace ai::openai::codex::frontend::internal::server {
 
             const model::ModelResult<Snapshot> encoded =
                 model::encodeProjectedSnapshot(*snapshot, recipient.negotiatedCapabilities, recipient.itemContentWireMode);
-            return encoded && (deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
-                                                         : enqueue(recipient.token.identity, ServerMessage{encoded.value()}));
+            if (!encoded) {
+                logProjectionFailure(recipient.token.identity, recipient.token.generation, "snapshot-encoding", encoded.error());
+                return false;
+            }
+            return deferUntilSnapshotBarrier ? enqueueDeferredSnapshot(recipient.token.identity, ServerMessage{encoded.value()})
+                                             : enqueue(recipient.token.identity, ServerMessage{encoded.value()});
         } catch (...) {
+            try {
+                std::clog << "codex-frontend: projection failed: connection=" << recipient.token.identity.value()
+                          << " generation=" << recipient.token.generation
+                          << " phase=snapshot-encoding category=exception path=/\n";
+            } catch (...) {
+            }
             return false;
         }
     }
@@ -2471,6 +2556,11 @@ namespace ai::openai::codex::frontend::internal::server {
             BackendSnapshotScope snapshotScope(*this);
             canonical = backend.snapshot();
         } catch (...) {
+            try {
+                std::clog << "codex-frontend: projection failed: connection=" << token.identity.value()
+                          << " generation=" << token.generation << " phase=backend-snapshot category=exception path=/\n";
+            } catch (...) {
+            }
             return std::nullopt;
         }
         if (!findConnection(active)) {
@@ -2536,6 +2626,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 const model::ProjectionOutcome<std::optional<model::CanonicalOccurrence>> outcome =
                     projection.projectOccurrence(*canonicalGroup, projectionContext(identity, connection));
                 if (!outcome) {
+                    logProjectionFailure(identity, connection.generation, "occurrence-scope-projection", outcome.error());
                     result.batches.clear();
                     return result;
                 }

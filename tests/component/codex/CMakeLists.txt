@@ -1831,6 +1831,16 @@ set_tests_properties(
         LABELS "component;ai;openai;codex;frontend;server;adapter;p3"
         TIMEOUT 20
 )
+add_test(
+    NAME CodexFrontendReconnectRecoveryTest
+    COMMAND CodexFrontendPublicServiceAdapterTest --reconnect-recovery
+)
+set_tests_properties(
+    CodexFrontendReconnectRecoveryTest
+    PROPERTIES
+        LABELS "component;ai;openai;codex;frontend;server;adapter;reconnect;p3"
+        TIMEOUT 10
+)
 
 foreach(
     typed_frontend_test
