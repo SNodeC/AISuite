@@ -559,6 +559,7 @@ namespace ai::openai::codex::frontend::internal::server {
             std::string key;
             backend::CommandCompletion completion;
             std::size_t retainedBytes = 0;
+            TimerCancellation cancelDeadline;
         };
 
         struct DeferredSessionClose {
@@ -566,13 +567,16 @@ namespace ai::openai::codex::frontend::internal::server {
             std::string reason;
         };
 
-        State(backend::detail::BackendCoreRuntime& runtime, std::size_t maximumResultBytes)
+        State(backend::detail::BackendCoreRuntime& runtime,
+              std::size_t maximumResultBytes,
+              TimerScheduler timerScheduler)
             : runtime(runtime)
             , maximumResultBytes(maximumResultBytes)
             , maximumDeferredThreadReadBytes(
                   maximumResultBytes > std::numeric_limits<std::size_t>::max() / 2
                       ? std::numeric_limits<std::size_t>::max()
-                      : maximumResultBytes * 2) {
+                      : maximumResultBytes * 2)
+            , timerScheduler(std::move(timerScheduler)) {
         }
 
         void bind(ServerCore& configuredCore) noexcept {
@@ -653,6 +657,12 @@ namespace ai::openai::codex::frontend::internal::server {
             deferredObserverEvents.clear();
             resynchronizationPendingDuringAdmission = false;
             deferredControllerCompletion.reset();
+            for (auto& [identity, deferred] : deferredThreadReadCompletions) {
+                static_cast<void>(identity);
+                if (deferred.cancelDeadline) {
+                    deferred.cancelDeadline();
+                }
+            }
             deferredThreadReadCompletions.clear();
             deferredThreadReadBytes = 0;
             deferredSessionCloses.clear();
@@ -780,9 +790,27 @@ namespace ai::openai::codex::frontend::internal::server {
                     ++deferred;
                     continue;
                 }
+                if (deferred->second.cancelDeadline) {
+                    deferred->second.cancelDeadline();
+                }
                 releaseDeferredThreadReadBytes(deferred->second.retainedBytes);
                 deferred = deferredThreadReadCompletions.erase(deferred);
             }
+        }
+
+        void expireDeferredThreadRead(const std::pair<std::string, std::string>& identity) noexcept {
+            const auto deferred = deferredThreadReadCompletions.find(identity);
+            if (deferred == deferredThreadReadCompletions.end()) {
+                return;
+            }
+            const std::string key = deferred->second.key;
+            const std::string requestId = deferred->second.completion.requestId;
+            releaseDeferredThreadReadBytes(deferred->second.retainedBytes);
+            deferredThreadReadCompletions.erase(deferred);
+            valueFailure(key,
+                         requestId,
+                         ErrorCode::Conflict,
+                         "thread-read state effect timed out waiting for observer synchronization");
         }
 
         void closeSession(const FrontendSessionToken& token) noexcept {
@@ -1009,8 +1037,7 @@ namespace ai::openai::codex::frontend::internal::server {
                 try {
                     const auto identity = std::pair{key, completion.requestId};
                     const auto [entry, inserted] = deferredThreadReadCompletions.emplace(
-                        identity, DeferredThreadReadCompletion{captured.sequence, key, completion, retainedBytes});
-                    static_cast<void>(entry);
+                        identity, DeferredThreadReadCompletion{captured.sequence, key, completion, retainedBytes, {}});
                     if (!inserted) {
                         valueFailure(key,
                                      completion.requestId,
@@ -1019,6 +1046,22 @@ namespace ai::openai::codex::frontend::internal::server {
                         return;
                     }
                     deferredThreadReadBytes += retainedBytes;
+                    if (!timerScheduler) {
+                        expireDeferredThreadRead(identity);
+                        return;
+                    }
+                    const std::weak_ptr<State> weak = weak_from_this();
+                    TimerCancellation cancellation = timerScheduler(DeferredThreadReadDeadlineMs, [weak, identity] {
+                        if (const std::shared_ptr<State> self = weak.lock()) {
+                            self->expireDeferredThreadRead(identity);
+                        }
+                    });
+                    const auto retained = deferredThreadReadCompletions.find(identity);
+                    if (retained != deferredThreadReadCompletions.end()) {
+                        retained->second.cancelDeadline = std::move(cancellation);
+                    } else if (cancellation) {
+                        cancellation();
+                    }
                 } catch (...) {
                     valueFailure(key,
                                  completion.requestId,
@@ -1652,6 +1695,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 DeferredThreadReadCompletion ready = std::move(deferred->second);
                 deferred = deferredThreadReadCompletions.erase(deferred);
+                if (ready.cancelDeadline) {
+                    ready.cancelDeadline();
+                }
                 releaseDeferredThreadReadBytes(ready.retainedBytes);
                 const auto session = sessions.find(ready.key);
                 if (session == sessions.end()) {
@@ -1697,6 +1743,9 @@ namespace ai::openai::codex::frontend::internal::server {
                 }
                 DeferredThreadReadCompletion ready = std::move(deferred->second);
                 deferred = deferredThreadReadCompletions.erase(deferred);
+                if (ready.cancelDeadline) {
+                    ready.cancelDeadline();
+                }
                 releaseDeferredThreadReadBytes(ready.retainedBytes);
                 // Only negotiated state effects enter this queue. The
                 // authoritative snapshot has advanced the requester beyond
@@ -1913,6 +1962,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         backend::detail::BackendCoreRuntime& runtime;
         static constexpr std::size_t MaximumDeferredThreadReadCompletions = 8;
+        static constexpr std::uint64_t DeferredThreadReadDeadlineMs = 5000;
         const std::size_t maximumResultBytes;
         const std::size_t maximumDeferredThreadReadBytes;
         ServerCore* coreIdentity = nullptr;
@@ -1934,11 +1984,14 @@ namespace ai::openai::codex::frontend::internal::server {
         std::optional<DeferredControllerCompletion> deferredControllerCompletion;
         std::map<std::pair<std::string, std::string>, DeferredThreadReadCompletion> deferredThreadReadCompletions;
         std::size_t deferredThreadReadBytes = 0;
+        TimerScheduler timerScheduler;
         std::map<std::string, DeferredSessionClose, std::less<>> deferredSessionCloses;
     };
 
-    BackendCoreBridge::BackendCoreBridge(backend::detail::BackendCoreRuntime& backend, std::size_t maximumResultBytes)
-        : state(std::make_shared<State>(backend, maximumResultBytes)) {
+    BackendCoreBridge::BackendCoreBridge(backend::detail::BackendCoreRuntime& backend,
+                                         std::size_t maximumResultBytes,
+                                         TimerScheduler timerScheduler)
+        : state(std::make_shared<State>(backend, maximumResultBytes, std::move(timerScheduler))) {
     }
 
     BackendCoreBridge::~BackendCoreBridge() {

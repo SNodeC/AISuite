@@ -1653,13 +1653,22 @@ namespace {
         const bool providerReady = startProvider(core, scheduler);
 
         frontend::FrontendServiceOptions options;
+        struct DeferredTimer {
+            std::uint64_t delayMs = 0;
+            bool active = true;
+            std::function<void()> callback;
+        };
+        std::vector<std::shared_ptr<DeferredTimer>> deferredTimers;
         options.maxOutboundMessageBytes =
             frontend::DefaultFrontendServerMessageEnvelopeHeadroomBytes + 64U * 1024U;
         options.scheduler = [&scheduler](std::function<void()> callback) {
             scheduler.schedule(std::move(callback));
         };
-        options.timerScheduler = [](std::uint64_t, std::function<void()>) {
-            return frontend::FrontendTimerCancellation{[] {
+        options.timerScheduler = [&deferredTimers](std::uint64_t delayMs, std::function<void()> callback) {
+            auto timer = std::make_shared<DeferredTimer>(DeferredTimer{delayMs, true, std::move(callback)});
+            deferredTimers.push_back(timer);
+            return frontend::FrontendTimerCancellation{[timer] {
+                timer->active = false;
             }};
         };
         options.authenticator = [](const frontend::FrontendPeerContext&,
@@ -1729,10 +1738,21 @@ namespace {
                               firstConnection.isOpen() && first.closes.empty(),
                           "deferred sidecar count and byte overflow reject only their two commands with capacity_exceeded while the "
                           "session remains open");
+        for (const std::shared_ptr<DeferredTimer>& timer : deferredTimers) {
+            if (timer->active && timer->delayMs == 5000) {
+                timer->active = false;
+                timer->callback();
+            }
+        }
+        drainAfterFence(firstFenceCallbacks);
+        const auto afterDeadline = responseCounts(first, "deferred-");
+        result.expectTrue(afterDeadline == std::pair<std::size_t, std::size_t>{10, 2} && firstConnection.isOpen() &&
+                              first.closes.empty(),
+                          "a stalled observer fence fails every retained thread read within the deadline while preserving the session");
         scheduler.drain();
         const auto afterFence = responseCounts(first, "deferred-");
         result.expectTrue(afterFence == std::pair<std::size_t, std::size_t>{10, 2} && firstConnection.isOpen() && first.closes.empty(),
-                          "advancing the observer fence drains the eight retained sidecars and releases their count and byte budget");
+                          "advancing the observer fence after expiry produces no duplicate completion and leaves the quota released");
 
         first.messages.clear();
         backend::FrontendSession closeFence = core.openSession({});

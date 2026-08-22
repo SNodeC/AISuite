@@ -149,7 +149,8 @@ namespace ai::openai::codex::frontend {
     public:
         Impl(backend::detail::BackendCoreRuntime& backend, FrontendServiceOptions configuredOptions)
             : options(normalizedOptions(std::move(configuredOptions)))
-            , bridge(std::make_shared<server::BackendCoreBridge>(backend, maximumProviderResultBytes(options)))
+            , bridge(std::make_shared<server::BackendCoreBridge>(
+                  backend, maximumProviderResultBytes(options), options.timerScheduler))
             , core(makeServerCore(bridge, coreOptions(options))) {
             bridge->bindLifetime(core);
             core->start();
