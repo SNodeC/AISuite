@@ -23,6 +23,8 @@ namespace ai::openai::codex::frontend::internal::model {
     namespace {
         constexpr std::size_t LegacySnapshotMaximumObjectMembers = 4'096;
         constexpr std::size_t FrontendDetailMaximumStringCharacters = 16U * 1024U;
+        constexpr std::size_t TruncationMaximumOmittedPaths = 64;
+        constexpr std::size_t TruncationMaximumPathCharacters = 256;
         constexpr std::string_view Base64Alphabet =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -4572,7 +4574,14 @@ namespace ai::openai::codex::frontend::internal::model {
                 truncation.truncated = true;
                 const std::size_t current = truncation.omittedEntries.value_or(0);
                 truncation.omittedEntries = current == std::numeric_limits<std::size_t>::max() ? current : current + 1;
-                truncation.omittedPaths.push_back(path);
+                const std::size_t retained = frontendUtf8PrefixLength(path, TruncationMaximumPathCharacters);
+                const std::string boundedPath = path.substr(0, retained);
+                if (!boundedPath.empty() &&
+                    std::find(truncation.omittedPaths.begin(), truncation.omittedPaths.end(), boundedPath) ==
+                        truncation.omittedPaths.end() &&
+                    truncation.omittedPaths.size() < TruncationMaximumOmittedPaths) {
+                    truncation.omittedPaths.push_back(boundedPath);
+                }
             };
 
             if (needsExpanded) {
