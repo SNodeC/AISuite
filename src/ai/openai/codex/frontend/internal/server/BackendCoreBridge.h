@@ -37,6 +37,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         explicit BackendCoreBridge(backend::detail::BackendCoreRuntime& backend,
                                    std::size_t maximumResultBytes,
+                                   std::size_t maximumThreadReadResultBytes,
                                    TimerScheduler timerScheduler);
         BackendCoreBridge(const BackendCoreBridge&) = delete;
         BackendCoreBridge(BackendCoreBridge&&) = delete;

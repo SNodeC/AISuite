@@ -611,9 +611,11 @@ namespace ai::openai::codex::frontend::internal::server {
 
         State(backend::detail::BackendCoreRuntime& runtime,
               std::size_t maximumResultBytes,
+              std::size_t maximumThreadReadResultBytes,
               TimerScheduler timerScheduler)
             : runtime(runtime)
             , maximumResultBytes(maximumResultBytes)
+            , maximumThreadReadResultBytes(maximumThreadReadResultBytes)
             , maximumDeferredThreadReadBytes(
                   backend::DefaultMaximumBackendSnapshotBytes
                   * MaximumDeferredThreadReadCompletions)
@@ -1196,7 +1198,7 @@ namespace ai::openai::codex::frontend::internal::server {
                         throw std::logic_error("backend absent thread-read result lacks its requested target");
                     }
                     return boundedThreadReadResult(
-                               typed::ThreadId{*token.threadReadTarget}, std::nullopt, maximumResultBytes)
+                               typed::ThreadId{*token.threadReadTarget}, std::nullopt, maximumThreadReadResultBytes)
                         .value;
                 }
                 const auto* response = std::get_if<typed::ThreadReadResponse>(&value);
@@ -1204,11 +1206,14 @@ namespace ai::openai::codex::frontend::internal::server {
                     throw std::logic_error("backend thread-read result lacks its ordered state capture");
                 }
                 if (threadReadStateEffect) {
-                    return boundedThreadReadResult(response->thread.id, capturedThreadRead->thread, maximumResultBytes).value;
+                    return boundedThreadReadResult(response->thread.id,
+                                                   capturedThreadRead->thread,
+                                                   maximumThreadReadResultBytes)
+                        .value;
                 }
                 Json legacy = capturedThreadRead->thread ? Json{{"thread", threadSnapshotJson(*capturedThreadRead->thread)}}
                                                          : Json{{"threadId", response->thread.id.value}};
-                if (legacy.dump().size() > maximumResultBytes) {
+                if (legacy.dump().size() > maximumThreadReadResultBytes) {
                     throw std::length_error("frontend command result exceeds outbound capacity");
                 }
                 return legacy;
@@ -2003,6 +2008,7 @@ namespace ai::openai::codex::frontend::internal::server {
         static constexpr std::size_t MaximumDeferredThreadReadCompletions = 8;
         static constexpr std::uint64_t DeferredThreadReadDeadlineMs = 5000;
         const std::size_t maximumResultBytes;
+        const std::size_t maximumThreadReadResultBytes;
         const std::size_t maximumDeferredThreadReadBytes;
         ServerCore* coreIdentity = nullptr;
         std::weak_ptr<ServerCore> coreLifetime;
@@ -2029,8 +2035,12 @@ namespace ai::openai::codex::frontend::internal::server {
 
     BackendCoreBridge::BackendCoreBridge(backend::detail::BackendCoreRuntime& backend,
                                          std::size_t maximumResultBytes,
+                                         std::size_t maximumThreadReadResultBytes,
                                          TimerScheduler timerScheduler)
-        : state(std::make_shared<State>(backend, maximumResultBytes, std::move(timerScheduler))) {
+        : state(std::make_shared<State>(backend,
+                                        maximumResultBytes,
+                                        maximumThreadReadResultBytes,
+                                        std::move(timerScheduler))) {
     }
 
     BackendCoreBridge::~BackendCoreBridge() {
