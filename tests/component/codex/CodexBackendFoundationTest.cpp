@@ -486,8 +486,10 @@ namespace {
         const backend::ItemState& oldItem = contentState.threads.at("old").turns.at("old-turn").items.at("old-item");
         const backend::ItemState& newItem = contentState.threads.at("new").turns.at("new-turn").items.at("new-item");
         result.expectTrue(oldItem.agentText.empty() && newItem.agentText == "efgh" && oldItem.droppedContentBytes == 4 &&
+                              !contentState.threads.at("old").fullyLoaded &&
                               contentState.capacity.droppedContentBytes == 4 && retentionCountersMatch(contentState),
-                          "global content capacity trims the oldest inactive terminal item and preserves newest content");
+                          "global content capacity trims the oldest inactive terminal item, marks its thread incomplete, and preserves "
+                          "newest content");
 
         backend::BackendState turnState;
         reducer.apply(turnState, backend::ProviderLifecycleChanged{provider});

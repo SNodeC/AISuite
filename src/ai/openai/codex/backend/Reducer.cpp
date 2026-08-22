@@ -1902,7 +1902,7 @@ namespace ai::openai::codex::backend {
                     }
                 }
                 if (!evicted) {
-                    for (auto inserted = insertions.turns.rbegin(); inserted != insertions.turns.rend() && !evicted; ++inserted) {
+                    for (auto inserted = insertions.turns.begin(); inserted != insertions.turns.end() && !evicted; ++inserted) {
                         const auto& [threadId, turnId] = *inserted;
                         auto thread = state.threads.find(threadId);
                         if (thread == state.threads.end()) {
@@ -1961,7 +1961,7 @@ namespace ai::openai::codex::backend {
                     }
                 }
                 if (!evicted) {
-                    for (auto inserted = insertions.items.rbegin(); inserted != insertions.items.rend() && !evicted; ++inserted) {
+                    for (auto inserted = insertions.items.begin(); inserted != insertions.items.end() && !evicted; ++inserted) {
                         const auto& [threadId, turnId, itemIdValue] = *inserted;
                         auto thread = state.threads.find(threadId);
                         if (thread == state.threads.end()) {
@@ -2000,7 +2000,8 @@ namespace ai::openai::codex::backend {
                         }
                         if (turn->second.plan && excess != 0) {
                             TurnPlanState& plan = *turn->second.plan;
-                            const auto accountRemoved = [&state, &excess, &plan, &canonicalStateRewritten](std::size_t removed) {
+                            const auto accountRemoved =
+                                [&state, &excess, &plan, &thread, &canonicalStateRewritten](std::size_t removed) {
                                 if (removed == 0) {
                                     return;
                                 }
@@ -2008,6 +2009,7 @@ namespace ai::openai::codex::backend {
                                 guardedSubtractSize(state.capacity.accumulatedContentBytes, removed);
                                 saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
                                 plan.truncated = true;
+                                thread->second.fullyLoaded = false;
                                 canonicalStateRewritten = true;
                             };
                             if (plan.explanation && !plan.explanation->empty()) {
@@ -2044,8 +2046,8 @@ namespace ai::openai::codex::backend {
                             if (item == turn->second.items.end()) {
                                 continue;
                             }
-                            auto trim = [&excess, &item, &state, &canonicalStateRewritten](std::string& content,
-                                                                                         std::uint64_t& channelDropped) {
+                            auto trim = [&excess, &item, &thread, &state, &canonicalStateRewritten](
+                                            std::string& content, std::uint64_t& channelDropped) {
                                 const std::size_t removed =
                                     utf8PrefixRemovalLength(content, std::min(excess, content.size()));
                                 if (removed == 0) {
@@ -2057,6 +2059,7 @@ namespace ai::openai::codex::backend {
                                 saturatingAdd(item->second.droppedContentBytes, saturatingUint64(removed));
                                 saturatingAdd(channelDropped, saturatingUint64(removed));
                                 saturatingAdd(state.capacity.droppedContentBytes, saturatingUint64(removed));
+                                thread->second.fullyLoaded = false;
                                 canonicalStateRewritten = true;
                             };
                             trim(item->second.agentText, item->second.agentTextDroppedContentBytes);

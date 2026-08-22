@@ -1619,8 +1619,11 @@ namespace ai::openai::codex::backend {
             BackendState isolated;
             isolated.sequence = state.sequence;
             Reducer isolatedReducer(options.reducer);
-            static_cast<void>(isolatedReducer.apply(isolated, CapacityConfigured{options.capacity}));
-            static_cast<void>(isolatedReducer.apply(isolated, ThreadUpserted{result.thread, EntityLoad::Full}));
+            const Reduction configured = isolatedReducer.apply(isolated, CapacityConfigured{options.capacity});
+            const Reduction captured = isolatedReducer.apply(isolated, ThreadUpserted{result.thread, EntityLoad::Full});
+            if (!captured.changed || configured.providerCapacityFailure || captured.providerCapacityFailure) {
+                throw std::runtime_error("full thread-read capture could not be reduced");
+            }
             std::optional<ThreadSnapshot> snapshot = makeThreadSnapshot(isolated, result.thread.id);
             if (!snapshot) {
                 // Retention pressure is not provider absence. Preserve a
