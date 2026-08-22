@@ -622,6 +622,16 @@ namespace ai::openai::codex::frontend::internal::server {
         std::size_t deferredThreadReadRetainedBytes(const backend::CommandCompletion& completion) noexcept {
             std::size_t bytes = DeferredThreadReadFixedOverheadBytes;
             saturatingAdd(bytes, completion.requestId.size());
+            if (completion.result.error) {
+                // The only deferred failure is BackendCore's authoritative
+                // absence result, whose details are null.
+                saturatingAdd(bytes, completion.result.error->message.size());
+            }
+            if (const auto* response = std::get_if<typed::ThreadReadResponse>(&completion.result.value)) {
+                // BackendCore strips successful full reads to this target
+                // identity before queueing the immutable sidecar.
+                saturatingAdd(bytes, response->thread.id.value.size());
+            }
             if (!completion.threadReadSnapshot || !completion.threadReadSnapshot->thread) {
                 return bytes;
             }
