@@ -45,10 +45,13 @@ slim, modular architecture is fulfilled.
 That internal composition complexity is deliberately hidden at the application
 boundary. An application author normally needs to understand only the concrete
 `SocketContextFactory`, the application `SocketContext`, and, when direct
-transport interaction is necessary, the associated `SocketConnection`, plus
-their callbacks and public methods. Address-family, transport, TLS, HTTP, and
-WebSocket composition remains framework/build-system work. SNode.C therefore
-targets ease of application use, not triviality of its internal implementation.
+transport interaction is necessary, the associated `SocketConnection`. For a
+WebSocket application, the corresponding learning surface adds
+`SubProtocolFactory` and `SubProtocol`. Beyond these classes, an application
+author primarily needs their callbacks and public methods. Address-family,
+transport, TLS, HTTP, and WebSocket composition remains framework/build-system
+work. SNode.C therefore targets ease of application use, not triviality of its
+internal implementation.
 
 1. `codex-bridge` configuration must be represented by an application-specific
    `utils::SubCommand` subclass. It must not add application options directly to

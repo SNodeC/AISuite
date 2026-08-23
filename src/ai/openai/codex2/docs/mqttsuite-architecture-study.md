@@ -41,11 +41,12 @@ MQTTSuite demonstrates that SNode.C's internal template and CMake composition
 produces a deliberately small application-facing API. An application developer
 primarily implements or selects a `SocketContextFactory`, supplies the concrete
 application `SocketContext`, and uses `SocketConnection` only when direct
-transport interaction is needed. The practical learning surface is those
-objects, their callbacks, and their public methods; the framework carries the
-address-family and protocol-stack composition underneath. Ease of application
-use, rather than internal implementation simplicity, is the fulfilled design
-goal.
+transport interaction is needed. WebSocket integration adds the parallel
+`SubProtocolFactory` and `SubProtocol` classes. The practical learning surface
+is these objects, their callbacks, and their public methods; the framework
+carries the address-family and protocol-stack composition underneath. Ease of
+application use, rather than internal implementation simplicity, is the
+fulfilled design goal.
 
 1. MQTTSuite validates the intended SNode.C protocol integration model. An
    application provides a concrete subclass of `iot::mqtt::client::Mqtt` or
