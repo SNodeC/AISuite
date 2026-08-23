@@ -195,6 +195,26 @@ client.onRawJson(...);
 
 Every typed result/event object wraps native app-server JSON, exposes `getRaw()`, provides typed accessors, preserves unknown fields, has `operator bool()` for success/error state, and does not cache or reconstruct broader Codex state.
 
+Typed protocol coverage is complete, not selective. Every JSON-RPC message
+defined by the Codex app-server protocol must have a concrete C++ datatype,
+including:
+
+- client requests and their parameter and response types
+- client notifications
+- app-server requests and their parameter and response types
+- app-server notifications
+- every nested object, enum, union, collection, identifier, and error type
+  referenced by those messages
+
+The complete set is generated deterministically from the app-server's exported
+protocol schema. Generated C++ objects retain the complete native JSON value,
+preserve unknown fields, expose `getRaw()`, and provide typed accessors. The raw
+send/receive path remains mandatory so a newer app-server message can still pass
+through an older bridge build without loss.
+
+The app-server repository is a read-only schema source. AISuite must not modify
+or patch the OpenAI app-server to produce these datatypes.
+
 ## Configuration
 
 Use the existing SNode.C configuration subsystem whenever command-line options are required.
