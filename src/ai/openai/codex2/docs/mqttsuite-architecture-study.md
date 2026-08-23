@@ -780,3 +780,17 @@ transport adapters, typed/raw app-server access, multi-client registration,
 one-controller routing, and telemetry. It must continue to query app-server for
 Codex authority and must not grow MQTT-like semantic storage merely because the
 framework makes such state possible.
+
+Against the codex2-relevant criteria of modular transport composition,
+protocol/transport separation, callback-driven lifecycle consistency, and a
+small application-facing learning surface, this study assesses the underlying
+SNode.C architecture at **9.5/10**. MQTTSuite supplies concrete evidence for
+that assessment by implementing several materially different applications over
+the same small factory/context/subprotocol boundary.
+
+The rating is deliberately scoped; it is not a claim about every aspect of
+framework quality or application maturity. The remaining cost appears when
+developers extend the framework itself, where template navigation, CMake
+feature composition, and compiler diagnostics demand deeper knowledge. That is
+a documentation and internal-development burden rather than a failure of the
+application-facing design.

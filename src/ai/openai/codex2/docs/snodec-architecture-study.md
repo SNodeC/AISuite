@@ -1625,3 +1625,20 @@ The detailed subsystem study narrows the codex2 implementation as follows:
 10. Preserve transport-specific telemetry such as peer address, Unix peer
     credentials, TLS state, queue accounting, lifecycle phase, and close cause
     outside the native app-server payload.
+
+## 22. Architectural Assessment
+
+For the criteria relevant to codex2--modular transport composition, separation
+of protocol and transport concerns, lifecycle consistency, and the size of the
+application-facing learning surface--this study assesses the SNode.C
+architecture at **9.5/10**. The score reflects that substantial internal
+template and build-system machinery successfully reduces ordinary application
+integration to factories, contexts, optional connection access, callbacks, and
+their methods.
+
+This is a scoped engineering assessment, not a general product-quality or
+maturity score. The remaining cost is concentrated in framework extension:
+navigating template composition, understanding CMake feature selection, and
+interpreting compiler diagnostics require more expertise than using the
+application boundary. Better reference documentation and diagnostic guidance
+could reduce that cost without changing the architecture.
