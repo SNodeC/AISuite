@@ -64,6 +64,15 @@ namespace ai::openai::codex::frontend::internal::server {
             }
         }
 
+        void logPendingRequestSnapshotCount(std::string_view phase, const backend::Snapshot& snapshot) noexcept {
+            try {
+                std::clog << "codex-frontend: backend snapshot pending requests: phase=" << phase
+                          << " sequence=" << snapshot.sequence.value()
+                          << " pending-request-count=" << snapshot.pendingRequests.size() << '\n';
+            } catch (...) {
+            }
+        }
+
         ErrorCode frontendErrorCode(backend::CommandErrorCode code) noexcept {
             switch (code) {
                 case backend::CommandErrorCode::PermissionDenied:
@@ -2016,6 +2025,7 @@ namespace ai::openai::codex::frontend::internal::server {
 
         [[nodiscard]] bool applyResynchronization(const backend::Snapshot& snapshot, ServerCore& target) noexcept {
             try {
+                logPendingRequestSnapshotCount("resynchronization", snapshot);
                 if (!reconcileTopology(snapshot)) {
                     return false;
                 }
@@ -2243,7 +2253,9 @@ namespace ai::openai::codex::frontend::internal::server {
     }
 
     model::CanonicalSnapshot BackendCoreBridge::snapshot() const {
-        model::ModelResult<model::CanonicalSnapshot> projected = state->projection.projectSnapshot(state->runtime.snapshot());
+        const backend::Snapshot snapshot = state->runtime.snapshot();
+        logPendingRequestSnapshotCount("frontend-synchronization", snapshot);
+        model::ModelResult<model::CanonicalSnapshot> projected = state->projection.projectSnapshot(snapshot);
         if (!projected) {
             logBackendProjectionFailure(projected.error());
             throw std::runtime_error("BackendCore snapshot violates the canonical frontend model");

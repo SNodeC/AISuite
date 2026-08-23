@@ -354,6 +354,14 @@ namespace ai::openai::codex::frontend {
         return target ? target->queuedBytes(control->identity) : 0;
     }
 
+    void FrontendConnection::recordTransportCloseReason(std::string reason) noexcept {
+        const std::shared_ptr<FrontendService::Impl> service = control ? control->service.lock() : nullptr;
+        const std::shared_ptr<server::ServerCore> target = service ? service->core : nullptr;
+        if (target) {
+            target->recordTransportCloseReason(control->identity, std::move(reason));
+        }
+    }
+
     void FrontendConnection::resumeDelivery() noexcept {
         const std::shared_ptr<FrontendService::Impl> service = control ? control->service.lock() : nullptr;
         const std::shared_ptr<server::ServerCore> target = service ? service->core : nullptr;

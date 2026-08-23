@@ -57,6 +57,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <sys/socket.h>
@@ -85,6 +86,10 @@ namespace apps::codex_backend::detail {
         send(FrontendStreamSocketContext& context, const ai::openai::codex::frontend::OutboundMessage& message) {
             return context.send(message);
         }
+
+        static void clearLifetime(FrontendStreamSocketContext& context) {
+            context.lifetime.reset();
+        }
     };
 
 } // namespace apps::codex_backend::detail
@@ -101,6 +106,28 @@ namespace {
     constexpr std::string_view BearerToken = "a1-7b-native-loopback-token";
     const utils::Timeval EstablishedInactivityProbeTimeout(0.25);
     const utils::Timeval EstablishedIdleDuration(0.75);
+
+    class ScopedClogCapture {
+    public:
+        ScopedClogCapture()
+            : previous(std::clog.rdbuf(output.rdbuf())) {
+        }
+
+        ScopedClogCapture(const ScopedClogCapture&) = delete;
+        ScopedClogCapture& operator=(const ScopedClogCapture&) = delete;
+
+        ~ScopedClogCapture() {
+            std::clog.rdbuf(previous);
+        }
+
+        [[nodiscard]] std::string str() const {
+            return output.str();
+        }
+
+    private:
+        std::ostringstream output;
+        std::streambuf* previous;
+    };
 
     enum class ClientKind : std::size_t { Unix, Ipv4, Ipv6, Tls, Count };
 
@@ -444,6 +471,128 @@ namespace {
                           "an empty writer rejecting a frame is classified as a terminal transport-bound mismatch");
 
         app::detail::FrontendStreamSocketContextTestAccess::disconnect(context);
+    }
+
+    void expectTerminalSendCloseDiagnostics(tests::support::TestResult& result) {
+        frontend::Hello hello;
+        hello.authentication = frontend::AuthenticationCredential{frontend::BearerCredential{std::string(BearerToken)}};
+        const auto encoded = frontend::Codec::serializeClient(frontend::ClientMessage{std::move(hello)});
+        result.expectTrue(static_cast<bool>(encoded), "the transport close diagnostic fixture serializes a frontend Hello");
+        if (!encoded) {
+            return;
+        }
+
+        const auto authenticate = [](const frontend::FrontendPeerContext&,
+                                     const frontend::AuthenticationCredential& credential) {
+            return remoteAuthentication(credential);
+        };
+
+        const auto exerciseSend = [&](std::function<void(frontend::FrontendServiceOptions&)> configureService,
+                                      std::function<void(TimeoutProbeSocketConnection&, app::FrontendStreamSocketContext&)> configureSocket,
+                                      const frontend::OutboundMessage& message) {
+            const auto transport = std::make_shared<tests::codex::FakeTransportState>();
+            FakeBackendCore backend({}, transport);
+            frontend::FrontendServiceOptions options;
+            options.authenticator = authenticate;
+            options.timerScheduler = [](std::uint64_t, std::function<void()>) {
+                return frontend::FrontendTimerCancellation{[] {
+                }};
+            };
+            configureService(options);
+            frontend::FrontendService service(backend, std::move(options));
+
+            TimeoutProbeSocketConnection socketConnection(encoded.value() + '\n');
+            frontend::FrontendPeerContext peer;
+            peer.transport = frontend::FrontendTransportKind::Ipv4;
+            app::FrontendStreamSocketContext context(&socketConnection, service, std::move(peer), {});
+            app::detail::FrontendStreamSocketContextTestAccess::connect(context);
+            (void) app::detail::FrontendStreamSocketContextTestAccess::receive(context);
+            configureSocket(socketConnection, context);
+            return app::detail::FrontendStreamSocketContextTestAccess::send(context, message);
+        };
+
+        const frontend::OutboundMessage probe{
+            frontend::ServerMessage{frontend::SyncComplete{}}, "native-delivery-probe", std::string_view("native-delivery-probe").size()};
+
+        {
+            ScopedClogCapture capture;
+            const frontend::OutboundMessage oversized{
+                frontend::ServerMessage{frontend::SyncComplete{}},
+                std::string(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES, 'x'),
+                app::DEFAULT_MAXIMUM_OUTBOUND_BYTES};
+            const frontend::OutboundDeliveryStatus status = exerciseSend(
+                [](frontend::FrontendServiceOptions&) {},
+                [](TimeoutProbeSocketConnection&, app::FrontendStreamSocketContext&) {},
+                oversized);
+            const std::string diagnostics = capture.str();
+            result.expectTrue(
+                status == frontend::OutboundDeliveryStatus::Closed &&
+                    diagnostics.find("reason=frame-over-adapter-limit") != std::string::npos &&
+                    diagnostics.find("frame-bytes=" + std::to_string(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES + 1)) != std::string::npos &&
+                    diagnostics.find("adapter-max-bytes=" + std::to_string(app::DEFAULT_MAXIMUM_OUTBOUND_BYTES)) != std::string::npos,
+                "oversized native frames emit a distinct bounded close reason with exact writer limits");
+        }
+
+        {
+            ScopedClogCapture capture;
+            const frontend::OutboundDeliveryStatus status = exerciseSend(
+                [](frontend::FrontendServiceOptions&) {},
+                [](TimeoutProbeSocketConnection& socketConnection, app::FrontendStreamSocketContext&) {
+                    socketConnection.nextQueueResult = core::socket::stream::QueueResult::WouldExceedLimit;
+                },
+                probe);
+            const std::string diagnostics = capture.str();
+            result.expectTrue(status == frontend::OutboundDeliveryStatus::Closed &&
+                                  diagnostics.find("reason=empty-writer-rejected") != std::string::npos &&
+                                  diagnostics.find("queue-result=would-exceed-limit") != std::string::npos,
+                              "an empty native writer rejection emits the dedicated empty-writer diagnostic");
+        }
+
+        {
+            ScopedClogCapture capture;
+            const frontend::OutboundDeliveryStatus status = exerciseSend(
+                [](frontend::FrontendServiceOptions&) {},
+                [](TimeoutProbeSocketConnection& socketConnection, app::FrontendStreamSocketContext&) {
+                    socketConnection.nextQueueResult = core::socket::stream::QueueResult::Closed;
+                },
+                probe);
+            const std::string diagnostics = capture.str();
+            result.expectTrue(status == frontend::OutboundDeliveryStatus::Closed &&
+                                  diagnostics.find("reason=writer-closed") != std::string::npos &&
+                                  diagnostics.find("queue-result=closed") != std::string::npos,
+                              "a closed native writer emits the dedicated writer-closed diagnostic");
+        }
+
+        {
+            ScopedClogCapture capture;
+            const frontend::OutboundDeliveryStatus status = exerciseSend(
+                [](frontend::FrontendServiceOptions&) {},
+                [](TimeoutProbeSocketConnection& socketConnection, app::FrontendStreamSocketContext&) {
+                    socketConnection.nextQueueResult = core::socket::stream::QueueResult::ShutdownInProgress;
+                },
+                probe);
+            const std::string diagnostics = capture.str();
+            result.expectTrue(status == frontend::OutboundDeliveryStatus::Closed &&
+                                  diagnostics.find("reason=writer-shutdown") != std::string::npos &&
+                                  diagnostics.find("queue-result=shutdown-in-progress") != std::string::npos,
+                              "a shutting-down native writer emits the dedicated writer-shutdown diagnostic");
+        }
+
+        {
+            ScopedClogCapture capture;
+            const frontend::OutboundDeliveryStatus status = exerciseSend(
+                [](frontend::FrontendServiceOptions&) {},
+                [](TimeoutProbeSocketConnection& socketConnection, app::FrontendStreamSocketContext& context) {
+                    socketConnection.totalQueued = app::DEFAULT_MAXIMUM_OUTBOUND_BYTES - 1;
+                    app::detail::FrontendStreamSocketContextTestAccess::clearLifetime(context);
+                },
+                probe);
+            const std::string diagnostics = capture.str();
+            result.expectTrue(status == frontend::OutboundDeliveryStatus::Closed &&
+                                  diagnostics.find("reason=delivery-retry-scheduling-failed") != std::string::npos &&
+                                  diagnostics.find("frontend stream retry state: reason=socket-missing") != std::string::npos,
+                              "a terminal retry failure emits both the terminal send-close reason and the retry-state cause");
+        }
     }
 
     class FrontendProtocolClientContext final : public core::socket::stream::SocketContext {
@@ -1021,6 +1170,7 @@ int main(int argc, char* argv[]) {
 
     expectTransportFacts(result);
     expectEstablishedTimeoutTransition(result);
+    expectTerminalSendCloseDiagnostics(result);
     expectTransportCapabilityIsNotAdvertised(result);
     static_cast<void>(runNativeLoopbackIntegration(argc, argv, result));
     return result.processResult();

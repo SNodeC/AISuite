@@ -323,6 +323,7 @@ namespace ai::openai::codex::frontend::internal::server {
         [[nodiscard]] std::optional<ConnectionIdentity> openConnection(FrontendPeerContext peer, ConnectionCallbacks callbacks);
         [[nodiscard]] bool updatePeerContext(ConnectionIdentity connection, FrontendPeerContext peer) noexcept;
         void closeConnection(ConnectionIdentity connection, std::string reason = "frontend connection closed") noexcept;
+        void recordTransportCloseReason(ConnectionIdentity connection, std::string reason) noexcept;
 
         [[nodiscard]] ReceiveResult receive(ConnectionIdentity connection, const ClientMessage& message) noexcept;
         [[nodiscard]] ReceiveResult receive(ConnectionIdentity connection, const Json& message) noexcept;

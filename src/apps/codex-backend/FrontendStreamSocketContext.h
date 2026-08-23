@@ -65,6 +65,7 @@ namespace apps::codex_backend {
         bool inputBlocked = false;
         bool disconnecting = false;
         bool deliveryRetryScheduled = false;
+        bool deliveryRetryAlreadyScheduledLogged = false;
         RetainedDeliveryRetryBackoff deliveryRetryBackoff;
 
         friend struct detail::FrontendStreamSocketContextTestAccess;

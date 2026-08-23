@@ -16,6 +16,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,6 +30,28 @@ namespace {
     using ai::openai::codex::detail::TransportCallbacks;
 
     using FakeBackendCore = backend::BackendCore<tests::codex::FakeAppServerClient>;
+
+    class ScopedClogCapture {
+    public:
+        ScopedClogCapture()
+            : previous(std::clog.rdbuf(output.rdbuf())) {
+        }
+
+        ScopedClogCapture(const ScopedClogCapture&) = delete;
+        ScopedClogCapture& operator=(const ScopedClogCapture&) = delete;
+
+        ~ScopedClogCapture() {
+            std::clog.rdbuf(previous);
+        }
+
+        [[nodiscard]] std::string str() const {
+            return output.str();
+        }
+
+    private:
+        std::ostringstream output;
+        std::streambuf* previous;
+    };
 
     void testRecoveryPolicyEligibility(tests::support::TestResult& result) {
         backend::ProviderState provider;
@@ -112,6 +135,125 @@ namespace {
         const RecomputedRetention recomputed = recomputeRetention(state);
         return state.capacity.retainedThreads == recomputed.threads && state.capacity.retainedTurns == recomputed.turns &&
                state.capacity.retainedItems == recomputed.items && state.capacity.accumulatedContentBytes == recomputed.contentBytes;
+    }
+
+    backend::PendingRequestState execPendingRequest(backend::PendingRequestId id,
+                                                    std::uint64_t providerGeneration,
+                                                    std::int64_t requestId,
+                                                    std::string threadId) {
+        typed::ExecCommandApprovalParams params;
+        params.callId = typed::ResponseCallId{"exec-diag"};
+        params.conversationId = typed::ThreadId{threadId};
+        params.cwd = "/synthetic";
+        typed::ExecCommandApprovalRequest request{
+            ai::openai::codex::ServerRequestId{requestId},
+            ai::openai::codex::ServerRequestToken{static_cast<std::uint64_t>(requestId)},
+            std::move(params),
+            Json::object(),
+            {}};
+        return backend::PendingRequestState{
+            id,
+            typed::TypedServerRequest{std::move(request)},
+            providerGeneration};
+    }
+
+    void testPendingRequestResolutionDiagnostics(tests::support::TestResult& result) {
+        backend::Reducer reducer;
+
+        const auto resolvedEvent = [&reducer](std::int64_t requestId, std::string threadId) {
+            typed::ServerRequestResolvedNotification resolved;
+            resolved.requestId = ai::openai::codex::ServerRequestId{requestId};
+            resolved.threadId = typed::ThreadId{std::move(threadId)};
+            resolved.raw = Json{{"params", Json::object()}};
+            return reducer.translate(typed::Event{std::move(resolved)}).front();
+        };
+
+        {
+            backend::BackendState state;
+            state.provider.generation = 9;
+            state.pendingRequests.emplace(
+                backend::PendingRequestId{7},
+                execPendingRequest(backend::PendingRequestId{7}, 9, 41, "diag-thread"));
+            ScopedClogCapture capture;
+            const backend::Reduction reduction =
+                reducer.apply(state, resolvedEvent(41, "diag-thread"));
+            const std::string diagnostics = capture.str();
+            result.expectTrue(
+                state.pendingRequests.empty() && reduction.pendingRequestRemovals.size() == 1 &&
+                    diagnostics.find("action=removed backend-pending-request-id=7 provider-generation=9 method=exec-command-approval") !=
+                        std::string::npos &&
+                    diagnostics.find("request-id-type=int64 request-id-value=41") != std::string::npos &&
+                    diagnostics.find("thread-id=diag-thread removal-reason=externally_resolved") != std::string::npos &&
+                    diagnostics.find("pending request resolved: provider-generation=9 thread-id=diag-thread matched=true "
+                                     "classification=matched retired-backend-pending-request-id=7") != std::string::npos,
+                "matched serverRequest/resolved logs the retired pending request identity and bounded correlation metadata");
+        }
+
+        {
+            backend::BackendState state;
+            state.provider.generation = 9;
+            state.pendingRequests.emplace(
+                backend::PendingRequestId{8},
+                execPendingRequest(backend::PendingRequestId{8}, 8, 42, "diag-thread"));
+            ScopedClogCapture capture;
+            const backend::Reduction reduction =
+                reducer.apply(state, resolvedEvent(42, "diag-thread"));
+            const std::string diagnostics = capture.str();
+            result.expectTrue(
+                !reduction.changed && state.pendingRequests.contains(backend::PendingRequestId{8}) &&
+                    diagnostics.find("matched=false classification=generation-mismatch") != std::string::npos,
+                "generation-mismatched serverRequest/resolved emits a dedicated mismatch classification without retiring state");
+        }
+
+        {
+            backend::BackendState state;
+            state.provider.generation = 9;
+            state.pendingRequests.emplace(
+                backend::PendingRequestId{9},
+                execPendingRequest(backend::PendingRequestId{9}, 9, 43, "diag-thread"));
+            ScopedClogCapture capture;
+            const backend::Reduction reduction =
+                reducer.apply(state, resolvedEvent(43, "other-thread"));
+            const std::string diagnostics = capture.str();
+            result.expectTrue(
+                reduction.changed && state.pendingRequests.contains(backend::PendingRequestId{9}) &&
+                    diagnostics.find("thread-id=other-thread matched=false classification=thread-mismatch") != std::string::npos,
+                "thread-mismatched serverRequest/resolved emits a dedicated mismatch classification while preserving the request");
+        }
+
+        {
+            backend::BackendState state;
+            state.provider.generation = 9;
+            state.pendingRequests.emplace(
+                backend::PendingRequestId{10},
+                execPendingRequest(backend::PendingRequestId{10}, 9, 44, "diag-thread"));
+            ScopedClogCapture capture;
+            const backend::Reduction reduction =
+                reducer.apply(state, resolvedEvent(99, "diag-thread"));
+            const std::string diagnostics = capture.str();
+            result.expectTrue(
+                !reduction.changed && state.pendingRequests.contains(backend::PendingRequestId{10}) &&
+                    diagnostics.find("matched=false classification=no-request-id-match") != std::string::npos,
+                "unmatched serverRequest/resolved emits the no-request-id-match classification without mutating canonical state");
+        }
+
+        {
+            backend::BackendState state;
+            state.provider.generation = 9;
+            state.pendingRequests.emplace(
+                backend::PendingRequestId{11},
+                execPendingRequest(backend::PendingRequestId{11}, 9, 45, "diag-thread"));
+            ScopedClogCapture capture;
+            const backend::Reduction reduction =
+                reducer.apply(state, backend::ProviderConnectionInvalidated{9, "diag-invalidation"});
+            const std::string diagnostics = capture.str();
+            result.expectTrue(
+                state.pendingRequests.empty() && reduction.pendingRequestRemovals.size() == 1 &&
+                    diagnostics.find("action=removed backend-pending-request-id=11 provider-generation=9 method=exec-command-approval") !=
+                        std::string::npos &&
+                    diagnostics.find("thread-id=diag-thread removal-reason=diag-invalidation") != std::string::npos,
+                "provider invalidation logs bounded pending-request removal metadata for every retired request");
+        }
     }
 
     void testTargetedItemSnapshotBatch(tests::support::TestResult& result) {
@@ -1982,6 +2124,7 @@ int main(int argc, char* argv[]) {
         testExpansionHeavyCommandOutputSnapshotAccounting(result);
         testSnapshotDescendantOmissionsClearThreadCompleteness(result);
         testReducerCapacityAndFreshness(result);
+        testPendingRequestResolutionDiagnostics(result);
         testIncrementalRetentionAndFreshness(result);
         testZeroHandleCapacities(result);
         bool timedOut = false;
