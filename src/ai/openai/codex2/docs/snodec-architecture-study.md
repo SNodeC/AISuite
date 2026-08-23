@@ -189,13 +189,24 @@ the new configuration must be a proper `SubCommand` subclass from the start.
 
 ### 2.1 Global lifecycle
 
-The public lifecycle is centered on:
+The application lifecycle is:
 
 ```text
-core::SNodeC::init()
-    -> core::SNodeC::start() or repeated tick()
-    -> core::SNodeC::stop()
-    -> core::SNodeC::free()
+main:
+
+    core::SNodeC::init()
+        |
+        v
+    core::SNodeC::start()
+        or repeated core::SNodeC::tick()
+        |
+        |  returns after internal code requests termination
+        v
+    normal process exit
+
+internal runtime/application callback:
+
+    core::SNodeC::stop()
 ```
 
 The event-loop states progress through `LOADED`, `INITIALIZED`, `RUNNING`, and
@@ -203,10 +214,10 @@ The event-loop states progress through `LOADED`, `INITIALIZED`, `RUNNING`, and
 remain and the loop is running. `tick()` delegates readiness processing to the
 event multiplexer while protecting critical signal-state transitions.
 
-`free()` performs graceful shutdown first: it asks the multiplexer to shut down
-with a reason/signal, continues ticking pending resources for bounded periods,
-then terminates remaining descriptor receivers and timers before final config
-and logging teardown.
+`core::SNodeC::stop()` is requested by inner runtime or application code when
+termination is needed; it is not a routine sequential call in `main()` after
+`start()`. Once the event loop returns, `main()` exits normally. No additional
+framework teardown call is made from `main()`.
 
 ### 2.2 Event receivers are callback dispatch objects
 
