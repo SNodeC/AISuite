@@ -11,10 +11,16 @@ The study focused on:
 
 - the SNode.C configuration hierarchy and `utils::SubCommand` contract;
 - event-loop ownership, callback scheduling, and shutdown behavior;
+- timer scheduling, cancellation, and callback lifetime;
+- asynchronous operating-system pipes, in-process pipe adapters, and files;
 - stream server/client construction and per-connection protocol contexts;
-- Unix, IPv4, IPv6, RFCOMM, TLS, WebSocket, and WSS composition;
-- WebSocket upgrade and subprotocol architecture;
-- callback and facade patterns from MQTT and MQTTSuite;
+- the shared `src/net` architecture and all implemented address families:
+  IPv4, IPv6, Unix domain, Bluetooth L2CAP, and Bluetooth RFCOMM;
+- legacy streams, TLS, HTTP, WebSocket, and WSS composition;
+- HTTP parsing, body streaming, response sequencing, and protocol upgrades;
+- WebSocket framing, limits, close behavior, and subprotocol architecture;
+- callback, transport-adapter, packet-decoder, session, and broker patterns
+  from MQTT and MQTTSuite;
 - provider-process and protocol lessons from the legacy AISuite Codex stack;
 - consequences for the new slim `codex2` / `codex-bridge` implementation.
 
@@ -373,8 +379,8 @@ succeeded. Acceptance by the SNode.C writer is part of delivery success.
 
 ### 4.1 Byte-stream transports
 
-Unix-domain, IPv4, IPv6, RFCOMM, and their TLS stream variants can carry the
-same bridge JSONL framing when exposed as raw streams. One
+Unix-domain, IPv4, IPv6, Bluetooth L2CAP, Bluetooth RFCOMM, and their TLS stream
+variants can carry the same bridge JSONL framing when exposed as raw streams. One
 `FrontendStreamSocketContextFactory` can therefore be instantiated by multiple
 SNode.C server types.
 
@@ -415,7 +421,7 @@ reader/writer with TLS-aware variants while retaining the same
 ```text
 Codex JSONL SocketContext
     -> TLS SocketConnection/Reader/Writer
-    -> physical Unix/IP/RFCOMM socket
+    -> physical Unix/IP/L2CAP/RFCOMM socket
 ```
 
 The Codex JSON protocol layer should not know whether bytes are protected by
@@ -838,7 +844,7 @@ codex-bridge application
     |-- Unix JSONL stream server
     |-- IPv4/IPv6 JSONL stream servers
     |-- TLS JSONL stream servers
-    |-- RFCOMM JSONL stream servers
+    |-- L2CAP/RFCOMM JSONL stream servers
     |-- HTTP WebSocket applications
     `-- HTTPS/WSS applications
         |
@@ -975,3 +981,621 @@ The following rules are binding inputs for continued implementation:
 - handle bounded queue admission and close reasons explicitly;
 - query app-server for recovery and retained history;
 - never make AISuite a second Codex state authority.
+
+## 14. Timer Subsystem
+
+This section is based on `src/core/Timer*` and `src/core/timer/*` in SNode.C.
+The timer subsystem is part of the event loop. It is not a worker-thread
+scheduler and it must not be used to hide blocking work.
+
+### 14.1 Public timer handles and receivers have different ownership
+
+`core::timer::Timer` is a move-only handle around a
+`core::TimerEventReceiver`. The concrete factories are:
+
+- `singleshotTimer(callback, delay)`;
+- `intervalTimer(callback, interval)`;
+- stoppable `intervalTimer(callbackWithStop, interval)`.
+
+The receiver is registered with the event-loop-owned
+`TimerEventPublisher`. The handle and receiver maintain a backlink so moving a
+handle updates the receiver's handle pointer. Destroying the handle only clears
+that backlink; it does not implicitly cancel the scheduled receiver. Code that
+needs cancellation or restart control must retain the handle and call the
+explicit operation.
+
+This split allows fire-and-forget single-shot timers while still supporting a
+controlled timer lifetime. It also means a callback must not assume that the
+original C++ handle object still exists.
+
+### 14.2 Scheduling and callback order
+
+Receivers are kept in absolute-time order by `TimerEventPublisher`. Its next
+deadline contributes directly to the multiplexer timeout. Once the event loop
+wakes, due receivers are dispatched and deferred removals are processed.
+
+The concrete behaviors are:
+
+- a single-shot receiver invokes its callback and then cancels itself;
+- an interval receiver advances its next absolute deadline before invoking the
+  callback;
+- a stoppable interval callback receives a stop function that cancels that
+  receiver;
+- `restart()` removes the receiver from the ordered set, computes a new
+  deadline from the current time, and reinserts it;
+- regular interval advancement is based on the prior deadline rather than on
+  callback completion time, which preserves cadence instead of accumulating
+  callback-duration drift.
+
+Cancellation is event-loop-safe and deferred through the publisher's removal
+path. The receiver is deleted after it becomes unobserved. During event-loop
+shutdown, outstanding timer receivers are cancelled; enabling a new receiver
+while the loop is already stopping is rejected and the receiver is disposed.
+
+### 14.3 Callback and lifetime rules
+
+Timer callbacks run on the event-loop thread. They must therefore:
+
+- finish quickly;
+- avoid blocking waits and synchronous subprocess management;
+- avoid capturing an endpoint by an unprotected raw pointer;
+- use a weak lifetime token when delayed work can outlive a socket context;
+- treat cancellation and endpoint teardown as ordinary races to resolve.
+
+The existing socket retry paths demonstrate the intended pattern: schedule a
+bounded retry, capture weak lifetime state, and revalidate the endpoint before
+performing work.
+
+### 14.4 codex2 use
+
+Appropriate codex2 timer uses are provider restart delay, frontend reconnect
+delay where a client endpoint owns that policy, request-routing expiry, ping
+cadence, and bounded graceful-close deadlines. A timer must not turn a rejected
+write into an unbounded retry loop. Queue admission, endpoint generation, and
+connection lifetime must be rechecked on every delayed attempt.
+
+## 15. Pipe Subsystem
+
+This section covers `src/core/pipe/*`. There are two related layers: an
+operating-system pipe adapter and an in-process source/sink streaming contract.
+
+### 15.1 `Pipe` is a move-only descriptor owner
+
+`core::pipe::Pipe` creates an OS pipe with close-on-exec enabled by default and
+owns both descriptors until ownership is explicitly released. It provides:
+
+- explicit read- and write-descriptor release;
+- explicit close operations for either end;
+- conversion of the read end into an asynchronous `PipeSink`;
+- conversion of the write end into an asynchronous `PipeSource`;
+- a callback convenience constructor that wires both event receivers.
+
+Before transferring a descriptor into an event receiver, the implementation
+ensures nonblocking operation. Construction failures restore or close the
+descriptor consistently, so ownership does not become ambiguous halfway
+through setup.
+
+### 15.2 `PipeSink` asynchronously consumes an OS read descriptor
+
+`PipeSink` is a self-owned `ReadEventReceiver`. Its event handler reads bounded
+chunks until one of the following occurs:
+
+- the per-event byte budget is reached;
+- the descriptor reports `EAGAIN`;
+- end of file is observed;
+- a terminal error occurs.
+
+Interrupted reads are retried. Data, EOF, error, close, and shutdown are
+reported through separate callbacks. Disabling the receiver leads through the
+event-loop unobserved path, where the descriptor is closed, the close callback
+is invoked, and the receiver deletes itself. Callers must not delete the
+receiver or access it after its close callback.
+
+The current defaults use bounded work per event and smaller individual read
+chunks. This prevents a busy child pipe from monopolizing one event-loop
+iteration.
+
+### 15.3 `PipeSource` asynchronously drains an OS write descriptor
+
+`PipeSource` is a self-owned `WriteEventReceiver` with a bounded accepted-data
+queue. It begins suspended and is resumed when data is accepted. Its `send()`
+return value is an admission result:
+
+- `true` means the bytes were accepted into the source queue;
+- `false` means the source is no longer writable or accepting the bytes would
+  exceed its configured queue limit.
+
+The source compacts consumed storage when useful, writes in bounded chunks,
+and suspends again when the queue is empty. `eof()` stops new admission but
+allows accepted bytes to drain before close. `close()` discards queued bytes
+and disables immediately. Error, close, and shutdown callbacks are distinct.
+
+Although this API returns a boolean rather than the socket layer's richer
+`QueueResult`, the boolean is still a hard delivery boundary. codex2 must not
+discard or silently claim delivery for a provider request when `send()`
+returns false.
+
+### 15.4 In-process `Source` and `Sink`
+
+`core::pipe::Source` and `core::pipe::Sink` form a one-source/one-sink
+in-process stream. A source exposes start, suspend, resume, and stop operations
+and forwards data, EOF, or error into its attached sink. Disconnect is
+symmetric. Destroying a sink stops its source, and trying to send without an
+attached sink becomes an error rather than a successful no-op.
+
+This abstraction is used by HTTP request/response bodies and `FileReader`.
+It is not a multi-subscriber fanout mechanism. The codex2 bridge must perform
+frontend fanout explicitly at the protocol-envelope level.
+
+### 15.5 codex2 provider consequence
+
+The stdio app-server child should be integrated with these event-loop pipe
+receivers:
+
+- app-server stdout is consumed through the asynchronous read side;
+- app-server stdin is fed through the bounded write side;
+- app-server stderr is captured independently and never mixed into JSON-RPC;
+- EOF, write rejection, process exit, and event-loop shutdown remain distinct
+  terminal causes;
+- provider generation changes invalidate delayed callbacks and request routes.
+
+This provides transport ownership and boundedness. It does not authorize the
+bridge to cache or reinterpret app-server semantic state.
+
+## 16. File Subsystem
+
+`src/core/file/*` is intentionally small. `core::file::File` supplies descriptor
+ownership, while `FileReader` adapts a regular descriptor to the in-process
+pipe source contract.
+
+### 16.1 Opening and adopting descriptors
+
+`FileReader` supports:
+
+- opening a path;
+- opening relative to a directory descriptor with `openat`;
+- adopting an already-open descriptor;
+- a compatibility open callback that receives the descriptor.
+
+The open operations reject flag combinations that require a creation mode,
+such as `O_CREAT` and `O_TMPFILE`, because the API has no mode parameter.
+Construction uses descriptor guards so an exception cannot leak the opened
+file. Adopting transfers ownership and rejects an invalid descriptor.
+
+`openat` has the operating system's normal semantics. It is not a filesystem
+sandbox: an absolute path ignores the supplied directory descriptor, and
+`AT_FDCWD` remains valid.
+
+### 16.2 Event-loop streaming
+
+`FileReader` is both an event receiver and a `core::pipe::Source`. It reads
+sequential chunks and forwards them to the attached sink. Positive reads emit
+data, EOF emits source EOF, and read failures emit source error. Starting,
+suspending, resuming, and stopping are mapped to event-receiver state. The
+object is self-managed and removes itself through the event-loop path.
+
+The primary framework use is streaming files into HTTP request or response
+bodies. It is not a cache, random-access abstraction, pathname security layer,
+or replacement for child-process pipes.
+
+### 16.3 codex2 use
+
+Codex provider stdio must use the pipe subsystem, not `FileReader`. `FileReader`
+is appropriate only if codex2 later needs an explicitly approved streaming
+file operation. Any schema generation should remain a build-time operation and
+must not create runtime schema authority inside the bridge.
+
+## 17. HTTP Architecture
+
+This section expands the earlier transport overview using `src/web/http/*`.
+HTTP consists of incremental parsers, request/response body pipes, role-specific
+socket contexts, and an upgrade handoff mechanism.
+
+### 17.1 Incremental parser and decoder chain
+
+The shared parser advances through begin, first-line, header, body, trailer,
+finished, and error phases. Request and response parsers specialize first-line
+analysis and completion behavior. Input is consumed incrementally from the
+socket context, so split TCP reads are normal.
+
+Body framing is selected by protocol metadata:
+
+- a field decoder parses the first line and headers;
+- identity decoding handles a declared content length;
+- chunked decoding handles chunk sizes, payload, and trailers;
+- response-side HTTP/1.0 close-delimited decoding handles bodies terminated by
+  connection close.
+
+Header names use a case-insensitive map. Trailer fields are tracked separately.
+Parser configuration includes start-line, header-line, total-header, field-count,
+body, and related resource limits. Unlimited values are supported in parts of
+the generic API, but codex-facing listeners should retain finite limits.
+
+### 17.2 HTTP server connection context
+
+The server `SocketContext` owns one request parser and the per-connection
+request/response sequencing state. Parsed requests are delivered as shared
+request and response objects. Pending requests and the active response are
+tracked so HTTP pipelining cannot serialize responses out of request order.
+
+The response object is a `core::pipe::Sink`. It supports headers, cookies,
+trailers, direct body fragments, file streaming, attached sources, chunked
+transfer, completion, and protocol upgrade. Response-started,
+response-completed, and request-completed transitions are distinct. Keep-alive,
+shutdown, server-sent-event mode, and connection close are handled by the
+connection context rather than by application code writing raw bytes.
+
+### 17.3 HTTP client connection context
+
+The client side mirrors this arrangement. A master request queues request
+commands and streams body content while the response parser incrementally
+delivers status, headers, body, and completion. Pending and delivered requests
+are tracked for optional pipelining. Queue-aware send paths and `FileReader`
+integration preserve asynchronous operation.
+
+This client machinery is useful architectural evidence, but codex2 is not an
+HTTP client when it talks to a stdio app-server. The protocol facade belongs
+above the relevant provider endpoint, not in HTTP request classes.
+
+### 17.4 Upgrade is a socket-context transition
+
+An HTTP upgrade does not keep parsing HTTP while separately running a second
+protocol. The upgrade factory prepares the request/response context and creates
+a replacement stream socket context for the selected protocol. Factory
+reference counting keeps dynamically selectable upgrade code alive while
+connections still use it.
+
+Consequences for codex2 are:
+
+- WebSocket support must use the native HTTP upgrade path;
+- detaching the HTTP context during a successful switch must not be diagnosed
+  as a remote transport failure;
+- the replacement WebSocket context owns subsequent framing and lifecycle;
+- plain HTTP response bodies are not an alternative framing for the live
+  bridge protocol unless a separate API is explicitly designed later.
+
+## 18. WebSocket Architecture
+
+This section expands `src/web/websocket/*`, including frame parsing,
+transmission, subprotocol lifecycle, and server-side grouping.
+
+### 18.1 Receiver state machine
+
+The receiver incrementally parses opcode, base length, extended length,
+masking key, and payload. It validates the WebSocket protocol at each boundary:
+
+- reserved bits and unsupported opcodes are rejected;
+- control frames cannot be fragmented and have a bounded payload length;
+- a continuation frame requires an open fragmented message;
+- a new data message cannot begin before the prior fragmented message ends;
+- server receivers require client masking and client receivers reject masked
+  server frames;
+- extended lengths must use canonical encoding;
+- configured frame size, message size, and fragment-count limits are enforced.
+
+Payload is unmasked incrementally. Control frames can be processed while a
+fragmented data message is in progress. Protocol violations and oversized
+messages are differentiated before the receiver enters a terminal state.
+
+### 18.2 Transmitter behavior
+
+The transmitter supports complete messages and explicit start, fragment, and
+end operations. It emits network-order length fields, masks client frames with
+a generated key, leaves server frames unmasked, and tracks payload totals.
+Control frames and close frames use the same serializer with their protocol
+constraints.
+
+Framing correctness does not itself prove transport admission. The underlying
+socket source still has a finite queue, so codex2 must surface a rejected frame
+instead of treating a transmitter call as guaranteed peer delivery.
+
+### 18.3 `SubProtocol` and upgraded context
+
+`web::websocket::SubProtocol` is the application-facing protocol adapter. It
+receives connection, disconnection, signal, message-start, message-data,
+message-end, and error callbacks and exposes send, ping, pong, and close
+operations. Ping cadence and maximum flying pings are timer-driven.
+
+The upgraded socket context combines the HTTP upgrade context, WebSocket
+receiver/transmitter, and selected subprotocol. It maps stream reads into frame
+parsing and stream writes into framed output. It also:
+
+- attaches and detaches the subprotocol at connection transitions;
+- replies to ping and accounts for pong;
+- distinguishes active and passive close;
+- applies a bounded close timeout;
+- maps protocol errors to a close frame and read shutdown;
+- installs configured frame/message/fragment limits.
+
+### 18.4 Server groups are not a Codex coordinator
+
+The WebSocket `GroupsManager` groups connected subprotocols and broadcasts
+messages, optionally excluding the sender. This is suitable for generic
+fanout, but it does not provide Codex request correlation, one-controller
+authority, provider generations, or queue-aware per-recipient failure policy.
+The codex2 `CodexBridge` therefore remains an application-owned coordinator.
+
+### 18.5 codex2 WebSocket contract
+
+The bridge envelope is carried as one WebSocket text message. JSONL newline
+framing applies to raw byte-stream transports only. A fragmented WebSocket
+message is reassembled by the WebSocket layer before bridge-envelope parsing;
+individual WebSocket fragments are never JSON records.
+
+TLS remains below HTTP and WebSocket. WSS is thus the same codex2 subprotocol
+over an upgraded TLS stream, not a separate Codex protocol implementation.
+
+## 19. MQTT Architecture and Transferable Lessons
+
+This section expands the earlier MQTT discussion using `src/iot/mqtt/*` and
+MQTTSuite. MQTT is valuable here because it demonstrates one protocol engine
+adapted to multiple SNode.C transports without putting protocol methods on a
+generic socket.
+
+### 19.1 Layering
+
+The runtime path is:
+
+```text
+stream SocketContext or WebSocket SubProtocol
+    -> MqttContext transport adapter
+    -> Mqtt protocol engine
+    -> FixedHeader and packet deserializer
+    -> role-specific control packet
+    -> client/server callbacks and session behavior
+```
+
+`MqttContext` abstracts receiving bytes, sending bytes, obtaining connection
+metadata, ending, and closing. The stream adapter maps socket reads and writes
+directly. The WebSocket adapter accepts binary messages, places their payload
+in the MQTT byte stream, and schedules protocol parsing while bytes remain. It
+rejects WebSocket text messages because MQTT-over-WebSocket is binary.
+
+### 19.2 Incremental typed protocol decoding
+
+The fixed header decoder extracts packet type, required flags, and MQTT's
+variable-length remaining length. It then selects a role-appropriate control
+packet deserializer. Scalar and compound MQTT wire types are themselves
+incremental decoders, so arbitrary transport segmentation is supported.
+
+The implementation covers the full MQTT control-packet family: connection,
+publish and all QoS acknowledgements, subscription and unsubscription,
+ping/pong, and disconnect. Complete packets are delivered to the role engine;
+malformed protocol closes the connection. Keepalive timers are refreshed by
+protocol activity.
+
+This reinforces the codex2 requirement that every app-server JSON-RPC message
+has a typed representation while unknown JSON remains losslessly accessible.
+Unlike MQTT binary types, however, app-server authority remains the original
+JSON object in the envelope.
+
+### 19.3 Client, server, session, and broker ownership
+
+MQTT legitimately maintains protocol sessions, packet identifiers,
+subscriptions, QoS flows, retained delivery behavior, and broker state because
+those are MQTT protocol responsibilities. Server factories inject or share a
+broker so multiple listener transports can participate in the same MQTT
+domain. MQTTSuite assembles those factories through SNode.C configuration.
+
+codex2 should copy the composition pattern, not the semantic ownership:
+
+- one application-owned `CodexBridge` is injected into every frontend factory;
+- stream and WebSocket adapters feed the same bridge protocol contract;
+- the bridge coordinates connection roles and routing;
+- no MQTT-like Codex session or broker cache is created because app-server is
+  the Codex state authority.
+
+### 19.4 Queue-admission difference
+
+Some MQTT send interfaces are `void` because their protocol engine and socket
+integration were designed around their own assumptions. The observed Codex
+failure modes require a stricter contract: every frontend and provider send
+must preserve the socket or pipe admission result, connection generation,
+close phase, and diagnostic context. This is an intentional codex2 requirement,
+not a reason to alter generic MQTT classes.
+
+## 20. Network Core and Address Families
+
+This section covers shared `src/net/*` machinery and every implemented address
+family: `in`, `in6`, `un`, `l2`, and `rc`.
+
+### 20.1 Shared typed composition
+
+`net::SocketAddress<SockAddr>` wraps native `sockaddr` storage with its family
+and effective length. Each family provides a concrete typed address and
+physical socket specialization. Stream client and server templates then bind
+that physical socket to:
+
+- common connector or acceptor machinery;
+- a role-specific instance configuration;
+- a supplied `SocketContextFactory`;
+- either the legacy byte stream or TLS connection implementation.
+
+The application protocol context is consequently transport-independent. A
+codex2 frontend context/factory should be instantiated for each desired family
+instead of reimplementing bridge behavior per family.
+
+### 20.2 Common connection configuration
+
+`net::config::ConfigConnection` already supplies:
+
+- read and write timeouts;
+- read and write block sizes;
+- maximum queued write bytes, where zero means unlimited;
+- write-queue high and low watermarks;
+- terminate timeout.
+
+Final validation ensures watermarks are internally consistent and do not
+exceed a finite maximum. If no explicit high watermark is set, a legacy
+block-size-derived threshold is selected and clamped by the maximum. These
+options belong to the SNode.C instance subtree and must not be duplicated in
+the codex2 application `SubCommand`.
+
+`ConfigInstance` also owns instance identity, enable/disable state, lifecycle
+callbacks, and integration with root help, show-config, and command-line
+triggers. Listener creation must honor that lifecycle rather than manually
+parsing parallel options.
+
+### 20.3 IPv4 (`net::in`)
+
+The IPv4 family wraps `sockaddr_in` and resolves host/service data through
+`getaddrinfo`. Address configuration supports host, port, numeric lookup,
+reverse lookup, canonical names, and multiple resolution candidates. Stream
+sockets use TCP.
+
+Server configuration adds address and port reuse controls and TCP Nagle
+control; clients expose Nagle control and optional local binding through the
+shared client configuration. Convenience client/server wrappers set these
+typed configuration values before connecting or listening.
+
+For codex2, IPv4 is one frontend listener option. It does not imply a different
+protocol, authority model, or bridge instance.
+
+### 20.4 IPv6 (`net::in6`)
+
+The IPv6 family wraps `sockaddr_in6` and parallels IPv4 host, port, candidate,
+numeric, reverse, and canonical-name handling. It can request IPv4-mapped IPv6
+resolution. Stream sockets use TCP.
+
+The server additionally exposes `IPV6_V6ONLY`. This makes dual-stack behavior
+an explicit configured socket property rather than an accidental platform
+default. Address/port reuse and Nagle controls parallel IPv4.
+
+codex2 must let the native instance configuration decide whether an IPv6
+listener is IPv6-only or dual-stack. It must not secretly create an extra IPv4
+listener or duplicate accepted connections.
+
+### 20.5 Unix domain (`net::un`)
+
+The Unix family wraps `sockaddr_un`. Filesystem paths and abstract namespace
+addresses are represented; abstract addresses render with an `@` prefix for
+diagnostics. The address implementation validates native path capacity.
+
+Filesystem listener ownership is deliberately defensive. The physical-socket
+layer uses a recognized lock marker, an exclusive lock, device/inode identity
+checks, and an active-endpoint probe before removing a stale socket node. It
+refuses to replace:
+
+- a pre-existing path it cannot prove it owns;
+- a non-socket filesystem object;
+- an active or unverifiable endpoint;
+- an object replaced between inspection and removal.
+
+Cleanup similarly verifies identity before unlinking. This behavior is part of
+the transport implementation and codex2 must not add its own unconditional
+socket-path removal.
+
+`peerCredentials(fd)` can report local UID, GID, and, where supported, PID,
+with explicit success, unsupported, and error states. The architecture has no
+Codex authentication layer, but peer credentials are valid local transport
+telemetry and diagnostics. They must not be converted into a second semantic
+authorization protocol without a separate architectural decision.
+
+Unix sockets are the natural local production listener and remain protocol
+equivalent to all other frontend transports.
+
+### 20.6 Bluetooth L2CAP (`net::l2`)
+
+The L2CAP family wraps `sockaddr_l2`. Its typed address contains a Bluetooth
+device address and a 16-bit protocol/service multiplexer value (PSM), with the
+required Bluetooth byte-order conversion. Client/server convenience wrappers
+configure local and remote Bluetooth address/PSM values through the same
+instance model used by other families.
+
+L2CAP physical sockets are integrated with the common stream connector,
+acceptor, connection, context-factory, legacy, and TLS templates. From the
+codex2 protocol's perspective, this is another ordered connection carrying
+bridge envelopes; Bluetooth-specific addressing ends below the frontend
+context.
+
+### 20.7 Bluetooth RFCOMM (`net::rc`)
+
+RFCOMM wraps `sockaddr_rc`. Its typed address contains a Bluetooth device
+address and an 8-bit channel. Client/server wrappers configure local and remote
+address/channel values and reuse the common stream lifecycle.
+
+Like L2CAP, RFCOMM has legacy and TLS compositions. codex2 must not implement a
+special RFCOMM protocol handler. The same byte-stream JSONL frontend context is
+instantiated over the selected RFCOMM socket type.
+
+### 20.8 Legacy and TLS variants
+
+Every family composes with the common legacy stream implementation, and the
+source tree also provides TLS aliases/configuration for the family wrappers.
+TLS changes connection establishment, encryption, certificate policy, and
+close behavior below the application protocol. It does not change the bridge
+envelope or create a new controller domain.
+
+WebSocket listeners are built above HTTP upgrade on an appropriate underlying
+legacy or TLS stream. The complete transport matrix is therefore composition,
+not duplicated codex2 logic:
+
+```text
+address family physical socket
+    -> legacy or TLS stream connection
+    -> raw JSONL context
+
+address family physical socket
+    -> legacy or TLS stream connection
+    -> HTTP parser and upgrade
+    -> WebSocket context
+    -> codex2 WebSocket subprotocol
+```
+
+### 20.9 One bridge across listeners
+
+All configured listener factories receive the same application-owned
+`CodexBridge`. The bridge assigns a unique connection identity independent of
+file descriptor and address family. Controller selection, observer fanout,
+request routing, provider generation, and telemetry therefore remain coherent
+when clients arrive through different listener types.
+
+Transport configuration and protocol authority remain separate:
+
+- SNode.C owns addresses, socket options, TLS, queues, timeouts, and connection
+  lifecycle;
+- frontend contexts own envelope framing and bounded protocol validation;
+- `CodexBridge` owns ephemeral multi-client routing;
+- app-server owns Codex threads, turns, items, requests, and retained history.
+
+## 21. Consolidated Implementation Consequences
+
+The detailed subsystem study narrows the codex2 implementation as follows:
+
+1. Use SNode.C timers only for bounded asynchronous lifecycle operations and
+   revalidate generation/lifetime in every callback.
+
+2. Spawned app-server stdio must use nonblocking `core::pipe` endpoints with
+   independent stdout, stdin, and stderr handling. A rejected provider write is
+   terminal for that request unless an explicitly bounded retry can still
+   prove the same live generation.
+
+3. Use the native stream `SocketContextFactory` pattern for raw JSONL clients
+   and the native HTTP-upgrade `SubProtocol` pattern for WebSocket clients.
+
+4. Instantiate that protocol layer over all selected `net::in`, `net::in6`,
+   `net::un`, `net::l2`, and `net::rc` legacy/TLS endpoints without copying
+   protocol logic.
+
+5. Use SNode.C instance configuration for all address, socket, queue, timeout,
+   TLS, HTTP, and WebSocket semantics. Application configuration adds only
+   semantics that do not already exist in those subtrees.
+
+6. Preserve queue admission and close cause at every pipe, stream, HTTP
+   upgrade, and WebSocket boundary. Transport adapters cannot return apparent
+   success after dropping an envelope.
+
+7. Inject one application-owned `CodexBridge` into every frontend factory.
+   Generic WebSocket groups and MQTT broker/session machinery do not replace
+   controller-aware routing.
+
+8. Keep the complete generated app-server type facade and mandatory raw JSON
+   access above the provider protocol endpoint. Do not put Codex methods on
+   generic socket, pipe, HTTP, or WebSocket classes.
+
+9. Do not add a semantic state cache, AISuite snapshot, reconstructed history,
+   or frontend SDK state. Recovery remains native app-server queries.
+
+10. Preserve transport-specific telemetry such as peer address, Unix peer
+    credentials, TLS state, queue accounting, lifecycle phase, and close cause
+    outside the native app-server payload.
