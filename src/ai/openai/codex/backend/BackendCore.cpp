@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <deque>
 #include <exception>
+#include <iostream>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -115,6 +116,106 @@ namespace ai::openai::codex::backend {
                     return value.raw;
                 },
                 request);
+        }
+
+        std::uint64_t boundedFingerprint(std::string_view value) noexcept {
+            std::uint64_t hash = 1469598103934665603ULL;
+            for (const unsigned char character : value) {
+                hash ^= character;
+                hash *= 1099511628211ULL;
+            }
+            return hash;
+        }
+
+        std::string pendingRequestMethod(const typed::TypedServerRequest& request) {
+            return std::visit(
+                [](const auto& value) {
+                    using Value = std::decay_t<decltype(value)>;
+                    if constexpr (std::is_same_v<Value, typed::CommandApprovalRequest>) {
+                        return std::string{"command-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::FileChangeApprovalRequest>) {
+                        return std::string{"file-change-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::UserInputRequest>) {
+                        return std::string{"user-input"};
+                    } else if constexpr (std::is_same_v<Value, typed::ApplyPatchApprovalRequest>) {
+                        return std::string{"apply-patch-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::ExecCommandApprovalRequest>) {
+                        return std::string{"exec-command-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::PermissionsApprovalRequest>) {
+                        return std::string{"permissions-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::AttestationGenerateRequest>) {
+                        return std::string{"attestation-generate"};
+                    } else if constexpr (std::is_same_v<Value, typed::DynamicToolCallRequest>) {
+                        return std::string{"dynamic-tool-call"};
+                    } else if constexpr (std::is_same_v<Value, typed::McpServerElicitationRequest>) {
+                        return std::string{"mcp-server-elicitation"};
+                    } else {
+                        return std::string{"unknown-server-request"};
+                    }
+                },
+                request);
+        }
+
+        std::optional<typed::ThreadId> pendingRequestThreadId(const typed::TypedServerRequest& request) {
+            return std::visit(
+                [](const auto& value) -> std::optional<typed::ThreadId> {
+                    using Value = std::decay_t<decltype(value)>;
+                    if constexpr (std::is_same_v<Value, typed::CommandApprovalRequest> ||
+                                  std::is_same_v<Value, typed::FileChangeApprovalRequest> ||
+                                  std::is_same_v<Value, typed::UserInputRequest>) {
+                        return value.threadId;
+                    } else if constexpr (std::is_same_v<Value, typed::ApplyPatchApprovalRequest> ||
+                                         std::is_same_v<Value, typed::ExecCommandApprovalRequest>) {
+                        return value.params.conversationId;
+                    } else if constexpr (std::is_same_v<Value, typed::PermissionsApprovalRequest> ||
+                                         std::is_same_v<Value, typed::DynamicToolCallRequest> ||
+                                         std::is_same_v<Value, typed::McpServerElicitationRequest>) {
+                        return value.params.threadId;
+                    }
+                    return std::nullopt;
+                },
+                request);
+        }
+
+        std::string pendingProviderRequestIdDiagnostic(const typed::TypedServerRequest& request) {
+            const auto requestId = std::visit(
+                [](const auto& value) -> const ServerRequestId& {
+                    return value.requestId;
+                },
+                request);
+            return std::visit(
+                [](const auto& value) {
+                    using Value = std::decay_t<decltype(value)>;
+                    if constexpr (std::is_same_v<Value, std::int64_t>) {
+                        return std::string{"request-id-type=int64 request-id-value="} + std::to_string(value);
+                    } else {
+                        return std::string{"request-id-type=string request-id-fingerprint="} +
+                               std::to_string(boundedFingerprint(value));
+                    }
+                },
+                requestId.value());
+        }
+
+        void logPendingRequestLifecycle(std::string_view action,
+                                        PendingRequestId id,
+                                        std::uint64_t providerGeneration,
+                                        const typed::TypedServerRequest& request,
+                                        std::string_view removalReason = {}) noexcept {
+            try {
+                std::clog << "codex-backend: pending request lifecycle: action=" << action
+                          << " backend-pending-request-id=" << id.value()
+                          << " provider-generation=" << providerGeneration
+                          << " method=" << pendingRequestMethod(request)
+                          << ' ' << pendingProviderRequestIdDiagnostic(request);
+                if (const std::optional<typed::ThreadId> threadId = pendingRequestThreadId(request); threadId) {
+                    std::clog << " thread-id=" << threadId->value;
+                }
+                if (!removalReason.empty()) {
+                    std::clog << " removal-reason=" << removalReason;
+                }
+                std::clog << '\n';
+            } catch (...) {
+            }
         }
 
         std::size_t eventBytes(const SequencedBackendEvent& sequenced) noexcept {
@@ -1839,6 +1940,7 @@ namespace ai::openai::codex::backend {
                                                send.error ? send.error->message : "The App Server response could not be enqueued."));
                 return;
             }
+            const PendingRequestState pendingSnapshot = iterator->second;
             if (!publish(PendingRequestRemoved{pendingId, "response_enqueued"})) {
                 complete(id,
                          commandRequestId,
@@ -1846,6 +1948,8 @@ namespace ai::openai::codex::backend {
                                                "The backend could not retire the answered provider request."));
                 return;
             }
+            logPendingRequestLifecycle(
+                "removed", pendingId, pendingSnapshot.connectionGeneration, pendingSnapshot.request, "response_enqueued");
             complete(id, commandRequestId, CommandResult::succeeded(typed::Unit{}));
         }
 
@@ -2256,6 +2360,7 @@ namespace ai::openai::codex::backend {
                 ++nextPendingRequestId;
             }
             publish(PendingRequestAdded{PendingRequestState{id, request, state.provider.generation}});
+            logPendingRequestLifecycle("added", id, state.provider.generation, request);
         }
 
         void failProviderForPendingRequestCapacity(int code, std::string message, std::string reason) {

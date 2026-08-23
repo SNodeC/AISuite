@@ -515,6 +515,7 @@ namespace ai::openai::codex::frontend::internal::server {
             bool deliveryBackpressured = false;
             bool deliveryInFlight = false;
             std::optional<ConnectionClose> closeAfterDrain;
+            std::optional<std::string> transportCloseReason;
             std::optional<FrontendPrincipal> principal;
             std::optional<model::SessionIdentity> session;
             std::vector<FrontendCapability> negotiatedCapabilities;
@@ -1516,9 +1517,12 @@ namespace ai::openai::codex::frontend::internal::server {
                     }
                     return;
                 case OutboundDeliveryStatus::Closed:
-                    connection = nullptr;
-                    closeNow(token.identity,
-                             ConnectionClose{"frontend transport rejected outbound data", ErrorCode::CapacityExceeded, false});
+                    {
+                        const std::string closeReason = connection->transportCloseReason.value_or(
+                            "frontend transport rejected outbound data");
+                        connection = nullptr;
+                        closeNow(token.identity, ConnectionClose{closeReason, ErrorCode::CapacityExceeded, false});
+                    }
                     return;
             }
         }
@@ -3689,6 +3693,16 @@ namespace ai::openai::codex::frontend::internal::server {
                 impl->closeNow(identity, ConnectionClose{});
             } catch (...) {
             }
+        }
+    }
+
+    void ServerCore::recordTransportCloseReason(ConnectionIdentity identity, std::string reason) noexcept {
+        try {
+            Impl::DispatchScope dispatch(*impl);
+            if (Impl::Connection* connection = impl->findConnection(identity)) {
+                connection->transportCloseReason = std::move(reason);
+            }
+        } catch (...) {
         }
     }
 

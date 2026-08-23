@@ -110,6 +110,63 @@ namespace ai::openai::codex::frontend::internal::client {
             return {ErrorOrigin::Command, std::nullopt, error.code, error.message, error.details, false};
         }
 
+        model::ItemData& mutableItemData(model::ThreadItem& item) noexcept {
+            return std::visit(
+                [](auto& value) -> model::ItemData& {
+                    return value.value;
+                },
+                item);
+        }
+
+        bool commandOutputCarrier(const model::ThreadItem& item) noexcept {
+            return std::holds_alternative<model::CommandExecutionItem>(item) ||
+                   std::holds_alternative<model::FileChangeItem>(item);
+        }
+
+        bool sameScopedItem(const model::ItemData& left, const model::ItemData& right) noexcept {
+            return left.id == right.id && left.threadId == right.threadId && left.turnId == right.turnId;
+        }
+
+        bool itemMayStillAppendCommandOutput(const model::ItemData& current, const model::ItemData& incoming) noexcept {
+            return current.status != "completed" || incoming.status != "completed";
+        }
+
+        void preserveOrderedThreadReadCommandOutput(model::ThreadUpsertedOccurrence& update,
+                                                    const model::CanonicalSnapshot& current) {
+            for (model::ThreadItem& incomingItem : update.items) {
+                if (!commandOutputCarrier(incomingItem)) {
+                    continue;
+                }
+                model::ItemData& incoming = mutableItemData(incomingItem);
+                const auto retained = std::ranges::find_if(current.items, [&](const model::ThreadItem& candidate) {
+                    return commandOutputCarrier(candidate) && sameScopedItem(model::itemData(candidate), incoming);
+                });
+                if (retained == current.items.end()) {
+                    continue;
+                }
+                const model::ItemData& currentItem = model::itemData(*retained);
+                if (!currentItem.commandOutput.has_value()) {
+                    continue;
+                }
+                const bool incomingOmittedOutput = !incoming.commandOutput.has_value();
+                const bool incomingOlderPrefix = incoming.commandOutput.has_value() &&
+                                                 currentItem.commandOutput->size() > incoming.commandOutput->size() &&
+                                                 std::string_view{*currentItem.commandOutput}.starts_with(*incoming.commandOutput);
+                const bool incomingAheadOfOrderedEvents =
+                    incoming.commandOutput.has_value() && incoming.commandOutput->size() > currentItem.commandOutput->size() &&
+                    std::string_view{*incoming.commandOutput}.starts_with(*currentItem.commandOutput) &&
+                    itemMayStillAppendCommandOutput(currentItem, incoming);
+                if (!incomingOmittedOutput && !incomingOlderPrefix && !incomingAheadOfOrderedEvents) {
+                    continue;
+                }
+                incoming.commandOutput = currentItem.commandOutput;
+                incoming.commandOutputOverflowV2 = currentItem.commandOutputOverflowV2;
+                incoming.contentTruncated = currentItem.contentTruncated;
+                incoming.droppedContentBytes = currentItem.droppedContentBytes;
+                incoming.truncation = currentItem.truncation;
+            }
+        }
+
         bool bindingIsSensitive(generated::MethodId method) noexcept {
             const generated::MethodMetadata* metadata = methodMetadata(method);
             return (metadata != nullptr && metadata->category == generated::MethodCategory::ReverseResponse) ||
@@ -3904,6 +3961,7 @@ namespace ai::openai::codex::frontend::internal::client {
             const bool replace = effect->authority == ThreadReadStateEffectAuthority::Replace;
             if (replace) {
                 update.authority = model::ThreadUpsertAuthority::Replace;
+                preserveOrderedThreadReadCommandOutput(update, candidate);
                 if (std::optional<ClientError> error = applyPayload(std::move(update), false); error.has_value()) {
                     return error;
                 }
@@ -3911,6 +3969,7 @@ namespace ai::openai::codex::frontend::internal::client {
                 update.authority = effect->authority == ThreadReadStateEffectAuthority::Merge
                                        ? model::ThreadUpsertAuthority::MergeApplyCompleteness
                                        : model::ThreadUpsertAuthority::MergePreserveCompleteness;
+                preserveOrderedThreadReadCommandOutput(update, candidate);
                 if (std::optional<ClientError> error = applyPayload(std::move(update), false); error.has_value()) {
                     return error;
                 }

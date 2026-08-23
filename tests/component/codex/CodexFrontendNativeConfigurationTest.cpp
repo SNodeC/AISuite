@@ -44,7 +44,8 @@ int main() {
     result.expectTrue(app::SocketFrontendOptions{}.maximumFrameSize == frontend::DefaultFrontendMaximumInboundMessageBytes &&
                           app::DEFAULT_MAXIMUM_OUTBOUND_BYTES ==
                               frontend::DefaultFrontendServiceMaxOutboundBytes +
-                                  app::DEFAULT_TRANSPORT_FRAMING_HEADROOM_BYTES,
+                                  app::DEFAULT_TRANSPORT_FRAMING_HEADROOM_BYTES &&
+                          frontend::DefaultFrontendMaximumServerMessageBytes + 1U <= app::DEFAULT_MAXIMUM_OUTBOUND_BYTES,
                       "native framing and the SNode.C writer queue are derived from the reusable frontend service bounds");
 
     const std::string configuration = readFile(CODEX_BACKEND_CONFIGURATION_SOURCE);

@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
 #include <limits>
 #include <optional>
 #include <set>
@@ -2184,6 +2185,80 @@ namespace ai::openai::codex::backend {
                 request);
         }
 
+        std::uint64_t boundedFingerprint(std::string_view value) noexcept {
+            std::uint64_t hash = 1469598103934665603ULL;
+            for (const unsigned char character : value) {
+                hash ^= character;
+                hash *= 1099511628211ULL;
+            }
+            return hash;
+        }
+
+        std::string pendingRequestMethod(const typed::TypedServerRequest& request) {
+            return std::visit(
+                [](const auto& value) {
+                    using Value = std::decay_t<decltype(value)>;
+                    if constexpr (std::is_same_v<Value, typed::CommandApprovalRequest>) {
+                        return std::string{"command-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::FileChangeApprovalRequest>) {
+                        return std::string{"file-change-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::UserInputRequest>) {
+                        return std::string{"user-input"};
+                    } else if constexpr (std::is_same_v<Value, typed::ApplyPatchApprovalRequest>) {
+                        return std::string{"apply-patch-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::ExecCommandApprovalRequest>) {
+                        return std::string{"exec-command-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::PermissionsApprovalRequest>) {
+                        return std::string{"permissions-approval"};
+                    } else if constexpr (std::is_same_v<Value, typed::AttestationGenerateRequest>) {
+                        return std::string{"attestation-generate"};
+                    } else if constexpr (std::is_same_v<Value, typed::DynamicToolCallRequest>) {
+                        return std::string{"dynamic-tool-call"};
+                    } else if constexpr (std::is_same_v<Value, typed::McpServerElicitationRequest>) {
+                        return std::string{"mcp-server-elicitation"};
+                    } else {
+                        return std::string{"unknown-server-request"};
+                    }
+                },
+                request);
+        }
+
+        std::string pendingProviderRequestIdDiagnostic(const typed::TypedServerRequest& request) {
+            return std::visit(
+                [](const auto& value) {
+                    return std::visit(
+                        [](const auto& idValue) {
+                            using Value = std::decay_t<decltype(idValue)>;
+                            if constexpr (std::is_same_v<Value, std::int64_t>) {
+                                return std::string{"request-id-type=int64 request-id-value="} + std::to_string(idValue);
+                            } else {
+                                return std::string{"request-id-type=string request-id-fingerprint="} +
+                                       std::to_string(boundedFingerprint(idValue));
+                            }
+                        },
+                        value.requestId.value());
+                },
+                request);
+        }
+
+        void logResolvedMatch(std::uint64_t providerGeneration,
+                              const typed::ThreadId& threadId,
+                              bool matched,
+                              std::string_view classification,
+                              std::optional<PendingRequestId> retiredId = std::nullopt) noexcept {
+            try {
+                std::clog << "codex-backend: pending request resolved: provider-generation=" << providerGeneration
+                          << " thread-id=" << threadId.value
+                          << " matched=" << (matched ? "true" : "false")
+                          << " classification=" << classification;
+                if (retiredId) {
+                    std::clog << " retired-backend-pending-request-id=" << retiredId->value();
+                }
+                std::clog << '\n';
+            } catch (...) {
+            }
+        }
+
         std::optional<typed::ThreadId> pendingRequestThreadId(const typed::TypedServerRequest& request) {
             return std::visit(
                 [](const auto& value) -> std::optional<typed::ThreadId> {
@@ -2204,6 +2279,24 @@ namespace ai::openai::codex::backend {
                     return std::nullopt;
                 },
                 request);
+        }
+
+        void logPendingRequestRemoval(PendingRequestId id,
+                                      std::uint64_t providerGeneration,
+                                      const typed::TypedServerRequest& request,
+                                      std::string_view reason) noexcept {
+            try {
+                std::clog << "codex-backend: pending request lifecycle: action=removed"
+                          << " backend-pending-request-id=" << id.value()
+                          << " provider-generation=" << providerGeneration
+                          << " method=" << pendingRequestMethod(request)
+                          << ' ' << pendingProviderRequestIdDiagnostic(request);
+                if (const std::optional<typed::ThreadId> threadId = pendingRequestThreadId(request); threadId) {
+                    std::clog << " thread-id=" << threadId->value;
+                }
+                std::clog << " removal-reason=" << reason << '\n';
+            } catch (...) {
+            }
         }
 
         Reduction applyTypedNotificationState(BackendState& state,
@@ -2739,25 +2832,46 @@ namespace ai::openai::codex::backend {
                                        windows.mode,
                                        windows.error);
                     } else if constexpr (std::is_same_v<Value, typed::ServerRequestResolvedNotification>) {
+                        bool requestIdMatched = false;
+                        bool generationMismatched = false;
+                        bool threadMismatched = false;
                         for (auto iterator = state.pendingRequests.begin(); iterator != state.pendingRequests.end(); ++iterator) {
                             PendingRequestState& pending = iterator->second;
-                            if (pending.connectionGeneration != state.provider.generation ||
-                                pendingProviderRequestId(pending.request) != value.requestId) {
+                            if (pendingProviderRequestId(pending.request) != value.requestId) {
+                                continue;
+                            }
+                            requestIdMatched = true;
+                            if (pending.connectionGeneration != state.provider.generation) {
+                                generationMismatched = true;
                                 continue;
                             }
                             const std::optional<typed::ThreadId> pendingThread = pendingRequestThreadId(pending.request);
                             if (pendingThread && pendingThread->value != value.threadId.value) {
+                                threadMismatched = true;
                                 retainDomainNotification(state, method, event);
                                 reduction.changed = true;
                                 reduction.flushImmediately = true;
+                                logResolvedMatch(state.provider.generation, value.threadId, false, "thread-mismatch");
                                 break;
                             }
                             const PendingRequestId id = iterator->first;
+                            const PendingRequestState removed = pending;
                             state.pendingRequests.erase(iterator);
                             reduction.changed = true;
                             reduction.pendingRequestRemovals.push_back({id, "externally_resolved"});
                             reduction.flushImmediately = true;
+                            logPendingRequestRemoval(id, removed.connectionGeneration, removed.request, "externally_resolved");
+                            logResolvedMatch(state.provider.generation, value.threadId, true, "matched", id);
                             break;
+                        }
+                        if (!reduction.changed) {
+                            if (!requestIdMatched) {
+                                logResolvedMatch(state.provider.generation, value.threadId, false, "no-request-id-match");
+                            } else if (generationMismatched) {
+                                logResolvedMatch(state.provider.generation, value.threadId, false, "generation-mismatch");
+                            } else if (threadMismatched) {
+                                logResolvedMatch(state.provider.generation, value.threadId, false, "thread-mismatch");
+                            }
                         }
                     }
                 },
@@ -2862,7 +2976,7 @@ namespace ai::openai::codex::backend {
                     Reduction reduction{true, true};
                     reduction.pendingRequestRemovals.reserve(state.pendingRequests.size());
                     for (const auto& [id, pending] : state.pendingRequests) {
-                        (void) pending;
+                        logPendingRequestRemoval(id, pending.connectionGeneration, pending.request, value.reason);
                         reduction.pendingRequestRemovals.push_back({id, value.reason});
                     }
                     for (auto& [threadId, thread] : state.threads) {

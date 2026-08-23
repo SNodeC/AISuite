@@ -132,6 +132,7 @@ namespace ai::openai::codex::frontend {
         [[nodiscard]] FrontendPeerContext peer() const;
         [[nodiscard]] std::size_t queuedMessages() const noexcept;
         [[nodiscard]] std::size_t queuedBytes() const noexcept;
+        void recordTransportCloseReason(std::string reason) noexcept;
 
         // Retry the retained head message after a transport has made outbound
         // capacity available. Backpressured callbacks schedule this after they
