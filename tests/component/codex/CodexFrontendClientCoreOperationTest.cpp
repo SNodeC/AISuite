@@ -126,33 +126,39 @@ namespace {
         return {frontend::SequenceNumber(0), encoded.value().at("state")};
     }
 
-    frontend::Welcome welcome(std::string sessionId = "operation-session", bool threadReadStateEffects = true) {
+    frontend::Welcome
+    welcome(std::string sessionId = "operation-session", bool threadReadStateEffects = true, bool appendV2 = false) {
+        frontend::Json extensions{{"permittedScopes",
+                                   frontend::Json::array({"observe",
+                                                          "control",
+                                                          "provider_lifecycle",
+                                                          "account_management",
+                                                          "configuration_write",
+                                                          "command_execution",
+                                                          "filesystem_read",
+                                                          "filesystem_write",
+                                                          "extension_management",
+                                                          "mcp_invoke",
+                                                          "sensitive_response",
+                                                          "unknown_request_response"})}};
+        if (appendV2) {
+            extensions["projection"] = {{"itemContentUpdateMode", "append-v2"}};
+        }
         return {std::move(sessionId),
                 frontend::SessionRole::Controller,
                 frontend::SequenceNumber(0),
                 frontend::SyncMode::Snapshot,
-                {{"permittedScopes",
-                  frontend::Json::array({"observe",
-                                         "control",
-                                         "provider_lifecycle",
-                                         "account_management",
-                                         "configuration_write",
-                                         "command_execution",
-                                         "filesystem_read",
-                                         "filesystem_write",
-                                         "extension_management",
-                                         "mcp_invoke",
-                                         "sensitive_response",
-                                         "unknown_request_response"})}},
+                std::move(extensions),
                 capabilities(threadReadStateEffects),
                 methods(),
                 methods()};
     }
 
-    core::PhysicalGeneration ready(core::ClientCore& client, Harness& harness, bool threadReadStateEffects = true) {
+    core::PhysicalGeneration
+    ready(core::ClientCore& client, Harness& harness, bool threadReadStateEffects = true, bool appendV2 = false) {
         const core::PhysicalGeneration generation = *client.attach(harness.transport());
         client.transportConnected(generation);
-        (void) client.receive(generation, frontend::ServerMessage{welcome("operation-session", threadReadStateEffects)});
+        (void) client.receive(generation, frontend::ServerMessage{welcome("operation-session", threadReadStateEffects, appendV2)});
         (void) client.receive(generation, frontend::ServerMessage{emptySnapshot()});
         (void) client.receive(generation, frontend::ServerMessage{frontend::SyncComplete{frontend::SequenceNumber(0)}});
         return generation;
@@ -192,6 +198,88 @@ namespace {
                               {"fullyLoaded", fullyLoaded},
                               {"turns", std::move(turns)},
                               {"extensions", frontend::Json::object()}};
+    }
+
+    frontend::Json commandItem(std::string_view itemId, std::string commandOutput) {
+        return frontend::Json{{"id", itemId},
+                              {"type", "commandExecution"},
+                              {"status", "started"},
+                              {"agentText", ""},
+                              {"reasoningText", ""},
+                              {"reasoningSummary", ""},
+                              {"commandOutput", std::move(commandOutput)},
+                              {"contentTruncated", false},
+                              {"droppedContentBytes", std::uint64_t{0}},
+                              {"data",
+                               frontend::Json{{"command", "/bin/bash -lc true"},
+                                              {"cwd", "/tmp"},
+                                              {"processId", "1"},
+                                              {"status", "inProgress"}}},
+                              {"extensions", frontend::Json::object()},
+                              {"generation", std::uint64_t{1}},
+                              {"freshness", "current"},
+                              {"connectionInvalidated", false}};
+    }
+
+    frontend::Snapshot commandThreadSnapshot(frontend::SequenceNumber sequence,
+                                             std::string_view threadId,
+                                             std::string_view turnId,
+                                             std::string_view itemId,
+                                             std::string commandOutput) {
+        model::CanonicalSnapshot state;
+        state.sequence = model::FrontendSequence(sequence);
+        model::ThreadState thread{model::ThreadIdentity{std::string{threadId}}};
+        thread.fullyLoaded = true;
+        state.threads.push_back(std::move(thread));
+        model::TurnState turn{model::TurnIdentity{std::string{turnId}}, model::ThreadIdentity{std::string{threadId}}};
+        turn.status = "inProgress";
+        state.turns.push_back(std::move(turn));
+        model::ItemData item{model::ItemIdentity{std::string{itemId}},
+                             model::ThreadIdentity{std::string{threadId}},
+                             model::TurnIdentity{std::string{turnId}}};
+        item.status = "started";
+        item.commandOutput = std::move(commandOutput);
+        state.items.push_back(model::CommandExecutionItem{std::move(item)});
+        const auto encoded = frontend::Codec::encodeExpandedSnapshot(model::encodeSnapshot(state, model::ItemContentWireMode::AppendV2).value());
+        return {sequence, encoded.value().at("state")};
+    }
+
+    frontend::Json commandThreadBody(std::string_view threadId,
+                                     std::string_view turnId,
+                                     std::string_view itemId,
+                                     std::string commandOutput) {
+        frontend::Json items = frontend::Json::array({commandItem(itemId, std::move(commandOutput))});
+        frontend::Json turns = frontend::Json::array({frontend::Json{{"id", turnId},
+                                                                      {"threadId", threadId},
+                                                                      {"status", "inProgress"},
+                                                                      {"active", true},
+                                                                      {"terminal", false},
+                                                                      {"items", std::move(items)},
+                                                                      {"extensions", frontend::Json::object()}}});
+        return frontend::Json{{"id", threadId},
+                              {"fullyLoaded", true},
+                              {"turns", std::move(turns)},
+                              {"extensions", frontend::Json::object()}};
+    }
+
+    frontend::FrontendEvent commandOutputAppend(std::uint64_t sequence,
+                                                std::string_view threadId,
+                                                std::string_view turnId,
+                                                std::string_view itemId,
+                                                std::uint64_t baseContentBytes,
+                                                std::string delta) {
+        return {frontend::SequenceNumber{sequence},
+                "item.content.updated",
+                {{"threadId", threadId},
+                 {"turnId", turnId},
+                 {"itemId", itemId},
+                 {"channel", "commandOutput"},
+                 {"content", ""},
+                 {"contentDelta", std::move(delta)},
+                 {"baseContentBytes", baseContentBytes},
+                 {"discardPrefixBytes", std::uint64_t{0}},
+                 {"contentTruncated", false},
+                 {"droppedContentBytes", std::uint64_t{0}}}};
     }
 
     frontend::Json stateEffect(std::string_view authority,
@@ -1030,6 +1118,123 @@ namespace {
                               divergedClient.state()->thread("thread-effect") != nullptr &&
                               divergedClient.state()->thread("thread-effect")->fullyLoaded,
                           "a thread.read response applies to the State current after every earlier ordered semantic event");
+
+        Harness staleContentHarness;
+        std::vector<std::string> staleDiagnostics;
+        core::ClientCallbacks staleCallbacks;
+        staleCallbacks.onConnectionStateChanged = [&staleDiagnostics](const core::StateChange& change) {
+            if (change.error.has_value()) {
+                staleDiagnostics.push_back(change.error->message);
+            }
+        };
+        core::ClientCore staleContentClient(clientOptions(), std::move(staleCallbacks));
+        const core::PhysicalGeneration staleGeneration = ready(staleContentClient, staleContentHarness, true, true);
+        constexpr std::string_view ThreadId = "thread-read-command-thread";
+        constexpr std::string_view TurnId = "thread-read-command-turn";
+        constexpr std::string_view ItemId = "thread-read-command-item";
+        const bool commandSeeded = staleContentClient.receive(
+            staleGeneration,
+            frontend::ServerMessage{commandThreadSnapshot(frontend::SequenceNumber(1), ThreadId, TurnId, ItemId, "seed")});
+        std::optional<core::OperationResult> staleCompletion;
+        const core::Submission staleRead = staleContentClient.submit(
+            generated::makeParameters(generated::MethodId::ThreadRead,
+                                      frontend::Json{{"threadId", ThreadId}, {"includeTurns", true}}),
+            [&staleCompletion](const core::OperationResult& completion) {
+                staleCompletion = completion;
+            });
+        frontend::FrontendEvent firstAppend = commandOutputAppend(2, ThreadId, TurnId, ItemId, 4, "-live");
+        const bool firstAppendAccepted =
+            staleRead && staleContentClient.receive(staleGeneration,
+                                                    frontend::ServerMessage{frontend::EventBatch{
+                                                        firstAppend.sequence, firstAppend.sequence, {std::move(firstAppend)}}});
+        frontend::Json staleResult{{"thread", commandThreadBody(ThreadId, TurnId, ItemId, "seed")},
+                                   {"stateEffect", stateEffect("replace")}};
+        const bool staleReadAccepted =
+            firstAppendAccepted &&
+            staleContentClient.receive(staleGeneration,
+                                       frontend::ServerMessage{frontend::Response::success(*staleRead.requestId,
+                                                                                           std::move(staleResult))});
+        frontend::FrontendEvent secondAppend = commandOutputAppend(3, ThreadId, TurnId, ItemId, 9, "-tail");
+        const bool secondAppendAccepted =
+            staleReadAccepted &&
+            staleContentClient.receive(staleGeneration,
+                                       frontend::ServerMessage{frontend::EventBatch{
+                                           secondAppend.sequence, secondAppend.sequence, {std::move(secondAppend)}}});
+        const model::ThreadItem* commandItemAfter = staleContentClient.state()->item(ItemId);
+        const auto* commandAfter =
+            commandItemAfter ? std::get_if<model::CommandExecutionItem>(commandItemAfter) : nullptr;
+        const std::string commandOutputAfter =
+            commandAfter && commandAfter->value.commandOutput ? *commandAfter->value.commandOutput : std::string{};
+        result.expectTrue(commandSeeded && staleRead && firstAppendAccepted && staleReadAccepted && secondAppendAccepted &&
+                              staleCompletion.has_value() && staleCompletion->succeeded() &&
+                              staleContentClient.connectionState() == core::ConnectionState::Ready &&
+                              commandOutputAfter == "seed-live-tail",
+                          "a thread.read state effect that contains an older commandExecution body preserves already-applied "
+                          "commandOutput appends so the next ordered append remains byte-aligned: seeded=" +
+                              std::to_string(commandSeeded) + " submitted=" + std::to_string(static_cast<bool>(staleRead)) +
+                              " first=" + std::to_string(firstAppendAccepted) +
+                              " read=" + std::to_string(staleReadAccepted) + " second=" + std::to_string(secondAppendAccepted) +
+                              " completion=" + std::to_string(staleCompletion.has_value() && staleCompletion->succeeded()) +
+                              " ready=" + std::to_string(staleContentClient.connectionState() == core::ConnectionState::Ready) +
+                              " output=" + commandOutputAfter +
+                              " diagnostic=" + (staleDiagnostics.empty() ? std::string{} : staleDiagnostics.back()));
+
+        Harness futureContentHarness;
+        std::vector<std::string> futureDiagnostics;
+        core::ClientCallbacks futureCallbacks;
+        futureCallbacks.onConnectionStateChanged = [&futureDiagnostics](const core::StateChange& change) {
+            if (change.error.has_value()) {
+                futureDiagnostics.push_back(change.error->message);
+            }
+        };
+        core::ClientCore futureContentClient(clientOptions(), std::move(futureCallbacks));
+        const core::PhysicalGeneration futureGeneration = ready(futureContentClient, futureContentHarness, true, true);
+        constexpr std::string_view FutureThreadId = "thread-read-future-command-thread";
+        constexpr std::string_view FutureTurnId = "thread-read-future-command-turn";
+        constexpr std::string_view FutureItemId = "thread-read-future-command-item";
+        const bool futureSeeded = futureContentClient.receive(
+            futureGeneration,
+            frontend::ServerMessage{
+                commandThreadSnapshot(frontend::SequenceNumber(1), FutureThreadId, FutureTurnId, FutureItemId, "seed")});
+        std::optional<core::OperationResult> futureCompletion;
+        const core::Submission futureRead = futureContentClient.submit(
+            generated::makeParameters(generated::MethodId::ThreadRead,
+                                      frontend::Json{{"threadId", FutureThreadId}, {"includeTurns", true}}),
+            [&futureCompletion](const core::OperationResult& completion) {
+                futureCompletion = completion;
+            });
+        frontend::Json futureResult{{"thread", commandThreadBody(FutureThreadId, FutureTurnId, FutureItemId, "seed-future")},
+                                    {"stateEffect", stateEffect("replace")}};
+        const bool futureReadAccepted =
+            futureSeeded && futureRead &&
+            futureContentClient.receive(futureGeneration,
+                                        frontend::ServerMessage{frontend::Response::success(*futureRead.requestId,
+                                                                                            std::move(futureResult))});
+        frontend::FrontendEvent orderedAppend = commandOutputAppend(2, FutureThreadId, FutureTurnId, FutureItemId, 4, "-live");
+        const bool orderedAppendAccepted =
+            futureReadAccepted &&
+            futureContentClient.receive(futureGeneration,
+                                        frontend::ServerMessage{frontend::EventBatch{
+                                            orderedAppend.sequence, orderedAppend.sequence, {std::move(orderedAppend)}}});
+        const model::ThreadItem* futureCommandItem = futureContentClient.state()->item(FutureItemId);
+        const auto* futureCommand =
+            futureCommandItem ? std::get_if<model::CommandExecutionItem>(futureCommandItem) : nullptr;
+        const std::string futureOutput =
+            futureCommand && futureCommand->value.commandOutput ? *futureCommand->value.commandOutput : std::string{};
+        result.expectTrue(futureSeeded && futureRead && futureReadAccepted && orderedAppendAccepted &&
+                              futureCompletion.has_value() && futureCompletion->succeeded() &&
+                              futureContentClient.connectionState() == core::ConnectionState::Ready &&
+                              futureOutput == "seed-live",
+                          "a thread.read state effect that contains commandOutput ahead of the ordered event stream does not "
+                          "move a still-running commandExecution past the next append base: seeded=" +
+                              std::to_string(futureSeeded) + " submitted=" + std::to_string(static_cast<bool>(futureRead)) +
+                              " read=" + std::to_string(futureReadAccepted) +
+                              " append=" + std::to_string(orderedAppendAccepted) +
+                              " completion=" + std::to_string(futureCompletion.has_value() && futureCompletion->succeeded()) +
+                              " ready=" + std::to_string(futureContentClient.connectionState() == core::ConnectionState::Ready) +
+                              " output=" + futureOutput +
+                              " diagnostic=" + (futureDiagnostics.empty() ? std::string{} : futureDiagnostics.back()));
+
     }
 
     void testThreadReadStateEffectPublicationGuards(tests::support::TestResult& result) {
