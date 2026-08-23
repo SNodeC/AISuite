@@ -862,6 +862,7 @@ codex-bridge application
 |   `-- no Codex semantic state
 |
 +-- Provider endpoint (exactly one active)
+|   |-- reference to the application-owned CodexBridge
 |   |-- stdio StdioAppServerTransport, or SNode.C socket client
 |   |-- app-server JSONL/WebSocket framing
 |   `-- CodexAppServerClient typed/raw facade
@@ -882,12 +883,19 @@ codex-bridge application
 
 ### 10.1 Provider endpoint responsibilities
 
+- receive the application-owned `CodexBridge` by reference during construction;
+- register/deregister itself and its generation with `CodexBridge` exactly once
+  per provider lifecycle;
 - establish and supervise the app-server connection/process;
 - frame native app-server JSON-RPC without alteration;
 - expose raw incoming/outgoing observation hooks;
 - correlate typed client method callbacks;
-- deliver app-server notifications and server requests asynchronously;
-- report provider generation, process exit, transport failure, and diagnostics;
+- deliver app-server responses, notifications, and server requests
+  asynchronously to `CodexBridge`;
+- accept permitted frontend requests from `CodexBridge` and transmit them to
+  app-server;
+- report provider generation, process exit, transport failure, and diagnostics
+  through `CodexBridge`;
 - never publish a reconstructed thread state.
 
 ### 10.2 Frontend endpoint responsibilities
