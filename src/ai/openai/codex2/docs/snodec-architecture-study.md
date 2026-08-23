@@ -24,11 +24,9 @@ The study focused on:
 - provider-process and protocol lessons from the legacy AISuite Codex stack;
 - consequences for the new slim `codex2` / `codex-bridge` implementation.
 
-The source revisions inspected were:
-
-- SNode.C: `bc43179dbee2b5a0286420a61d8f1ceaef01530d`
-- MQTTSuite: `eedded8ab697e44e0b7ac1ed4336929e427fe8c9`
-- AISuite `codex2-master` baseline: `1f3410ac9eac6857f0f99c39b8c883ec163f72d5`
+The source trees inspected were SNode.C `master`/HEAD, the local MQTTSuite
+source tree, and the AISuite `codex2-master` branch. The implemented codex2
+build and CI always consume the current SNode.C `master`/HEAD.
 
 The OpenAI Codex repository at `/home/voc/tmp/codex/codex` was treated as a
 read-only protocol/schema source. It was not modified.
@@ -593,6 +591,26 @@ routing, controller ownership, JSON-RPC request policy, or bridge telemetry.
 Fanout should remain centralized in `CodexBridge`; a subprotocol is an endpoint
 adapter.
 
+### 6.6 Injecting the application bridge during upgrade
+
+The WebSocket selector's statically linked factory function cannot receive an
+application argument. This does not require making `CodexBridge` a singleton.
+The Codex server application uses a static, stateless subprotocol factory and a
+scoped handoff around the synchronous `Response::upgrade()` operation.
+
+The scoped handoff carries the exact upgrading `SocketConnection*` and a
+non-owning reference to the application-owned `CodexBridge`. The factory's
+`create(SubProtocolContext*)` resolves the context's connection, requires an
+exact pointer match, consumes the handoff at most once, and passes the bridge
+reference into the new subprotocol. Its destructor restores the previous
+handoff so exceptions and nested event-loop reentrancy cannot leave stale
+state.
+
+Consequently, only the selector-facing factory is static. The bridge remains
+an ordinary application-owned object, and every subprotocol remains a
+non-owning endpoint adapter whose lifetime is bounded by the application and
+listener graph.
+
 ## 7. MQTT and MQTTSuite Lessons
 
 ### 7.1 Why MQTT is relevant
@@ -634,8 +652,8 @@ WebSocket `SubProtocolFactory` classes perform the analogous construction after
 upgrade negotiation.
 
 For `codex2`, factories should construct only endpoint adapters. The central
-`CodexBridge` and provider facade are application-owned and shared; they must
-not be recreated per frontend connection.
+`CodexBridge`, including its backend SDK, is application-owned and shared; it
+must not be recreated per provider or frontend connection.
 
 ### 7.4 MQTTSuite application configuration
 
@@ -658,6 +676,8 @@ deliberately narrow:
 
 - endpoint registration/removal;
 - explicit controller/observer role;
+- generated typed/raw backend SDK access for the containing application;
+- local application callback correlation;
 - routing and fanout of lossless app-server messages;
 - request ownership/correlation needed for routing;
 - bridge telemetry and terminal diagnostics.
@@ -676,7 +696,7 @@ implementation:
 - descriptor relocation away from standard descriptors;
 - rollback when parent-side setup fails after spawn;
 - process-group and signal-mask setup;
-- pidfd-based child observation with nonblocking `waitpid` fallback;
+- pidfd-based child observation and one-time child reaping after readiness;
 - bounded stdin queueing;
 - incremental bounded JSONL framing of stdout and stderr;
 - distinct process, protocol, transport, and diagnostic callbacks;
@@ -701,11 +721,11 @@ The old `AppServerClient` correctly separates:
 - notification and server-request dispatch;
 - lifecycle state and diagnostics.
 
-The new facade should preserve this useful direction while simplifying the
-surface:
+The `CodexBridge` backend SDK should preserve this useful direction while
+simplifying the surface:
 
 ```cpp
-client.threadList([](ThreadList& result) {
+bridge.threadList([](ThreadList& result) {
     if (!result) {
         return;
     }
@@ -829,22 +849,31 @@ Typed child objects can be lightweight views sharing the owning result's JSON
 lifetime. If values are returned beyond a callback, ownership must remain
 explicit and safe.
 
-### 9.4 Methods live on a Codex facade
+### 9.4 Methods live on the CodexBridge backend SDK
 
 Methods such as `threadList`, `threadRead`, and `turnStart` do not belong on
-SNode.C `SocketClient`. A Codex provider client/facade associated with the
-provider protocol context exposes them and submits native JSON-RPC over that
-context.
+SNode.C `SocketClient`. The application-owned `CodexBridge` owns and exposes
+the generated backend SDK. The active provider endpoint registers its transport
+with the bridge, and the bridge submits native JSON-RPC through that endpoint.
+This makes the same SDK reusable by `codex-bridge` and arbitrary AI-enabled
+SNode.C applications, including applications with no frontend listeners.
 
 Both paths are mandatory:
 
 ```cpp
-client.threadList(callback);  // generated typed facade
-client.sendRawJson(message);  // lossless raw path
+bridge.threadList(callback);  // generated typed backend SDK
+bridge.sendRawJson(message);  // lossless raw path
 ```
 
 Notifications and app-server requests likewise have typed callback registration
 and a raw observation path.
+
+The required frontend SDK is a stateless transport proxy for this same API. It
+uses the same generated class names, methods, callback signatures, notification
+handlers, and server-request response types, but sends and receives them through
+the slim bridge envelope. Its only additional surface is bridge
+connection/role/controller telemetry. It must not recreate the legacy frontend
+`State`, reducer, snapshot, reconciliation, or retention architecture.
 
 ## 10. Recommended codex2 Runtime Object Graph
 
@@ -855,6 +884,8 @@ codex-bridge application
 |
 +-- CodexBridge
 |   |-- provider endpoint identity/generation
+|   |-- generated typed backend SDK and raw JSON API
+|   |-- local application callback correlation
 |   |-- frontend endpoint registry
 |   |-- controller connection ID
 |   |-- bounded in-flight routing map
@@ -864,8 +895,7 @@ codex-bridge application
 +-- Provider endpoint (exactly one active)
 |   |-- reference to the application-owned CodexBridge
 |   |-- stdio StdioAppServerTransport, or SNode.C socket client
-|   |-- app-server JSONL/WebSocket framing
-|   `-- CodexAppServerClient typed/raw facade
+|   `-- app-server JSONL/WebSocket framing
 |
 `-- Frontend listeners (zero or more configured instances)
     |-- Unix JSONL stream server
@@ -889,7 +919,6 @@ codex-bridge application
 - establish and supervise the app-server connection/process;
 - frame native app-server JSON-RPC without alteration;
 - expose raw incoming/outgoing observation hooks;
-- correlate typed client method callbacks;
 - deliver app-server responses, notifications, and server requests
   asynchronously to `CodexBridge`;
 - accept permitted frontend requests from `CodexBridge` and transmit them to
@@ -910,6 +939,10 @@ codex-bridge application
 
 ### 10.3 CodexBridge responsibilities
 
+- own and expose the complete generated typed backend SDK and mandatory raw
+  JSON API used by the containing SNode.C application;
+- correlate local application requests and invoke their concrete typed
+  callbacks asynchronously;
 - accept provider and frontend endpoint lifecycle callbacks;
 - assign bridge-local connection IDs and delivery sequence numbers;
 - select one controller explicitly;
@@ -939,6 +972,95 @@ After provider restart/reconnect:
 - do not attempt to merge old bridge-retained Codex objects into new provider
   responses.
 
+### 10.5 Recommended `codex-bridge-client` runtime object graph
+
+`codex-bridge-client` follows the normal SNode.C client application boundary in
+the same way that MQTTSuite applications keep MQTT behavior outside generic
+socket classes:
+
+```text
+codex-bridge-client application
+|
++-- Configuration : utils::SubCommand
+|   `-- Codex-specific application options only
+|
++-- Presenter
++-- CommandParser
++-- ClientSession
+|   |-- command-to-SDK dispatch
+|   |-- asynchronous callback presentation
+|   |-- controller operations
+|   `-- no retained Codex semantic state
+|
++-- frontend::CodexBridge
+|   |-- complete generated typed frontend proxy SDK
+|   |-- raw bridge/app-server JSON path
+|   |-- outstanding callback correlation
+|   |-- connection ID and controller-role telemetry
+|   `-- no State, snapshot, reducer, or history cache
+|
++-- frontend::client::ClientConnection
+|   |-- exactly one active physical attachment
+|   |-- SDK sender -> active transport
+|   |-- transport envelope -> SDK receive
+|   |-- attach/connect/fail/detach/shutdown convergence
+|   `-- exact-once pending callback failure on disconnect
+|
+`-- SNode.C client instances (all compiled instances disabled by default)
+    |
+    +-- raw stream instance selected by native configuration
+    |     SocketClient<StreamSocketContextFactory, ClientConnection&, bounds>
+    |       -> StreamSocketContext
+    |            -> bounded JSONL framing
+    |            -> QueueResult-aware delivery
+    |            -> ClientConnection
+    |
+    `-- WebSocket/WSS instance selected by native configuration
+          HTTP SocketClient<WebSocketHttpSocketContextFactory, binding>
+            -> HTTP request and upgrade
+            -> Codex client SubProtocolFactory
+            -> Codex client SubProtocol
+                 -> bounded text-message framing
+                 -> QueueResult-aware admission
+                 -> ClientConnection
+```
+
+The application owns the SDK, `ClientSession`, `ClientConnection`, presenter,
+parser, and SNode.C client handles. The raw context factory receives a
+non-owning `ClientConnection&` through the ordinary variadic SNode.C factory
+constructor. The WebSocket HTTP context carries a shared transport binding only
+across the HTTP-to-subprotocol transition; that binding still borrows the
+application-owned `ClientConnection` and SDK.
+
+Raw and WebSocket factories construct equivalent logical Codex endpoints. A
+raw context consumes complete newline-delimited bridge envelopes. A WebSocket
+subprotocol consumes exactly one bridge envelope per completed text message.
+Neither transport owns command behavior or calls generated Codex methods
+directly.
+
+Native SNode.C instance configuration owns:
+
+- enabled/disabled selection;
+- Unix, IPv4, IPv6, RFCOMM, and supported TLS addressing;
+- retry, retry backoff, reconnect, and connection-cycle suppression;
+- read/write and termination timeouts;
+- TLS certificates, trust, SNI, ciphers, and shutdown policy;
+- writer queue limits and watermarks.
+
+`ClientSession` must not duplicate those controls. Explicit reconnect
+terminates the selected `ClientFlowController`, waits for the flow-completion
+boundary, and then invokes `connect()` for a new cycle. Application shutdown
+terminates the flow and closes the active `ClientConnection`; it does not call
+`core::SNodeC::free()` from `main`.
+
+The familiar legacy client command grammar is an interaction reference only.
+Each supported command invokes the current typed frontend SDK or an explicit
+bridge controller operation. `watch` controls presentation of future native
+events. `read` performs a fresh `thread/read`. Any retained `snapshot` spelling
+means a transient report from fresh app-server queries and is discarded after
+presentation. `replay` has no codex2 implementation because the bridge owns no
+event replay log.
+
 ## 11. Implications for the Paused Bootstrap Implementation
 
 The uncommitted bootstrap code was intentionally not continued or built during
@@ -963,8 +1085,12 @@ Required checks include:
    states.
 
 6. Rework stdio provider ownership to follow SNode.C pipe/event-loop lifecycle,
-   including child observation and asynchronous shutdown. The legacy transport
-   can inform this, but semantic legacy dependencies must not be imported.
+   including event-driven child observation and deterministic shutdown/reaping.
+   The legacy transport can inform this, but semantic legacy dependencies must
+   not be imported. No event-loop callback may perform a blocking child wait;
+   codex2 performs its final shutdown reap after `core::SNodeC::start()` returns.
+   Codex2 makes pidfd registration mandatory for every bridge-owned child and
+   deliberately has no periodic process-polling fallback.
 
 7. Keep `CodexBridge` free of thread, turn, item, command-output, pending-state,
    snapshot, and projection storage.
@@ -992,8 +1118,8 @@ and CI on this branch. They are a knowledge base only.
 
 No implementation should broaden the agreed architecture without stopping for
 explicit user approval. In particular, adding authentication, semantic cache,
-snapshot/replay state, frontend SDK state, or a new authority model would be an
-architectural extension and is out of scope.
+snapshot/replay state, stateful frontend SDK projection, or a new authority
+model would be an architectural extension and is out of scope.
 
 ## 13. Final Design Rules
 
@@ -1004,7 +1130,7 @@ The following rules are binding inputs for continued implementation:
 - use SNode.C event-loop callbacks and lifetime rules end to end;
 - use per-connection socket contexts or WebSocket subprotocols;
 - keep generic socket classes free of Codex methods;
-- place typed methods on a Codex-specific provider facade;
+- place typed methods on the application-owned `CodexBridge` backend SDK;
 - make every typed callback result a concrete lossless JSON-backed C++ object;
 - generate every app-server JSON-RPC datatype, not a selected subset;
 - retain mandatory raw JSON send/receive access;
@@ -1268,8 +1394,9 @@ are tracked for optional pipelining. Queue-aware send paths and `FileReader`
 integration preserve asynchronous operation.
 
 This client machinery is useful architectural evidence, but codex2 is not an
-HTTP client when it talks to a stdio app-server. The protocol facade belongs
-above the relevant provider endpoint, not in HTTP request classes.
+HTTP client when it talks to a stdio app-server. The `CodexBridge` backend SDK
+uses the relevant provider endpoint; it does not belong in HTTP request
+classes.
 
 ### 17.4 Upgrade is a socket-context transition
 
@@ -1413,7 +1540,9 @@ domain. MQTTSuite assembles those factories through SNode.C configuration.
 
 codex2 should copy the composition pattern, not the semantic ownership:
 
-- one application-owned `CodexBridge` is injected into every frontend factory;
+- one application-owned `CodexBridge` is injected into every stream context
+  and, for WebSocket, into every subprotocol through a scoped,
+  connection-validated upgrade handoff;
 - stream and WebSocket adapters feed the same bridge protocol contract;
 - the bridge coordinates connection roles and routing;
 - no MQTT-like Codex session or broker cache is created because app-server is

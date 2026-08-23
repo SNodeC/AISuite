@@ -17,23 +17,16 @@ with special attention to:
 - application configuration, factories, callbacks, lifecycle, persistence,
   and shared coordinators.
 
-This is an architecture report, not an implementation change. The MQTTSuite
-repository was inspected read-only. Its inspected revision was:
-
-```text
-eedded8ab697e44e0b7ac1ed4336929e427fe8c9
-```
+This is an architecture report, not an implementation change. The local
+MQTTSuite repository was inspected read-only.
 
 The local MQTTSuite worktree had five pre-existing CMake modifications. Each
 changes only the required SNode.C package version from `1.0.0` to `2.0.0` in
 one application. Those edits were inspected but not modified, staged, or
 committed by this study.
 
-The corresponding SNode.C source revision was:
-
-```text
-bc43179dbee2b5a0286420a61d8f1ceaef01530d
-```
+The corresponding SNode.C source is always the current `master`/HEAD. The
+implemented codex2 build and CI use that branch directly.
 
 ## Executive Conclusions
 
@@ -692,7 +685,8 @@ native SNode.C connection
 
 ### 12.1 Patterns to adopt
 
-1. Create one codex2 protocol/facade object per provider or frontend endpoint.
+1. Create one thin codex2 protocol adapter per provider or frontend endpoint,
+   while keeping one application-owned `CodexBridge` backend SDK.
 
 2. Create thin raw-stream and WebSocket adapters that own that object and map
    transport lifecycle into one common protocol contract.
@@ -704,7 +698,11 @@ native SNode.C connection
    configuration and coordinator references.
 
 5. Inject the single application-owned `CodexBridge` into every frontend
-   factory, as mqttbroker injects one broker into heterogeneous listeners.
+   stream context. For WebSocket listeners, keep the statically linked
+   subprotocol factory stateless and pass the bridge through a scoped,
+   connection-validated binding around synchronous `Response::upgrade()`.
+   Do not turn the bridge into a singleton merely because the selector's
+   factory callback is context-free.
 
 6. Use native SNode.C instance configuration for address families, TLS,
    reconnect, retry, queue limits, timeouts, HTTP, and WebSocket behavior.
@@ -745,13 +743,13 @@ native SNode.C connection
 ```text
 MQTTSuite                           codex2
 --------------------------------   ---------------------------------------
-application lib::Mqtt              Codex protocol/facade endpoint object
+application lib::Mqtt              Codex protocol endpoint adapter
 MqttContext                        common endpoint transport contract
 SocketContext                      JSONL stream frontend/provider adapter
 client/server SubProtocol          Codex WebSocket frontend/provider adapter
 SocketContextFactory               Codex stream context factory
 SubProtocolFactory                 Codex WebSocket subprotocol factory
-shared Broker injected in factory  application-owned CodexBridge reference
+shared Broker injected in factory  application-owned CodexBridge SDK reference
 typed packet callbacks             typed app-server JSON-RPC callbacks
 raw packet serializer              mandatory raw app-server JSON path
 native client instance config      native codex endpoint instance config
@@ -763,7 +761,8 @@ Codex bridge semantics.
 ## 13. Final Assessment
 
 MQTTSuite is strong evidence that the SNode.C architecture supports the slim
-codex2 design without another frontend SDK layer. It already demonstrates:
+codex2 design with a stateless frontend proxy SDK rather than another stateful
+frontend projection layer. It already demonstrates:
 
 - one protocol engine over raw, TLS, WebSocket, and WSS transports;
 - IPv4, IPv6, and Unix endpoint composition;
