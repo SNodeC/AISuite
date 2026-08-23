@@ -1,0 +1,13 @@
+{
+  "schema": "codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json",
+  "schemaSha256": "48f025b407c0a96bffed6e06f0fe1c9e23e770039d9262688d6f7b708d1890fd",
+  "protocolSource": "codex-rs/app-server-protocol/src/protocol/common.rs",
+  "protocolSourceSha256": "a88f193d64f6c24364ee9d8c6895698c7f4d4b22c83468ac0488966b7f49f907",
+  "generatedTypes": 1920,
+  "canonicalRootTypes": 81,
+  "canonicalV2Types": 585,
+  "clientRequests": 95,
+  "serverRequests": 10,
+  "clientNotifications": 1,
+  "serverNotifications": 76
+}
