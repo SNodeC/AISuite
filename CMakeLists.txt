@@ -12,7 +12,7 @@ include(CMakePackageConfigHelpers)
 include(cmake/AISuiteCodexFrontendDependencies.cmake)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
-option(AISUITE_BUILD_TESTS "Build AISuite tests" OFF)
+option(AISUITE_BUILD_CODEX2_TESTS "Build the focused codex2 tests" ON)
 option(
     AISUITE_ENABLE_LEGACY_CODEX
     "Build the legacy stateful ai::openai::codex implementation"
@@ -89,11 +89,11 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
     )
 endif()
 set(AISUITE_SNODEC_COMPONENTS core)
-if(AISUITE_ENABLE_LEGACY_CODEX AND (AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS))
+if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX2_TESTS)
     list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy
-         net-in-stream-legacy net-in6-stream-legacy
-    )
+         net-in-stream-legacy net-in6-stream-legacy)
 endif()
+
 find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
 
 set(AISUITE_CODEX_FRONTEND_TLS_DEFAULT OFF)
@@ -107,21 +107,6 @@ option(AISUITE_ENABLE_CODEX_FRONTEND_TLS
        ${AISUITE_CODEX_FRONTEND_TLS_DEFAULT}
 )
 
-aisuite_codex_frontend_websocket_client_required(
-    AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED "${AISUITE_BUILD_APPS}"
-    "${AISUITE_BUILD_TESTS}" "${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}"
-)
-if(NOT AISUITE_ENABLE_LEGACY_CODEX)
-    set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED OFF)
-endif()
-
-set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE ON)
-if(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED
-   AND NOT EXISTS "${snodec_DIR}/snodec_websocket-client_Targets.cmake"
-)
-    set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE OFF)
-endif()
-
 set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT OFF)
 if(EXISTS "${snodec_DIR}/snodec_http-server_Targets.cmake"
    AND EXISTS "${snodec_DIR}/snodec_http-server-express_Targets.cmake"
@@ -129,7 +114,8 @@ if(EXISTS "${snodec_DIR}/snodec_http-server_Targets.cmake"
    AND EXISTS
        "${snodec_DIR}/snodec_http-server-express-legacy-in6_Targets.cmake"
    AND EXISTS "${snodec_DIR}/snodec_websocket-server_Targets.cmake"
-   AND AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE
+   AND EXISTS "${snodec_DIR}/snodec_http-client_Targets.cmake"
+   AND EXISTS "${snodec_DIR}/snodec_websocket-client_Targets.cmake"
 )
     set(AISUITE_CODEX_FRONTEND_WEBSOCKET_DEFAULT ON)
 endif()
@@ -150,7 +136,7 @@ option(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM
 )
 
 set(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
-if(AISUITE_ENABLE_LEGACY_CODEX AND (AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS))
+if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX2_TESTS)
     if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
         list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS net-in-stream-tls
              net-in6-stream-tls
@@ -170,14 +156,17 @@ if(AISUITE_ENABLE_LEGACY_CODEX AND (AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS))
             http-server-express-legacy-in
             http-server-express-legacy-in6
             websocket-server
+            http-client
+            websocket-client
         )
+        if(AISUITE_BUILD_CODEX2_TESTS)
+            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
+                 http-server-express-legacy-un)
+        endif()
         if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
             list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
                  http-server-express-tls-in http-server-express-tls-in6
             )
-        endif()
-        if(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED)
-            list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS websocket-client)
         endif()
     endif()
 endif()
@@ -194,6 +183,7 @@ add_subdirectory(src/ai/openai/codex2)
 
 if(AISUITE_BUILD_APPS)
     add_subdirectory(src/apps/codex-bridge)
+    add_subdirectory(src/apps/codex-bridge-client)
     if(AISUITE_ENABLE_LEGACY_CODEX)
         add_subdirectory(src/apps/codex-backend)
         if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
@@ -202,10 +192,10 @@ if(AISUITE_BUILD_APPS)
     endif()
 endif()
 
-if(AISUITE_BUILD_TESTS)
+if(AISUITE_BUILD_CODEX2_TESTS)
     include(CTest)
     enable_testing()
-    add_subdirectory(tests)
+    add_subdirectory(tests/codex2)
 endif()
 
 configure_package_config_file(
