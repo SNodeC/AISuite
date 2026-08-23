@@ -2,28 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, codex2-master]
   pull_request:
 
 permissions:
   contents: read
 
-env:
-  # Resolve indirect DSOs from the staged accepted SNode.C 2.0.0 install while
-  # linking test executables and executing the ordinary test suite.
-  LDFLAGS: >-
-    -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib
-    -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http
-    -Wl,-rpath-link,${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
-  LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http:${{ github.workspace }}/../snodec-stage/lib/snode.c/web/http/upgrade
-  AISUITE_HOSTED_CTEST_EXCLUDE_REGEX: >-
-    ^(CodexAppServerFixtureInfrastructureTest|CodexFrontendProtocolMinimalConfigurationTest|CodexPublicHeaderSelfContainmentTest|CodexSyntheticSecretLeakGuardTest|CodexPolicyMutationTest)$
-
 jobs:
-  gcc-15-debug:
+  codex2-build:
     runs-on: ubuntu-24.04
     container: gcc:15.3.0-trixie
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,85 +39,14 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           getent group snodec >/dev/null || groupadd --system snodec
 
-      - name: Verify exact AISuite head and P2 history
-        shell: bash
-        env:
-          AISUITE_EXPECTED_HEAD: >-
-            ${{ github.event_name == 'pull_request' &&
-                github.event.pull_request.head.sha || github.sha }}
-          AISUITE_PULL_REQUEST_HEAD_REF: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$AISUITE_EXPECTED_HEAD"
-          if [[ "${{ github.event_name }}" == "pull_request" ]] &&
-             [[ "$AISUITE_PULL_REQUEST_HEAD_REF" == "codex/p2-greenfield-codex-frontend" ]]
-          then
-            p0_base=fa93297df89cd555ae08914fe33f82d8c7017ec6
-            test "$(git merge-base HEAD "$p0_base")" = "$p0_base"
-            mapfile -t p2_commits < <(git rev-list --reverse "${p0_base}..HEAD")
-            expected_subjects=(
-              'Add the shared Codex frontend protocol boundary'
-              'Add the typed Codex frontend model and occurrence journal'
-              'Implement the greenfield Codex frontend server core'
-              'Implement the greenfield Codex frontend client core'
-              'Add differential Codex frontend conformance'
-              'Close P2 greenfield frontend architecture'
-            )
-            if [[ "${#p2_commits[@]}" -ne "${#expected_subjects[@]}" ]]
-            then
-              git log --oneline --reverse "${p0_base}..HEAD"
-              echo "P2 must contain exactly six commits" >&2
-              exit 1
-            fi
-            expected_parent="$p0_base"
-            for index in "${!expected_subjects[@]}"
-            do
-              read -r -a commit_and_parents <<< \
-                "$(git rev-list --parents -n 1 "${p2_commits[$index]}")"
-              if [[ "${#commit_and_parents[@]}" -ne 2 ]] ||
-                 [[ "${commit_and_parents[1]}" != "$expected_parent" ]]
-              then
-                echo "P2 commit $((index + 1)) is not on the required linear six-commit chain" >&2
-                git show -s --format='%H %P %s' "${p2_commits[$index]}"
-                exit 1
-              fi
-              actual_subject="$(git show -s --format=%s "${p2_commits[$index]}")"
-              if [[ "$actual_subject" != "${expected_subjects[$index]}" ]]
-              then
-                echo "P2 commit $((index + 1)) subject is '$actual_subject'; expected '${expected_subjects[$index]}'" >&2
-                exit 1
-              fi
-              expected_parent="${p2_commits[$index]}"
-            done
-          fi
-
-      - name: Record toolchain and choose safe build parallelism
+      - name: Record toolchain
         shell: bash
         run: |
           set -euo pipefail
           g++ --version
           cmake --version
           ninja --version
-          dpkg-query -W -f='${Version}\n' nlohmann-json3-dev
           nproc
-          free -h
-          cpu_parallel="$(nproc)"
-          available_kib="$(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo)"
-          memory_parallel="$((available_kib / (2 * 1024 * 1024)))"
-          if ((memory_parallel < 1))
-          then
-            memory_parallel=1
-          fi
-          build_parallel="$cpu_parallel"
-          if ((build_parallel > memory_parallel))
-          then
-            build_parallel="$memory_parallel"
-          fi
-          if ((build_parallel > 8))
-          then
-            build_parallel=8
-          fi
-          echo "AISUITE_BUILD_PARALLEL=$build_parallel" | tee -a "$GITHUB_ENV"
 
       - name: Prepare accepted SNode.C 2.0.0 dependency
         run: |
@@ -140,286 +58,26 @@ jobs:
           test "$(git -C ../snodec rev-parse HEAD)" = \
             bc43179dbee2b5a0286420a61d8f1ceaef01530d
 
-      - name: Build and install accepted SNode.C 2.0.0 dependency
+      - name: Build and install accepted SNode.C dependency
         run: |
           cmake -S ../snodec -B ../snodec-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX="$PWD/../snodec-stage" \
             -DSNODEC_BUILD_TESTS=OFF \
             -DSNODEC_BUILD_APPS=OFF
-          grep -Fx 'CMAKE_PROJECT_VERSION:STATIC=2.0.0' \
-            ../snodec-build/CMakeCache.txt
-          cmake --build ../snodec-build \
-            --target all \
-            --parallel "$AISUITE_BUILD_PARALLEL"
+          cmake --build ../snodec-build --target all --parallel 8
           cmake --install ../snodec-build
-          for component in \
-            core \
-            net-un-stream-legacy \
-            net-in-stream-legacy \
-            net-in6-stream-legacy \
-            net-in-stream-tls \
-            net-in6-stream-tls \
-            net-rc-stream-legacy \
-            net-rc-stream-tls \
-            http-server \
-            http-server-express \
-            http-server-express-legacy-in \
-            http-server-express-legacy-in6 \
-            http-server-express-tls-in \
-            http-server-express-tls-in6 \
-            websocket-server \
-            websocket-client
-          do
-            test -f \
-              "../snodec-stage/lib/cmake/snodec/snodec_${component}_Targets.cmake"
-          done
-          test -z "$(git -C ../snodec status --porcelain=v1 --untracked-files=all)"
 
-      - name: Configure
+      - name: Configure codex2
         run: |
-          cmake -E make_directory build/.cmake/api/v1/query
-          cmake -E touch \
-            build/.cmake/api/v1/query/codemodel-v2 \
-            build/.cmake/api/v1/query/cache-v2 \
-            build/.cmake/api/v1/query/toolchains-v1
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX="$PWD/../aisuite-p0-contract-install" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/../aisuite-codex2-install" \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
-            -DCMAKE_JOB_POOLS='aisuite_compile=4;aisuite_link=2' \
-            -DCMAKE_JOB_POOL_COMPILE=aisuite_compile \
-            -DCMAKE_JOB_POOL_LINK=aisuite_link \
-            -DAISUITE_BUILD_TESTS=ON \
+            -DAISUITE_BUILD_TESTS=OFF \
             -DAISUITE_BUILD_APPS=ON \
-            -DAISUITE_BUILD_CODEX_FRONTEND_CLIENT=ON \
-            -DAISUITE_ENABLE_CODEX_FRONTEND_TLS=ON \
-            -DAISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET=ON \
-            -DAISUITE_ENABLE_CODEX_FRONTEND_RFCOMM=ON
+            -DAISUITE_ENABLE_LEGACY_CODEX=OFF \
+            -DAISUITE_BUILD_CODEX_FRONTEND_CLIENT=OFF
 
-      - name: Build all targets
-        run: >-
-          cmake --build build --target all
-          --parallel "$AISUITE_BUILD_PARALLEL"
-
-      - name: Check generated frontend authorities
-        run: |
-          python3 -B tools/codex/app_server_surface.py frontend-registry \
-            --manifest tools/codex/app-server-surface/0.144.6.json \
-            --registry src/ai/openai/codex/detail/ProtocolSurfaceRegistryData.inc \
-            --output tools/frontend/frontend-registry-source.json \
-            --check
-          python3 -B tools/frontend/generate_frontend_protocol.py \
-            --source tools/frontend/frontend-registry-source.json \
-            --manifest docs/ai/openai/codex/frontend-protocol-v1.manifest.json \
-            --header src/ai/openai/codex/frontend/GeneratedProtocol.h \
-            --schema-template tools/frontend/frontend-protocol-v1.schema.template.json \
-            --schema docs/ai/openai/codex/frontend-protocol-v1.schema.json \
-            --schema-data src/ai/openai/codex/frontend/GeneratedProtocolSchema.inc \
-            --fixtures tests/component/codex/fixtures/frontend-protocol-v1.generated.json \
-            --check
-          python3 -B tools/frontend/generate_cpp_frontend_client.py --check
-
-      - name: Verify P0 Codex architecture baseline contract
-        run: |
-          cmake --install build
-          python3 -B tools/codex/capture_architecture_baseline.py \
-            validate-baseline \
-            --source-dir . \
-            --baseline \
-              docs/ai/openai/codex/architecture-reduction/p0-baseline.json
-          python3 -B tools/codex/capture_architecture_baseline.py \
-            verify-contract \
-            --source-dir . \
-            --build-dir build \
-            --install-dir "$PWD/../aisuite-p0-contract-install" \
-            --snodec-source-dir "$PWD/../snodec" \
-            --snodec-build-dir "$PWD/../snodec-build" \
-            --baseline \
-              docs/ai/openai/codex/architecture-reduction/p0-baseline.json
-
-      - name: Verify complete validation inventory
-        run: |
-          ctest --test-dir build -N > build/ctest-inventory.txt
-          ctest --test-dir build \
-            -E "$AISUITE_HOSTED_CTEST_EXCLUDE_REGEX" \
-            --show-only=json-v1 \
-            > build/ctest-selected-inventory.json
-          for required_test in \
-            CodexFrontendProtocolGeneratedArtifactsGuardTest \
-            CodexFrontendProtocolByteIdentityTest \
-            CodexFrontendProtocolV1Test \
-            CodexFrontendProtocolTargetIsolationTest \
-            CodexFrontendProtocolMinimalConfigurationTest \
-            CodexFrontendTypedModelTest \
-            CodexFrontendTypedOccurrenceTest \
-            CodexFrontendTypedSnapshotTest \
-            CodexFrontendTypedJournalTest \
-            CodexFrontendProjectionSecurityTest \
-            CodexFrontendServerCoreLifecycleTest \
-            CodexFrontendServerCoreSynchronizationTest \
-            CodexFrontendServerCoreCommandTest \
-            CodexFrontendServerCoreSecurityTest \
-            CodexFrontendServerCoreBackpressureTest \
-            CodexFrontendClientCoreLifecycleTest \
-            CodexFrontendClientCoreSynchronizationTest \
-            CodexFrontendClientCoreOperationTest \
-            CodexFrontendClientCoreStateTest \
-            CodexFrontendClientCoreCapacityTest \
-            CodexFrontendCompatibilityAdaptersTest \
-            CodexFrontendDifferentialCoverageGuardTest \
-            CodexFrontendDifferentialMutationTest \
-            CodexFrontendCoreDependencyPolicyTest \
-            CodexFrontendClientBindingsCurrentnessTest \
-            CodexFrontendClientContractGuardTest \
-            CodexFrontendClientGeneratorTest \
-            CodexFrontendClientBindingTest \
-            CodexFrontendClientLifecycleTest \
-            CodexFrontendServiceClientIntegrationTest \
-            CodexFrontendClientSymbolVisibilityTest \
-            CodexBackendClientAuthenticationTest \
-            CodexBackendClientTransportCompositionTest \
-            AISuiteCodexFrontendDependencyPolicyTest \
-            AISuiteInstalledConsumerTest \
-            AISuiteSourcePackageTest \
-            AISuiteBinaryPackageTest \
-            CodexPublicHeaderPolicyTest \
-            CodexPublicHeaderSelfContainmentTest \
-            CodexArchitectureReductionBaselineTest
-          do
-            grep -E "Test +#[0-9]+: ${required_test}$" \
-              build/ctest-inventory.txt
-          done
-
-      - name: Run bounded ordinary CTest selection
-        run: |
-          ctest --test-dir build \
-            --output-on-failure \
-            --output-junit "$PWD/build/ctest-results.xml" \
-            --parallel 2 \
-            -E "$AISUITE_HOSTED_CTEST_EXCLUDE_REGEX"
-
-      - name: Summarize hosted CTest results and skips
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f build/ctest-results.xml ]]
-          then
-            echo "Hosted CTest JUnit results are unavailable because validation did not reach or complete CTest."
-            exit 0
-          fi
-          python3 - <<'PY'
-          from pathlib import Path
-          import json
-          import re
-          import xml.etree.ElementTree as ET
-
-          junit = Path("build/ctest-results.xml")
-          root = ET.parse(junit).getroot()
-          inventory = Path("build/ctest-inventory.txt").read_text(encoding="utf-8")
-          selected_inventory = json.loads(
-              Path("build/ctest-selected-inventory.json").read_text(encoding="utf-8")
-          )
-          inventory_match = re.search(r"^Total Tests: ([0-9]+)$", inventory, re.MULTILINE)
-          if inventory_match is None:
-              raise SystemExit("Hosted CTest inventory has no Total Tests count")
-          registered = int(inventory_match.group(1))
-          selected_names = sorted(
-              str(test["name"]) for test in selected_inventory.get("tests", [])
-          )
-          deferred = {
-              "CodexAppServerFixtureInfrastructureTest",
-              "CodexFrontendProtocolMinimalConfigurationTest",
-              "CodexPolicyMutationTest",
-              "CodexPublicHeaderSelfContainmentTest",
-              "CodexSyntheticSecretLeakGuardTest",
-          }
-          if deferred.intersection(selected_names):
-              raise SystemExit("A deferred hosted test entered the bounded selection")
-          if registered != len(selected_names) + len(deferred):
-              raise SystemExit("Hosted registered, selected, and deferred test counts disagree")
-          cases = root.findall(".//testcase")
-          executed_names = sorted(str(case.get("name", "")) for case in cases)
-          if selected_names != executed_names:
-              raise SystemExit("Hosted selected inventory and JUnit test-name sets differ")
-          skipped = []
-          failed = 0
-          for case in cases:
-              failure = case.find("failure")
-              error = case.find("error")
-              skip = case.find("skipped")
-              if failure is not None or error is not None:
-                  failed += 1
-              if skip is None:
-                  continue
-              reason = (skip.get("message") or "CTest marked the test skipped").strip()
-              output = (case.findtext("system-out") or "").strip()
-              if output:
-                  reason += "; output=" + " | ".join(output.splitlines())
-              skipped.append((case.get("classname", ""), case.get("name", ""), reason))
-
-          passed = len(cases) - failed - len(skipped)
-          duration = root.get("time")
-          if duration is None:
-              duration = f"{sum(float(case.get('time', '0')) for case in cases):.6f}"
-          print(
-              f"Hosted CTest totals: registered={registered} "
-              f"selected={len(selected_names)} executed={len(cases)} "
-              f"passed={passed} skipped={len(skipped)} failed={failed} "
-              f"durationSeconds={duration}"
-          )
-          if not skipped:
-              print("Hosted CTest runtime skips: none")
-          for classname, name, reason in skipped:
-              identity = f"{classname}.{name}" if classname else name
-              print(f"Hosted CTest runtime skip: {identity}: {reason}")
-          for name in sorted(deferred):
-              print(
-                  f"Hosted CTest deferred exclusion: {name}: "
-                  "slow build-backed closure gate deferred from the bounded Task-A run"
-              )
-          PY
-
-      - name: Prove deterministic P0 capture and comparison
-        run: |
-          # Install-backed tests use temporary prefixes and may replace CMake's
-          # install manifest. Restore the configured P0 install evidence first.
-          cmake --install build
-          for capture in a b
-          do
-            python3 -B tools/codex/capture_architecture_baseline.py capture \
-              --source-dir . \
-              --build-dir build \
-              --install-dir "$PWD/../aisuite-p0-contract-install" \
-              --snodec-source-dir "$PWD/../snodec" \
-              --snodec-build-dir "$PWD/../snodec-build" \
-              --ctest-inventory build/ctest-selected-inventory.json \
-              --ctest-results build/ctest-results.xml \
-              --ctest-parallelism 2 \
-              --baseline-parent \
-                fa93297df89cd555ae08914fe33f82d8c7017ec6 \
-              --output "build/p2-capture-${capture}.json"
-          done
-          cmp build/p2-capture-a.json build/p2-capture-b.json
-          python3 -B tools/codex/capture_architecture_baseline.py compare \
-            --baseline \
-              docs/ai/openai/codex/architecture-reduction/p0-baseline.json \
-            --current build/p2-capture-a.json \
-            --output build/p2-p0-comparison.json
-
-      - name: Upload hosted validation evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: >-
-            p2-hosted-validation-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            build/ctest-inventory.txt
-            build/ctest-selected-inventory.json
-            build/ctest-results.xml
-            build/p2-capture-a.json
-            build/p2-capture-b.json
-            build/p2-p0-comparison.json
-          if-no-files-found: warn
-          retention-days: 30
+      - name: Build codex2
+        run: cmake --build build --target codex-bridge --parallel 8

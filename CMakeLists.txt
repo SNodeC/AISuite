@@ -14,9 +14,14 @@ include(cmake/AISuiteCodexFrontendDependencies.cmake)
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
 option(AISUITE_BUILD_TESTS "Build AISuite tests" OFF)
 option(
+    AISUITE_ENABLE_LEGACY_CODEX
+    "Build the legacy stateful ai::openai::codex implementation"
+    OFF
+)
+option(
     AISUITE_BUILD_CODEX_FRONTEND_CLIENT
     "Build the transport-neutral Codex C++ Frontend SDK"
-    ON
+    OFF
 )
 
 option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
@@ -84,7 +89,7 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
     )
 endif()
 set(AISUITE_SNODEC_COMPONENTS core)
-if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
+if(AISUITE_ENABLE_LEGACY_CODEX AND (AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS))
     list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy
          net-in-stream-legacy net-in6-stream-legacy
     )
@@ -106,6 +111,9 @@ aisuite_codex_frontend_websocket_client_required(
     AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED "${AISUITE_BUILD_APPS}"
     "${AISUITE_BUILD_TESTS}" "${AISUITE_BUILD_CODEX_FRONTEND_CLIENT}"
 )
+if(NOT AISUITE_ENABLE_LEGACY_CODEX)
+    set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED OFF)
+endif()
 
 set(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_AVAILABLE ON)
 if(AISUITE_CODEX_FRONTEND_WEBSOCKET_CLIENT_REQUIRED
@@ -142,7 +150,7 @@ option(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM
 )
 
 set(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
-if(AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS)
+if(AISUITE_ENABLE_LEGACY_CODEX AND (AISUITE_BUILD_APPS OR AISUITE_BUILD_TESTS))
     if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
         list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS net-in-stream-tls
              net-in6-stream-tls
@@ -179,12 +187,18 @@ if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
     )
 endif()
 
-add_subdirectory(src/ai/openai/codex)
+if(AISUITE_ENABLE_LEGACY_CODEX)
+    add_subdirectory(src/ai/openai/codex)
+endif()
+add_subdirectory(src/ai/openai/codex2)
 
 if(AISUITE_BUILD_APPS)
-    add_subdirectory(src/apps/codex-backend)
-    if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-        add_subdirectory(src/apps/codex-backend-client)
+    add_subdirectory(src/apps/codex-bridge)
+    if(AISUITE_ENABLE_LEGACY_CODEX)
+        add_subdirectory(src/apps/codex-backend)
+        if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
+            add_subdirectory(src/apps/codex-backend-client)
+        endif()
     endif()
 endif()
 
