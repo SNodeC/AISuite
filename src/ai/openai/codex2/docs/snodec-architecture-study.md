@@ -35,6 +35,13 @@ read-only protocol/schema source. It was not modified.
 
 ## Executive Conclusions
 
+The template and CMake composition used by SNode.C is intentional architectural
+machinery, not accidental framework weight. It permits applications to select
+only the required address families, stream implementation, TLS/HTTP/WebSocket
+layers, and protocol components while reusing one coherent lifecycle model.
+The resulting source-level learning cost is the tradeoff by which the original
+slim, modular architecture is fulfilled.
+
 1. `codex-bridge` configuration must be represented by an application-specific
    `utils::SubCommand` subclass. It must not add application options directly to
    `utils::Config::configRoot`.
@@ -143,14 +150,22 @@ Consequently, the bridge should not bypass the config subsystem with ad hoc
 argument parsing or environment-only settings. Doing so would lose the native
 required/suppression/config-file semantics.
 
-### 1.4 Parsing belongs to SNode.C initialization
+### 1.4 Parsing belongs to the SNode.C lifecycle
 
-`core::SNodeC::init(argc, argv)` initializes the configuration system and parses
-the effective CLI/configuration. The config layer supports bootstrap parsing,
-configuration files, help, version, effective configuration display, and
-command-line reconstruction. Application code should register its subcommand
-and construct network instances before relying on parsed values, following
-existing SNode.C application order.
+SNode.C deliberately uses a two-stage configuration lifecycle.
+`core::SNodeC::init(argc, argv)` initializes the event loop and performs the
+initial root-option parse. The application can then construct network instances
+and register their instance-specific `SubCommand` trees. When
+`core::SNodeC::start()` begins, `utils::Config::bootstrap()` performs the final
+configuration bootstrap before the event loop processes traffic.
+
+Application-wide subcommands that are needed before instance construction are
+registered before `init()` in the existing broker, integrator, and bridge
+applications. Per-instance sections in the CLI and store applications are
+created after `init()` as part of constructing each network instance. In both
+cases, code must not rely on final effective values until bootstrap. The config
+layer owns configuration files, help, version, effective-configuration display,
+and command-line reconstruction throughout this lifecycle.
 
 ### 1.5 Network configuration is instance-owned
 
