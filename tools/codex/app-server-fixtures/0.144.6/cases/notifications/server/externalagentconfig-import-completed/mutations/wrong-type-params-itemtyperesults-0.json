@@ -1,9 +1,0 @@
-{
-  "method": "externalAgentConfig/import/completed",
-  "params": {
-    "importId": "synthetic-09d08d1dcb",
-    "itemTypeResults": [
-      null
-    ]
-  }
-}

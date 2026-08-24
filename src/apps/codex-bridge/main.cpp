@@ -2,20 +2,20 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex2/bridge/CodexBridge.h"
-#include "ai/openai/codex2/frontend/StreamSocketContextFactory.h"
+#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/frontend/StreamSocketContextFactory.h"
 #include "apps/codex-bridge/Configuration.h"
 #include "apps/codex-bridge/ProviderApplication.h"
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "apps/codex-bridge/WebSocketApplication.h"
 #endif
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
 #include "core/timer/Timer.h"
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "express/legacy/in/WebApp.h"
 #include "express/legacy/in6/WebApp.h"
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
 #include "express/tls/in/WebApp.h"
 #include "express/tls/in6/WebApp.h"
 #endif
@@ -25,16 +25,16 @@
 #endif
 #include "net/in/SocketAddress.h"
 #include "net/in/stream/legacy/SocketServer.h"
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
 #include "net/in/stream/tls/SocketServer.h"
 #endif
 #include "net/in6/SocketAddress.h"
 #include "net/in6/stream/legacy/SocketServer.h"
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
 #include "net/in6/stream/tls/SocketServer.h"
 #endif
 #include "net/config/ConfigInstance.h"
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
 #include "net/rc/stream/legacy/SocketServer.h"
 #include "net/rc/stream/tls/SocketServer.h"
 #endif
@@ -58,7 +58,7 @@ namespace {
         }
     }
 
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
     void configureWebSocketPolicy(net::config::ConfigInstance* config, std::size_t maximumMessageBytes) {
         auto* http = config->getSubCommand<web::http::server::ConfigHttpServer>();
         http->setMaximumPendingRequests(1)->setAllowChunkedTransfer(false)->setAllowPipelining(false);
@@ -84,11 +84,11 @@ int main(int argc, char* argv[]) {
 
     int result = 1;
     {
-        ai::openai::codex2::bridge::CodexBridge bridge(configuration->bridgeOptions());
+        ai::openai::codex::bridge::CodexBridge bridge(configuration->bridgeOptions());
         apps::codex_bridge::ProviderApplication provider(bridge, *configuration);
         const std::size_t maximumFrameBytes = configuration->maximumFrameBytes();
 
-        auto unixServer = net::un::stream::legacy::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+        auto unixServer = net::un::stream::legacy::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge",
             [](net::un::stream::legacy::config::ConfigSocketServer* config) {
                 config->Local::setSunPath("/tmp/codex-bridge.sock");
@@ -98,7 +98,7 @@ int main(int argc, char* argv[]) {
             },
             bridge,
             maximumFrameBytes);
-        auto ipv4Server = net::in::stream::legacy::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+        auto ipv4Server = net::in::stream::legacy::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge-ipv4",
             [](net::in::stream::legacy::config::ConfigSocketServer* config) {
                 config->Instance::setDisabled(true);
@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
             },
             bridge,
             maximumFrameBytes);
-        auto ipv6Server = net::in6::stream::legacy::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+        auto ipv6Server = net::in6::stream::legacy::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge-ipv6",
             [](net::in6::stream::legacy::config::ConfigSocketServer* config) {
                 config->Instance::setDisabled(true);
@@ -120,8 +120,8 @@ int main(int argc, char* argv[]) {
             },
             bridge,
             maximumFrameBytes);
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
-        auto tlsIpv4Server = net::in::stream::tls::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
+        auto tlsIpv4Server = net::in::stream::tls::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge-tls-ipv4",
             [](net::in::stream::tls::config::ConfigSocketServer* config) {
                 config->Instance::setDisabled(true);
@@ -132,7 +132,7 @@ int main(int argc, char* argv[]) {
             },
             bridge,
             maximumFrameBytes);
-        auto tlsIpv6Server = net::in6::stream::tls::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+        auto tlsIpv6Server = net::in6::stream::tls::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge-tls-ipv6",
             [](net::in6::stream::tls::config::ConfigSocketServer* config) {
                 config->Instance::setDisabled(true);
@@ -144,8 +144,8 @@ int main(int argc, char* argv[]) {
             bridge,
             maximumFrameBytes);
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
-        auto rfcommServer = net::rc::stream::legacy::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
+        auto rfcommServer = net::rc::stream::legacy::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge-rfcomm",
             [](net::rc::stream::legacy::config::ConfigSocketServer* config) {
                 config->Instance::setDisabled(true);
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
             },
             bridge,
             maximumFrameBytes);
-        auto rfcommTlsServer = net::rc::stream::tls::Server<ai::openai::codex2::frontend::StreamSocketContextFactory>(
+        auto rfcommTlsServer = net::rc::stream::tls::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge-rfcomm-tls",
             [](net::rc::stream::tls::config::ConfigSocketServer* config) {
                 config->Instance::setDisabled(true);
@@ -166,7 +166,7 @@ int main(int argc, char* argv[]) {
             bridge,
             maximumFrameBytes);
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         express::legacy::in::WebApp webSocketIpv4App("codex-bridge-websocket-ipv4");
         express::legacy::in6::WebApp webSocketIpv6App("codex-bridge-websocket-ipv6");
         webSocketIpv4App.getConfig()->Instance::setDisabled(true);
@@ -185,7 +185,7 @@ int main(int argc, char* argv[]) {
             webSocketIpv4App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes);
         apps::codex_bridge::configureWebSocketApplication(
             webSocketIpv6App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes);
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
         express::tls::in::WebApp webSocketTlsIpv4App("codex-bridge-wss-ipv4");
         express::tls::in6::WebApp webSocketTlsIpv6App("codex-bridge-wss-ipv6");
         webSocketTlsIpv4App.getConfig()->Instance::setDisabled(true);
@@ -227,7 +227,7 @@ int main(int argc, char* argv[]) {
         ipv6Server.listen([](const net::in6::SocketAddress& address, const core::socket::State& state) {
             reportListener("ipv6", address, state);
         });
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
         tlsIpv4Server.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
             reportListener("tls-ipv4", address, state);
         });
@@ -235,7 +235,7 @@ int main(int argc, char* argv[]) {
             reportListener("tls-ipv6", address, state);
         });
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
         rfcommServer.listen([](const net::rc::SocketAddress& address, const core::socket::State& state) {
             reportListener("rfcomm", address, state);
         });
@@ -243,14 +243,14 @@ int main(int argc, char* argv[]) {
             reportListener("rfcomm-tls", address, state);
         });
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         webSocketIpv4App.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
             reportListener("websocket-ipv4", address, state);
         });
         webSocketIpv6App.listen([](const net::in6::SocketAddress& address, const core::socket::State& state) {
             reportListener("websocket-ipv6", address, state);
         });
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
         webSocketTlsIpv4App.listen([](const net::in::SocketAddress& address, const core::socket::State& state) {
             reportListener("wss-ipv4", address, state);
         });

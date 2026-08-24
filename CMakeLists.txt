@@ -2,33 +2,21 @@ cmake_minimum_required(VERSION 3.18)
 
 project(
     AISuite
-    VERSION 0.6.0
+    VERSION 0.7.0
     DESCRIPTION "Reusable C++ AI integrations based on SNode.C"
     LANGUAGES CXX
 )
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-include(cmake/AISuiteCodexFrontendDependencies.cmake)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
-option(AISUITE_BUILD_CODEX2_TESTS "Build the focused codex2 tests" ON)
-option(
-    AISUITE_ENABLE_LEGACY_CODEX
-    "Build the legacy stateful ai::openai::codex implementation"
-    OFF
-)
-option(
-    AISUITE_BUILD_CODEX_FRONTEND_CLIENT
-    "Build the transport-neutral Codex C++ Frontend SDK"
-    OFF
-)
+option(AISUITE_BUILD_CODEX_TESTS "Build the focused codex tests" ON)
 
 option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
 option(AISUITE_DISABLE_LOGLEVEL_LOGGING "Disable SNode.C LOG/PLOG logging" OFF)
 option(AISUITE_DISABLE_VERBOSE_LOGGING "Disable SNode.C VLOG logging" OFF)
 
-set(AISUITE_CODEX_SOVERSION 7)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -89,7 +77,7 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
     )
 endif()
 set(AISUITE_SNODEC_COMPONENTS core)
-if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX2_TESTS)
+if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX_TESTS)
     list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy
          net-in-stream-legacy net-in6-stream-legacy)
 endif()
@@ -136,7 +124,7 @@ option(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM
 )
 
 set(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
-if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX2_TESTS)
+if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX_TESTS)
     if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
         list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS net-in-stream-tls
              net-in6-stream-tls
@@ -159,7 +147,7 @@ if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX2_TESTS)
             http-client
             websocket-client
         )
-        if(AISUITE_BUILD_CODEX2_TESTS)
+        if(AISUITE_BUILD_CODEX_TESTS)
             list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
                  http-server-express-legacy-un)
         endif()
@@ -176,26 +164,17 @@ if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
     )
 endif()
 
-if(AISUITE_ENABLE_LEGACY_CODEX)
-    add_subdirectory(src/ai/openai/codex)
-endif()
-add_subdirectory(src/ai/openai/codex2)
+add_subdirectory(src/ai/openai/codex)
 
 if(AISUITE_BUILD_APPS)
     add_subdirectory(src/apps/codex-bridge)
     add_subdirectory(src/apps/codex-bridge-client)
-    if(AISUITE_ENABLE_LEGACY_CODEX)
-        add_subdirectory(src/apps/codex-backend)
-        if(AISUITE_BUILD_CODEX_FRONTEND_CLIENT)
-            add_subdirectory(src/apps/codex-backend-client)
-        endif()
-    endif()
 endif()
 
-if(AISUITE_BUILD_CODEX2_TESTS)
+if(AISUITE_BUILD_CODEX_TESTS)
     include(CTest)
     enable_testing()
-    add_subdirectory(tests/codex2)
+    add_subdirectory(tests/codex)
 endif()
 
 configure_package_config_file(
@@ -213,12 +192,6 @@ write_basic_package_version_file(
 install(
     EXPORT AISuiteTargets
     FILE AISuiteTargets.cmake
-    NAMESPACE AISuite::
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
-)
-install(
-    EXPORT AISuiteTargets
-    FILE "AISuiteTargets-v${AISUITE_CODEX_SOVERSION}.cmake"
     NAMESPACE AISuite::
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
 )

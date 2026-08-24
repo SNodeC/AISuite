@@ -1,89 +1,33 @@
-set(
-    AI_OPENAI_CODEX_FRONTEND_CLIENT_DETAIL_CPP
-    detail/AccountCodec.cpp
-    detail/AppCodec.cpp
-    detail/ApprovalCodec.cpp
-    detail/ClientOperationCodec.cpp
-    detail/CodexErrorInfoCodec.cpp
-    detail/CommandCodec.cpp
-    detail/ConfigurationCodec.cpp
-    detail/ConversationCodec.cpp
-    detail/ExternalAgentCodec.cpp
-    detail/FeedbackCodec.cpp
-    detail/FilesystemCodec.cpp
-    detail/HookCodec.cpp
-    detail/ItemDecoder.cpp
-    detail/MarketplaceCodec.cpp
-    detail/McpCodec.cpp
-    detail/McpReverseRequestCodec.cpp
-    detail/ModelCodec.cpp
-    detail/PluginCodec.cpp
-    detail/ProtocolSurfaceRegistry.cpp
-    detail/ReviewCodec.cpp
-    detail/SkillCodec.cpp
-    detail/ThreadCodec.cpp
-    detail/TurnCodec.cpp
-    detail/WindowsSandboxCodec.cpp
+add_library(
+    ai-openai-codex
+    STATIC
+    bridge/CodexBridge.cpp
+    bridge/CodexBridge.h
+    bridge/Endpoint.h
+    frontend/CodexBridge.cpp
+    frontend/CodexBridge.h
+    frontend/client/ClientConnection.cpp
+    frontend/client/ClientConnection.h
+    frontend/client/StreamSocketContext.cpp
+    frontend/client/StreamSocketContext.h
+    frontend/client/StreamSocketContextFactory.cpp
+    frontend/client/StreamSocketContextFactory.h
+    frontend/StreamSocketContext.cpp
+    frontend/StreamSocketContext.h
+    frontend/StreamSocketContextFactory.cpp
+    frontend/StreamSocketContextFactory.h
+    protocol/Envelope.cpp
+    protocol/Envelope.h
+    protocol/generated/ProtocolTypes.h
+    protocol/JsonLineFramer.cpp
+    protocol/JsonLineFramer.h
+    provider/ChildExitObserver.cpp
+    provider/ChildExitObserver.h
+    provider/StdioAppServer.cpp
+    provider/StdioAppServer.h
 )
-
-set(
-    AI_OPENAI_CODEX_FRONTEND_CLIENT_TYPED_CPP
-    typed/Accounts.cpp
-    typed/Configuration.cpp
-    typed/Models.cpp
-    typed/Types.cpp
-)
-
-set(AI_OPENAI_CODEX_CPP
-    AppServerClient.cpp
-    ${AI_OPENAI_CODEX_FRONTEND_CLIENT_DETAIL_CPP}
-    ${AI_OPENAI_CODEX_FRONTEND_CLIENT_TYPED_CPP}
-    detail/EventDecoder.cpp
-    detail/ProtocolCodec.cpp
-    detail/RuntimePlatformCodec.cpp
-    detail/ServerRequestDecoder.cpp
-    detail/Transport.cpp
-    stdio/Client.cpp
-    stdio/StdioTransport.cpp
-    typed/Facades.cpp
-)
-
-set(AI_OPENAI_CODEX_PUBLIC_H
-    Api.h
-    AppServerClient.h
-    Protocol.h
-    stdio/Client.h
-    typed/Accounts.h
-    typed/Apps.h
-    typed/CodexErrorInfo.h
-    typed/Commands.h
-    typed/Configuration.h
-    typed/Conversation.h
-    typed/Events.h
-    typed/ExternalAgents.h
-    typed/Feedback.h
-    typed/Filesystem.h
-    typed/Hooks.h
-    typed/Items.h
-    typed/Marketplace.h
-    typed/Mcp.h
-    typed/Models.h
-    typed/PermissionProfiles.h
-    typed/Plugins.h
-    typed/Reviews.h
-    typed/Results.h
-    typed/ServerRequests.h
-    typed/Skills.h
-    typed/Threads.h
-    typed/Turns.h
-    typed/Types.h
-    typed/WindowsSandbox.h
-)
-
-add_library(ai-openai-codex SHARED ${AI_OPENAI_CODEX_CPP})
 add_library(AISuite::OpenAICodex ALIAS ai-openai-codex)
 set_target_properties(ai-openai-codex PROPERTIES EXPORT_NAME OpenAICodex)
-
 target_include_directories(
     ai-openai-codex
     PUBLIC
@@ -93,59 +37,38 @@ target_include_directories(
 target_compile_features(ai-openai-codex PUBLIC cxx_std_20)
 target_link_libraries(
     ai-openai-codex
-    PUBLIC nlohmann_json::nlohmann_json
-    PRIVATE snodec::core
+    PUBLIC nlohmann_json::nlohmann_json snodec::core
+    PRIVATE snodec::net-un-stream-legacy snodec::net-in-stream-legacy
+            snodec::net-in6-stream-legacy
 )
-set_target_properties(
-    ai-openai-codex
-    PROPERTIES
-        VERSION ${PROJECT_VERSION}
-        SOVERSION ${AISUITE_CODEX_SOVERSION}
-        OUTPUT_NAME aisuite-openai-codex
-)
+if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET AND TARGET snodec::websocket-server)
+    target_sources(
+        ai-openai-codex
+        PRIVATE frontend/WebSocketSubProtocol.cpp
+                frontend/WebSocketSubProtocol.h
+                frontend/WebSocketUpgrade.cpp
+                frontend/WebSocketUpgrade.h
+                frontend/client/WebSocketClient.cpp
+                frontend/client/WebSocketClient.h
+                provider/WebSocketAppServer.cpp
+                provider/WebSocketAppServer.h
+    )
+    target_compile_definitions(
+        ai-openai-codex PUBLIC AISUITE_CODEX_FRONTEND_WEBSOCKET=1
+    )
+    target_link_libraries(
+        ai-openai-codex
+        PRIVATE snodec::websocket-server snodec::http-client
+                snodec::websocket-client
+    )
+endif()
 install(
     TARGETS ai-openai-codex
     EXPORT AISuiteTargets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 install(
-    FILES Api.h AppServerClient.h Protocol.h
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex
+    FILES_MATCHING PATTERN "*.h"
 )
-install(
-    FILES stdio/Client.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/stdio
-)
-install(
-    FILES
-        typed/Accounts.h
-        typed/Apps.h
-        typed/CodexErrorInfo.h
-        typed/Commands.h
-        typed/Configuration.h
-        typed/Conversation.h
-        typed/Events.h
-        typed/ExternalAgents.h
-        typed/Feedback.h
-        typed/Filesystem.h
-        typed/Hooks.h
-        typed/Items.h
-        typed/Marketplace.h
-        typed/Mcp.h
-        typed/Models.h
-        typed/PermissionProfiles.h
-        typed/Plugins.h
-        typed/Reviews.h
-        typed/Results.h
-        typed/ServerRequests.h
-        typed/Skills.h
-        typed/Threads.h
-        typed/Turns.h
-        typed/Types.h
-        typed/WindowsSandbox.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex/typed
-)
-
-add_subdirectory(backend)
-add_subdirectory(frontend)

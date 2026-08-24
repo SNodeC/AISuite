@@ -4,7 +4,7 @@
 
 #include "apps/codex-bridge-client/CommandParser.h"
 
-#include "ai/openai/codex2/protocol/Envelope.h"
+#include "ai/openai/codex/protocol/Envelope.h"
 
 #include <algorithm>
 #include <charconv>
@@ -14,7 +14,7 @@
 
 namespace apps::codex_bridge_client {
 
-    namespace generated = ai::openai::codex2::generated;
+    namespace generated = ai::openai::codex::generated;
 
     namespace {
 
@@ -223,8 +223,8 @@ namespace apps::codex_bridge_client {
                 return error("usage: raw <json-rpc-message>");
             }
             nlohmann::json message = nlohmann::json::parse(remainder, nullptr, false);
-            return !message.is_discarded() && ai::openai::codex2::protocol::classifyJsonRpc(message) !=
-                    ai::openai::codex2::protocol::JsonRpcKind::Invalid
+            return !message.is_discarded() && ai::openai::codex::protocol::classifyJsonRpc(message) !=
+                    ai::openai::codex::protocol::JsonRpcKind::Invalid
                 ? ParsedCommand(RawCommand{std::move(message)})
                 : ParsedCommand(error("raw requires one valid app-server JSON-RPC message"));
         }

@@ -2,14 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [master, codex2-master]
+    branches: [master]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  codex2-build:
+  codex-build:
     runs-on: ubuntu-24.04
     container: gcc:15.3.0-trixie
     timeout-minutes: 45
@@ -65,22 +65,20 @@ jobs:
           cmake --build ../snodec-build --target all --parallel 8
           cmake --install ../snodec-build
 
-      - name: Configure codex2
+      - name: Configure codex
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX="$PWD/../aisuite-codex2-install" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/../aisuite-codex-install" \
             -DCMAKE_PREFIX_PATH="$PWD/../snodec-stage" \
-            -DAISUITE_BUILD_CODEX2_TESTS=ON \
-            -DAISUITE_BUILD_APPS=ON \
-            -DAISUITE_ENABLE_LEGACY_CODEX=OFF \
-            -DAISUITE_BUILD_CODEX_FRONTEND_CLIENT=OFF
+            -DAISUITE_BUILD_CODEX_TESTS=ON \
+            -DAISUITE_BUILD_APPS=ON
 
-      - name: Build codex2
+      - name: Build codex
         run: cmake --build build --parallel 8
 
-      - name: Test codex2
+      - name: Test codex
         run: ctest --test-dir build --output-on-failure --parallel 8
 
-      - name: Install codex2
+      - name: Install codex
         run: cmake --install build

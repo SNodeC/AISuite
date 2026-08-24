@@ -9,7 +9,7 @@
 
 #include <functional>
 
-namespace ai::openai::codex2::frontend {
+namespace ai::openai::codex::frontend {
     class CodexBridge;
 }
 
@@ -19,7 +19,7 @@ namespace apps::codex_bridge_client {
 
     class ClientSession {
     public:
-        ClientSession(ai::openai::codex2::frontend::CodexBridge& sdk,
+        ClientSession(ai::openai::codex::frontend::CodexBridge& sdk,
                       Presenter& presenter,
                       std::function<void()> reconnect,
                       std::function<void()> quit);
@@ -37,7 +37,7 @@ namespace apps::codex_bridge_client {
         void reportSdkError(std::string message);
         void startNew(NewCommand command);
 
-        ai::openai::codex2::frontend::CodexBridge& sdk_;
+        ai::openai::codex::frontend::CodexBridge& sdk_;
         Presenter& presenter_;
         std::function<void()> reconnect_;
         std::function<void()> quit_;

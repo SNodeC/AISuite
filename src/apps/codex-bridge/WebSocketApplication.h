@@ -12,14 +12,14 @@ namespace express {
     class Router;
 }
 
-namespace ai::openai::codex2::bridge {
+namespace ai::openai::codex::bridge {
     class CodexBridge;
 }
 
 namespace apps::codex_bridge {
 
     void configureWebSocketApplication(express::Router& router,
-                                       ai::openai::codex2::bridge::CodexBridge& bridge,
+                                       ai::openai::codex::bridge::CodexBridge& bridge,
                                        std::string endpoint,
                                        std::size_t maximumFrameBytes);
 

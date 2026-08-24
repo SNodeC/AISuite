@@ -4,7 +4,7 @@
 
 #include "apps/codex-bridge-client/Presenter.h"
 
-#include "ai/openai/codex2/protocol/Envelope.h"
+#include "ai/openai/codex/protocol/Envelope.h"
 
 #include <iostream>
 
@@ -23,15 +23,15 @@ namespace apps::codex_bridge_client {
     }
 
     void Presenter::appServerMessage(const nlohmann::json& message) {
-        const auto kind = ai::openai::codex2::protocol::classifyJsonRpc(message);
-        if (kind != ai::openai::codex2::protocol::JsonRpcKind::Response && !watching_) {
+        const auto kind = ai::openai::codex::protocol::classifyJsonRpc(message);
+        if (kind != ai::openai::codex::protocol::JsonRpcKind::Response && !watching_) {
             return;
         }
         if (mode_ == OutputMode::Json) {
             emitJson({{"kind", "appserver"}, {"payload", message}});
             return;
         }
-        if (const auto method = ai::openai::codex2::protocol::jsonRpcMethod(message)) {
+        if (const auto method = ai::openai::codex::protocol::jsonRpcMethod(message)) {
             *output_ << *method << ' ';
         }
         *output_ << message.dump(2) << '\n';

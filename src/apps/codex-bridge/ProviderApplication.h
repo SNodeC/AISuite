@@ -8,7 +8,7 @@
 #include <memory>
 #include <sys/types.h>
 
-namespace ai::openai::codex2::bridge {
+namespace ai::openai::codex::bridge {
     class CodexBridge;
 }
 
@@ -20,7 +20,7 @@ namespace apps::codex_bridge {
     public:
         class Runtime;
 
-        ProviderApplication(ai::openai::codex2::bridge::CodexBridge& bridge, const Configuration& configuration);
+        ProviderApplication(ai::openai::codex::bridge::CodexBridge& bridge, const Configuration& configuration);
         ~ProviderApplication();
 
         ProviderApplication(const ProviderApplication&) = delete;
@@ -33,7 +33,7 @@ namespace apps::codex_bridge {
     private:
         void providerLifecycleChanged(bool connected);
 
-        ai::openai::codex2::bridge::CodexBridge& bridge_;
+        ai::openai::codex::bridge::CodexBridge& bridge_;
         std::unique_ptr<Runtime> runtime_;
     };
 

@@ -2,11 +2,11 @@
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
-#include "ai/openai/codex2/frontend/CodexBridge.h"
-#include "ai/openai/codex2/frontend/client/ClientConnection.h"
-#include "ai/openai/codex2/frontend/client/StreamSocketContextFactory.h"
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
-#include "ai/openai/codex2/frontend/client/WebSocketClient.h"
+#include "ai/openai/codex/frontend/CodexBridge.h"
+#include "ai/openai/codex/frontend/client/ClientConnection.h"
+#include "ai/openai/codex/frontend/client/StreamSocketContextFactory.h"
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+#include "ai/openai/codex/frontend/client/WebSocketClient.h"
 #endif
 #include "apps/codex-bridge-client/ClientSession.h"
 #include "apps/codex-bridge-client/CommandParser.h"
@@ -20,15 +20,15 @@
 #include "net/in/stream/legacy/SocketClient.h"
 #include "net/in6/stream/legacy/SocketClient.h"
 #include "net/un/stream/legacy/SocketClient.h"
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
 #include "net/in/stream/tls/SocketClient.h"
 #include "net/in6/stream/tls/SocketClient.h"
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
 #include "net/rc/stream/legacy/SocketClient.h"
 #include "net/rc/stream/tls/SocketClient.h"
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "web/http/client/Request.h"
 #endif
 #include "utils/Config.h"
@@ -56,8 +56,8 @@ namespace {
 
 int main(int argc, char* argv[]) {
     namespace app = apps::codex_bridge_client;
-    namespace frontend = ai::openai::codex2::frontend;
-    namespace client = ai::openai::codex2::frontend::client;
+    namespace frontend = ai::openai::codex::frontend;
+    namespace client = ai::openai::codex::frontend::client;
 
     app::Configuration* const configuration =
         utils::Config::configRoot.newSubCommand<app::Configuration>();
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]) {
         configureStreamClient(ipv6Client, true);
         ipv6Client.getConfig()->Remote::setHost("::1");
 
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
         net::in::stream::tls::SocketClient<StreamFactory, client::ClientConnection&, std::size_t> tlsIpv4Client(
             "codex-bridge-client-tls-ipv4", connection, std::size_t(maximumFrameBytes));
         configureStreamClient(tlsIpv4Client, true);
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
         tlsIpv6Client.getConfig()->Remote::setHost("::1");
 #endif
 
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
         net::rc::stream::legacy::SocketClient<StreamFactory, client::ClientConnection&, std::size_t> rfcommClient(
             "codex-bridge-client-rfcomm", connection, std::size_t(maximumFrameBytes));
         configureStreamClient(rfcommClient, true);
@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
         configureStreamClient(rfcommTlsClient, true);
 #endif
 
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         client::linkWebSocketClient();
         auto webSocketBinding = std::make_shared<client::WebSocketBinding>(connection, maximumFrameBytes);
         const auto beginWebSocket = [webSocketBinding, configuration](
@@ -173,7 +173,7 @@ int main(int argc, char* argv[]) {
         configureStreamClient(webSocketIpv6Client, true);
         webSocketIpv6Client.getConfig()->Remote::setHost("::1");
 
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
         client::WebSocketHttpClient<net::in::stream::tls::SocketClient> wssIpv4Client(
             "codex-bridge-client-wss-ipv4", beginWebSocket, endWebSocket, webSocketBinding);
         configureStreamClient(wssIpv4Client, true);
@@ -266,18 +266,18 @@ int main(int argc, char* argv[]) {
                 unixClient.getConfig()->Instance::getDisabled(),
                 ipv4Client.getConfig()->Instance::getDisabled(),
                 ipv6Client.getConfig()->Instance::getDisabled(),
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
                 tlsIpv4Client.getConfig()->Instance::getDisabled(),
                 tlsIpv6Client.getConfig()->Instance::getDisabled(),
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
                 rfcommClient.getConfig()->Instance::getDisabled(),
                 rfcommTlsClient.getConfig()->Instance::getDisabled(),
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
                 webSocketIpv4Client.getConfig()->Instance::getDisabled(),
                 webSocketIpv6Client.getConfig()->Instance::getDisabled(),
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
                 wssIpv4Client.getConfig()->Instance::getDisabled(),
                 wssIpv6Client.getConfig()->Instance::getDisabled(),
 #endif
@@ -301,27 +301,27 @@ int main(int argc, char* argv[]) {
             } else if (!ipv6Client.getConfig()->Instance::getDisabled()) {
                 selectClient(ipv6Client, "IPv6 JSONL");
             }
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
             else if (!tlsIpv4Client.getConfig()->Instance::getDisabled()) {
                 selectClient(tlsIpv4Client, "IPv4 TLS JSONL");
             } else if (!tlsIpv6Client.getConfig()->Instance::getDisabled()) {
                 selectClient(tlsIpv6Client, "IPv6 TLS JSONL");
             }
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_RFCOMM)
+#if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
             else if (!rfcommClient.getConfig()->Instance::getDisabled()) {
                 selectClient(rfcommClient, "RFCOMM JSONL");
             } else if (!rfcommTlsClient.getConfig()->Instance::getDisabled()) {
                 selectClient(rfcommTlsClient, "RFCOMM TLS JSONL");
             }
 #endif
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
             else if (!webSocketIpv4Client.getConfig()->Instance::getDisabled()) {
                 selectClient(webSocketIpv4Client, "WebSocket IPv4");
             } else if (!webSocketIpv6Client.getConfig()->Instance::getDisabled()) {
                 selectClient(webSocketIpv6Client, "WebSocket IPv6");
             }
-#if defined(AISUITE_CODEX2_FRONTEND_TLS)
+#if defined(AISUITE_CODEX_FRONTEND_TLS)
             else if (!wssIpv4Client.getConfig()->Instance::getDisabled()) {
                 selectClient(wssIpv4Client, "WSS IPv4");
             } else if (!wssIpv6Client.getConfig()->Instance::getDisabled()) {
@@ -336,7 +336,7 @@ int main(int argc, char* argv[]) {
         eventLoopRunning = false;
         stdinReader.stop();
         reconnectPending = false;
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         webSocketBinding->shutdown();
 #endif
         if (terminateSelected) {

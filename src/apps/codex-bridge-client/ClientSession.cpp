@@ -4,7 +4,7 @@
 
 #include "apps/codex-bridge-client/ClientSession.h"
 
-#include "ai/openai/codex2/frontend/CodexBridge.h"
+#include "ai/openai/codex/frontend/CodexBridge.h"
 #include "apps/codex-bridge-client/Presenter.h"
 
 #include <type_traits>
@@ -12,9 +12,9 @@
 
 namespace apps::codex_bridge_client {
 
-    namespace codex2 = ai::openai::codex2;
+    namespace codex = ai::openai::codex;
 
-    ClientSession::ClientSession(codex2::frontend::CodexBridge& sdk,
+    ClientSession::ClientSession(codex::frontend::CodexBridge& sdk,
                                  Presenter& presenter,
                                  std::function<void()> reconnect,
                                  std::function<void()> quit)
@@ -22,8 +22,8 @@ namespace apps::codex_bridge_client {
         , presenter_(presenter)
         , reconnect_(std::move(reconnect))
         , quit_(std::move(quit)) {
-        sdk_.onRawJson([this](codex2::protocol::AppServerDirection direction, const nlohmann::json& message) {
-            if (direction == codex2::protocol::AppServerDirection::FromAppServer) {
+        sdk_.onRawJson([this](codex::protocol::AppServerDirection direction, const nlohmann::json& message) {
+            if (direction == codex::protocol::AppServerDirection::FromAppServer) {
                 presenter_.appServerMessage(message);
             }
         });
@@ -47,7 +47,7 @@ namespace apps::codex_bridge_client {
                     presenter_.localMessage(value.enabled ? "watch on" : "watch off");
                 } else if constexpr (std::is_same_v<T, SnapshotCommand>) {
                     presenter_.localMessage("snapshot is a transient fresh thread/list query");
-                    sdk_.threadList(codex2::generated::v2::ThreadListParams(nlohmann::json::object()),
+                    sdk_.threadList(codex::generated::v2::ThreadListParams(nlohmann::json::object()),
                                     [this](auto& response) { reportError(response); });
                 } else if constexpr (std::is_same_v<T, ReplayCommand>) {
                     static_cast<void>(value.sequence);
@@ -100,7 +100,7 @@ namespace apps::codex_bridge_client {
                 presenter_.error("thread/start response omitted thread id");
                 return;
             }
-            codex2::generated::v2::TurnStartParams turn(
+            codex::generated::v2::TurnStartParams turn(
                 {{"threadId", *threadId}, {"input", {{{"type", "text"}, {"text", std::move(prompt)}}}}});
             sdk_.turnStart(turn, [this](auto& turnResponse) { reportError(turnResponse); });
         });

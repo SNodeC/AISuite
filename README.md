@@ -1,178 +1,64 @@
 # AISuite
 
-AISuite is the home of reusable C++ AI integrations built on SNode.C. Its
-initial provider is a typed, asynchronous client, backend, and frontend protocol
-for the OpenAI Codex App Server.
+AISuite provides a typed, asynchronous C++ integration for the OpenAI Codex
+app-server, built on SNode.C. The canonical implementation is a stateless
+multi-client bridge: app-server remains the semantic and persistence authority,
+while AISuite owns transport adaptation, controller routing, typed facades, and
+bounded telemetry.
 
-AISuite consumes an installed SNode.C 2.0-or-newer package while keeping its Codex
-protocol implementation and versioned protocol sources in this repository.
+The previous stateful implementation is preserved on the dedicated
+`legacy-codex` Git branch. It is not part of the canonical source tree or build.
 
-AISuite now owns the three remaining Codex-specific source-policy
-responsibilities: installed public-header policy, backend logging API surface
-policy, and parameterless semantic-logger classification policy. Four new
-functional tests implement those responsibilities, while the unchanged
-pre-existing synthetic-secret guard remains a separate fifth functional policy
-test.
+## Components
+
+- `AISuite::OpenAICodex`: backend SDK, frontend proxy SDK, bridge routing, and
+  provider/frontend transport adapters.
+- `codex-bridge`: one app-server provider connection exposed to multiple
+  controller or observer clients.
+- `codex-bridge-client`: interactive SNode.C client using the frontend proxy SDK.
+- `tests/codex`: focused routing, framing, callback, provider, and frontend
+  transport tests.
+
+The generated protocol datatypes cover every JSON-RPC message represented by
+the selected app-server schema. Typed values expose direct field access and
+`getRaw()` for lossless access to the original `nlohmann::json`. Raw JSON-RPC
+submission remains available alongside the typed API.
 
 ## Build
 
-AISuite consumes an installed SNode.C 2.0-or-newer package; it never includes a sibling
-SNode.C source checkout. Reusable AISuite libraries require the installed
-`snodec::core` target. Application-only frontend transports use the exact
-installed SNode.C targets for Unix, IPv4/IPv6, TLS, HTTP/Express, WebSocket,
-and optional RFCOMM; those transport components are not imposed on a
-library-only consumer.
+AISuite consumes an installed SNode.C `master`/HEAD package. The canonical
+incremental build directory is:
 
-```sh
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix"
-cmake --build build --parallel 26
-ctest --test-dir build --output-on-failure --parallel 2
+```text
+/home/voc/projects/drafts/AISuite-extraction/build/codex-build
 ```
 
-## CMake consumption
+```sh
+cmake -S . \
+  -B /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix" \
+  -DAISUITE_BUILD_APPS=ON \
+  -DAISUITE_BUILD_CODEX_TESTS=ON
+cmake --build /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
+  --parallel 8
+ctest --test-dir /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
+  -L codex --output-on-failure --parallel 8
+```
+
+## CMake Consumption
 
 ```cmake
-find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS core)
 find_package(AISuite CONFIG REQUIRED)
-
 target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
 ```
 
-The public C++ namespace is `ai::openai::codex`. Ordinary applications can
-include the complete API and access its typed domains directly:
+Public headers are installed below `aisuite/ai/openai/codex`, and the public
+namespace is `ai::openai::codex`.
 
-```cpp
-#include <ai/openai/codex/Api.h>
+## Architecture
 
-namespace codex = ai::openai::codex;
-namespace typed = ai::openai::codex::typed;
-
-void configure(codex::stdio::Client& client) {
-    client.events().setOnEvent([](const typed::Event&) {});
-    client.threads().start(
-        [](const typed::OperationResult<typed::ThreadStartResponse>&) {});
-    client.models().list(
-        [](const typed::OperationResult<typed::ModelListResponse>&) {});
-}
-```
-
-The 20 direct domains cover accounts, applications, commands, configuration,
-events, external agents, feedback, filesystem, hooks, marketplace, MCP,
-models, permission profiles, plugins, reverse requests, reviews, skills,
-threads, turns, and the cross-platform Windows sandbox protocol. `raw()` is
-the explicit low-level escape hatch. See the
-[Codex application API](docs/ai/openai/codex/api.md) for lifecycle and result
-handling.
-
-## Current protocol status
-
-The stable Codex A1 typed protocol surface is complete. Final A1a completed
-the Common handshake and error identities after native A1.4. The live registry
-is:
-
-- 339 Complete
-- 0 Partial
-- 0 NotImplemented
-- 48 NotApplicable
-
-Native A1.4 remains 56 Complete / 0 Partial / 0 NotImplemented. All 48
-InventoryOnly identities remain NotApplicable. Final A1b removed the frozen
-deferred compatibility layer and moved all three Codex libraries to SOVERSION
-2. A1.5 completes the still-unreleased `.so.2` application façade with direct
-domain access. A1.6a hardens the reusable backend foundation: provider
-lifecycle and recovery are independent of frontend-session lifetime, cached
-state carries provider-generation freshness, capacity and snapshot bounds are
-explicit, and frontend replay remains owned by the frontend journal. A1.6b
-completes all **86/86** stable provider-operation commands while preserving
-their exact typed results, all 68 stable notifications, all ten stable server
-requests, and all 18 `ThreadItem` alternatives. Its frozen canonical-state
-coverage is 169/169 applicable entries: 73 stateful operations plus the 68
-notifications, 18 items, and ten requests. Exactly 13 application operations
-remain reasoned action-only results, and the 16 `ResponseItem` alternatives
-remain reasoned `NoRuntimeBackendStatePath`.
-
-A1.7a freezes an additive Frontend Protocol v1 contract without changing its
-identity or version. Its generated catalog contains the original 15 methods
-plus 90 additive definitions, for 105 total: seven frontend-native methods and
-98 BackendCore mappings. The owner-reviewed denominator remains 148 formerly
-unresolved decisions plus 86 notification/item compatibility contracts, or
-234 total, with zero unresolved.
-
-A1.7b completes the PIMPL-backed `FrontendService` and all 105 runtime
-handlers. Fifteen filesystem/command methods remain implemented but
-deployment-disabled by default, leaving 90 default-available methods. The
-`default_remote` profile (`observe` + `control`) is permitted 53/90; the
-12-scope `local_trusted` profile is permitted 90/90. The remote exclusion is
-exactly 22 privileged provider operations, 12 reverse-response methods, and
-three provider-lifecycle methods. `account.read` keeps its observer form while
-`refreshToken=true` additionally requires `control`, `account_management`, and
-the current controller.
-
-Every listener borrows the same service, controller, sequence, and canonical
-journal. Authentication finishes before BackendCore session creation; Unix
-local trust requires verified same-user peer credentials and an owner-only
-socket, while remote/untrusted connections use a protected-file bearer token
-in Hello. Scope filtering is unconditional for snapshot, live, and replay
-projections. Before canonical retention, AISuite removes known structured
-authentication, credential, token, password, private-key, API-key, cookie, and
-reviewed secret-response fields together with unsafe raw provider envelopes.
-Arbitrary bounded user, model, tool, reasoning, notice, diagnostic,
-process-output, and command-output text remains potentially sensitive and is
-protected by the same mandatory per-principal projection.
-
-The service implements 14 static mechanism capabilities, including the
-additive `thread_read_state_effects` operation contract. `multi_transport` is
-a separate conditional topology capability and is advertised only when more
-than one transport family is declared. A1.7c-1 adds the build-derived product
-capability `cpp_client_sdk`; it is independent of listener topology and is not
-a representation selector.
-
-The reference HTTP/WebSocket path uses SNode.C 2.0's configured HTTP parser,
-server limits, native upgrade, framing, and transport backpressure. Express
-middleware retains AISuite's endpoint, Origin, credential-channel, and request
-semantics. The parser bounds decoded bodies at one byte: AISuite rejects that
-one-byte boundary and every other non-empty body, while a larger body receives
-413 before Express dispatch. Static GET responses retain the descriptor produced by the hardened
-`openat()`/`O_NOFOLLOW` walk, pass it to `FileReader::adopt()`, and attach that
-source with `Response::pipe()`; they never reopen the authorized pathname or
-buffer the whole asset. A failed or throwing pipe setup stops the reader; a
-successful pipe transfers source ownership to SNode.C. HEAD returns the same
-representation length without a body. See the A1.7b report for the complete
-profile and exact installed SNode.C targets.
-
-The installed frontend surface adds the generated contract and security
-headers, `GeneratedProtocol.h` and `Security.h`; A1.7b replaces
-`BackendAdapter.h` with `FrontendService.h` and provides no public alias.
-The A1.7c-1 SDK adds 33 installed headers, so the inventory is 29 main + 7
-backend + 9 frontend + 33 frontend-client = 78 total. Project version is
-`0.6.0`; the explicit authoritative `thread.read` state effect changes the
-public C++ API/ABI and moves the Codex libraries to SOVERSION 7 while leaving
-the Frontend Protocol v1 identity unchanged.
-See the
-[A1.6a backend foundation](docs/ai/openai/codex/a1-6a-backend-foundation.md), the
-[A1.6b backend completion](docs/ai/openai/codex/a1-6b-backend-completeness.md),
-the [A1.7a frontend contract](docs/ai/openai/codex/a1-7a-frontend-contract.md),
-the [A1.7b FrontendService](docs/ai/openai/codex/a1-7b-frontend-service.md),
-the [A1.7c-1 C++ Frontend SDK](docs/ai/openai/codex/a1-7c-1-cpp-frontend-sdk.md),
-the [Final A1a protocol report](docs/ai/openai/codex/a1-final-protocol-completion.md)
-for initialization and canonical error behavior, and the
-[Final A1b ABI transition](docs/ai/openai/codex/a1-final-abi-transition.md)
-for the exact source-compatibility boundary. A1.7c-1 provides
-`AISuite::OpenAICodexFrontendClient` and migrates `codex-backend-client`.
-The normative [Codex P0–P3 architecture-reduction roadmap](docs/ai/openai/codex/architecture-reduction/README.md)
-freezes the current external contract and records non-blocking architecture
-measurements before reduction begins.
-The final owner-approved delivery order is PR #14 / A1.7c-1, then P0, parallel
-P1 SNode.C prerequisite and P2 complete greenfield frontend work, P3 production
-cutover and legacy deletion, and finally A1.7c-2. `codex-ui` remains untouched
-throughout P0–P3 and will migrate against the reduced canonical frontend
-architecture after P3. P0–P3 do not implement the Qt UI.
-A1.7d owns the TypeScript Frontend SDK and browser frontend. Provider-neutral
-architecture remains A2.
-
-AISuite validates build and runtime compatibility with installed SNode.C 2.0
-or newer. CI builds the current SNode.C `master` branch once, installs
-it, and configures AISuite only against that prefix. No SNode.C source checkout
-is required by AISuite tests.
+The complete runtime object graph, protocol contract, configuration rules,
+transport matrix, public APIs, implementation report, and focused test design
+are documented in
+[`src/ai/openai/codex/docs/architecture.md`](src/ai/openai/codex/docs/architecture.md).

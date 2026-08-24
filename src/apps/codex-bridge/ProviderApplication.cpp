@@ -4,13 +4,13 @@
 
 #include "apps/codex-bridge/ProviderApplication.h"
 
-#include "ai/openai/codex2/bridge/CodexBridge.h"
-#include "ai/openai/codex2/provider/StdioAppServer.h"
+#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/provider/StdioAppServer.h"
 #include "apps/codex-bridge/Configuration.h"
 #include "core/SNodeC.h"
 
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
-#include "ai/openai/codex2/provider/WebSocketAppServer.h"
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+#include "ai/openai/codex/provider/WebSocketAppServer.h"
 #include "net/in/stream/legacy/SocketClient.h"
 #include "net/in6/stream/legacy/SocketClient.h"
 #include "net/un/stream/legacy/SocketClient.h"
@@ -23,7 +23,7 @@
 
 namespace apps::codex_bridge {
 
-    namespace codex2 = ai::openai::codex2;
+    namespace codex = ai::openai::codex;
 
     class ProviderApplication::Runtime {
     public:
@@ -37,7 +37,7 @@ namespace apps::codex_bridge {
 
         class StdioRuntime final : public ProviderApplication::Runtime {
         public:
-            StdioRuntime(codex2::bridge::CodexBridge& bridge, const Configuration& configuration)
+            StdioRuntime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : endpoint_(bridge, options(configuration)) {
             }
 
@@ -54,7 +54,7 @@ namespace apps::codex_bridge {
             }
 
         private:
-            static codex2::provider::StdioAppServerOptions options(const Configuration& configuration) {
+            static codex::provider::StdioAppServerOptions options(const Configuration& configuration) {
                 auto result = configuration.stdioAppServerOptions();
                 result.onExit = [](int status) {
                     std::cerr << "codex-bridge: app-server process terminated status=" << status << '\n';
@@ -63,15 +63,15 @@ namespace apps::codex_bridge {
                 return result;
             }
 
-            codex2::provider::StdioAppServer endpoint_;
+            codex::provider::StdioAppServer endpoint_;
         };
 
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         class NetworkRuntimeBase : public ProviderApplication::Runtime {
         public:
-            NetworkRuntimeBase(codex2::bridge::CodexBridge& bridge, const Configuration& configuration)
+            NetworkRuntimeBase(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : endpoint_(bridge, configuration.maximumFrameBytes()) {
-                codex2::provider::linkAppServerWebSocketClient();
+                codex::provider::linkAppServerWebSocketClient();
             }
 
             bool start() final {
@@ -89,7 +89,7 @@ namespace apps::codex_bridge {
             }
 
         protected:
-            codex2::provider::WebSocketAppServer& endpoint() noexcept {
+            codex::provider::WebSocketAppServer& endpoint() noexcept {
                 return endpoint_;
             }
 
@@ -97,7 +97,7 @@ namespace apps::codex_bridge {
             virtual void connect() = 0;
             virtual void stopClient() noexcept = 0;
 
-            codex2::provider::WebSocketAppServer endpoint_;
+            codex::provider::WebSocketAppServer endpoint_;
         };
 
         template <typename Client>
@@ -119,7 +119,7 @@ namespace apps::codex_bridge {
 
         class UnixRuntime final : public NetworkRuntimeBase {
         public:
-            UnixRuntime(codex2::bridge::CodexBridge& bridge, const Configuration& configuration)
+            UnixRuntime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : NetworkRuntimeBase(bridge, configuration)
                 , client_("codex-bridge-app-server-unix",
                           [this](const auto& request) { endpoint().beginUpgrade(request); },
@@ -146,12 +146,12 @@ namespace apps::codex_bridge {
                 client_.getConfig()->setReconnect(true);
             }
 
-            codex2::provider::WebSocketHttpClient<net::un::stream::legacy::SocketClient> client_;
+            codex::provider::WebSocketHttpClient<net::un::stream::legacy::SocketClient> client_;
         };
 
         class IPv4Runtime final : public NetworkRuntimeBase {
         public:
-            IPv4Runtime(codex2::bridge::CodexBridge& bridge, const Configuration& configuration)
+            IPv4Runtime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : NetworkRuntimeBase(bridge, configuration)
                 , client_("codex-bridge-app-server-websocket-ipv4",
                           [this](const auto& request) { endpoint().beginUpgrade(request); },
@@ -178,12 +178,12 @@ namespace apps::codex_bridge {
                 client_.getConfig()->setReconnect(true);
             }
 
-            codex2::provider::WebSocketHttpClient<net::in::stream::legacy::SocketClient> client_;
+            codex::provider::WebSocketHttpClient<net::in::stream::legacy::SocketClient> client_;
         };
 
         class IPv6Runtime final : public NetworkRuntimeBase {
         public:
-            IPv6Runtime(codex2::bridge::CodexBridge& bridge, const Configuration& configuration)
+            IPv6Runtime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : NetworkRuntimeBase(bridge, configuration)
                 , client_("codex-bridge-app-server-websocket-ipv6",
                           [this](const auto& request) { endpoint().beginUpgrade(request); },
@@ -210,20 +210,20 @@ namespace apps::codex_bridge {
                 client_.getConfig()->setReconnect(true);
             }
 
-            codex2::provider::WebSocketHttpClient<net::in6::stream::legacy::SocketClient> client_;
+            codex::provider::WebSocketHttpClient<net::in6::stream::legacy::SocketClient> client_;
         };
 #endif
 
     } // namespace
 
-    ProviderApplication::ProviderApplication(codex2::bridge::CodexBridge& bridge,
+    ProviderApplication::ProviderApplication(codex::bridge::CodexBridge& bridge,
                                              const Configuration& configuration)
         : bridge_(bridge) {
         switch (configuration.appServerTransport()) {
         case AppServerTransport::Stdio:
             runtime_ = std::make_unique<StdioRuntime>(bridge, configuration);
             break;
-#if defined(AISUITE_CODEX2_FRONTEND_WEBSOCKET)
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         case AppServerTransport::Unix:
             runtime_ = std::make_unique<UnixRuntime>(bridge, configuration);
             break;
@@ -266,7 +266,7 @@ namespace apps::codex_bridge {
         if (!connected) {
             return;
         }
-        using Initialize = codex2::generated::client_requests::Initialize;
+        using Initialize = codex::generated::client_requests::Initialize;
         Initialize::Params parameters({
             {"clientInfo", {{"name", "codex_bridge"}, {"title", "Codex Bridge"}, {"version", "0.6.0"}}},
             {"capabilities", {{"experimentalApi", true}, {"requestAttestation", false}}},

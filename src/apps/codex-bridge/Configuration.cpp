@@ -61,7 +61,7 @@ namespace apps::codex_bridge {
 
     Configuration::~Configuration() = default;
 
-    ai::openai::codex2::bridge::CodexBridgeOptions Configuration::bridgeOptions() const {
+    ai::openai::codex::bridge::CodexBridgeOptions Configuration::bridgeOptions() const {
         return {.firstFrontendBecomesController = firstFrontendController_->as<bool>(), .observersMayRead = observerReads_->as<bool>()};
     }
 
@@ -79,8 +79,8 @@ namespace apps::codex_bridge {
         return AppServerTransport::Stdio;
     }
 
-    ai::openai::codex2::provider::StdioAppServerOptions Configuration::stdioAppServerOptions() const {
-        ai::openai::codex2::provider::StdioAppServerOptions options;
+    ai::openai::codex::provider::StdioAppServerOptions Configuration::stdioAppServerOptions() const {
+        ai::openai::codex::provider::StdioAppServerOptions options;
         options.executable = appServerExecutable_->as<std::string>();
         options.maximumFrameBytes = maximumFrameBytes();
         options.maximumQueuedInputBytes = maximumFrameBytes();

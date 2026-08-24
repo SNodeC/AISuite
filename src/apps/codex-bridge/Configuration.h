@@ -5,8 +5,8 @@
 #ifndef APPS_CODEX_BRIDGE_CONFIGURATION_H
 #define APPS_CODEX_BRIDGE_CONFIGURATION_H
 
-#include "ai/openai/codex2/bridge/CodexBridge.h"
-#include "ai/openai/codex2/provider/StdioAppServer.h"
+#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/provider/StdioAppServer.h"
 #include "utils/SubCommand.h"
 
 #include <cstddef>
@@ -32,9 +32,9 @@ namespace apps::codex_bridge {
         explicit Configuration(utils::SubCommand* parent);
         ~Configuration() override;
 
-        ai::openai::codex2::bridge::CodexBridgeOptions bridgeOptions() const;
+        ai::openai::codex::bridge::CodexBridgeOptions bridgeOptions() const;
         AppServerTransport appServerTransport() const;
-        ai::openai::codex2::provider::StdioAppServerOptions stdioAppServerOptions() const;
+        ai::openai::codex::provider::StdioAppServerOptions stdioAppServerOptions() const;
         std::size_t maximumFrameBytes() const;
         std::string webSocketEndpoint() const;
 

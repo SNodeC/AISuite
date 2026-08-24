@@ -5,7 +5,7 @@
 #ifndef APPS_CODEX_BRIDGE_CLIENT_COMMANDPARSER_H
 #define APPS_CODEX_BRIDGE_CLIENT_COMMANDPARSER_H
 
-#include "ai/openai/codex2/protocol/generated/ProtocolTypes.h"
+#include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 
 #include <cstdint>
 #include <string>
@@ -25,15 +25,15 @@ namespace apps::codex_bridge_client {
     struct ReplayCommand { std::uint64_t sequence = 0; };
     struct ControllerAcquireCommand {};
     struct ControllerReleaseCommand {};
-    struct ThreadListCommand { ai::openai::codex2::generated::v2::ThreadListParams parameters; };
-    struct ThreadStartCommand { ai::openai::codex2::generated::v2::ThreadStartParams parameters; };
-    struct ThreadResumeCommand { ai::openai::codex2::generated::v2::ThreadResumeParams parameters; };
-    struct ThreadReadCommand { ai::openai::codex2::generated::v2::ThreadReadParams parameters; };
-    struct TurnStartCommand { ai::openai::codex2::generated::v2::TurnStartParams parameters; };
-    struct TurnInterruptCommand { ai::openai::codex2::generated::v2::TurnInterruptParams parameters; };
+    struct ThreadListCommand { ai::openai::codex::generated::v2::ThreadListParams parameters; };
+    struct ThreadStartCommand { ai::openai::codex::generated::v2::ThreadStartParams parameters; };
+    struct ThreadResumeCommand { ai::openai::codex::generated::v2::ThreadResumeParams parameters; };
+    struct ThreadReadCommand { ai::openai::codex::generated::v2::ThreadReadParams parameters; };
+    struct TurnStartCommand { ai::openai::codex::generated::v2::TurnStartParams parameters; };
+    struct TurnInterruptCommand { ai::openai::codex::generated::v2::TurnInterruptParams parameters; };
     struct RawCommand { nlohmann::json message; };
     struct NewCommand {
-        ai::openai::codex2::generated::v2::ThreadStartParams options;
+        ai::openai::codex::generated::v2::ThreadStartParams options;
         std::string prompt;
     };
     struct CommandParseError { std::string message; };

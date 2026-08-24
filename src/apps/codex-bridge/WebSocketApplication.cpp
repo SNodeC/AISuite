@@ -4,8 +4,8 @@
 
 #include "apps/codex-bridge/WebSocketApplication.h"
 
-#include "ai/openai/codex2/bridge/CodexBridge.h"
-#include "ai/openai/codex2/frontend/WebSocketUpgrade.h"
+#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/frontend/WebSocketUpgrade.h"
 #include "core/socket/stream/SocketConnection.h"
 #include "express/Request.h"
 #include "express/Response.h"
@@ -19,13 +19,13 @@
 namespace apps::codex_bridge {
 
     void configureWebSocketApplication(express::Router& router,
-                                       ai::openai::codex2::bridge::CodexBridge& bridge,
+                                       ai::openai::codex::bridge::CodexBridge& bridge,
                                        std::string endpoint,
                                        std::size_t maximumFrameBytes) {
         if (endpoint.empty() || endpoint.front() != '/' || endpoint.find_first_of("?#") != std::string::npos) {
             throw std::invalid_argument("WebSocket endpoint must be an absolute path without query or fragment");
         }
-        ai::openai::codex2::frontend::linkWebSocketSubProtocol();
+        ai::openai::codex::frontend::linkWebSocketSubProtocol();
         router.get(
             endpoint,
             [&bridge, maximumFrameBytes](const std::shared_ptr<express::Request>& request,
@@ -40,7 +40,7 @@ namespace apps::codex_bridge {
                 core::socket::stream::SocketConnection& connection =
                     *response->getSocketContext()->getSocketConnection();
                 try {
-                    ai::openai::codex2::frontend::ScopedWebSocketUpgrade upgrade(connection, bridge, maximumFrameBytes);
+                    ai::openai::codex::frontend::ScopedWebSocketUpgrade upgrade(connection, bridge, maximumFrameBytes);
                     response->upgrade(request, [response](const std::string& selected) {
                         if (selected.empty()) {
                             response->sendStatus(400);
