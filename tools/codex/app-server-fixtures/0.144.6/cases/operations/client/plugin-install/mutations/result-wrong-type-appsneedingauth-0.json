@@ -1,6 +1,0 @@
-{
-  "appsNeedingAuth": [
-    null
-  ],
-  "authPolicy": "ON_INSTALL"
-}
