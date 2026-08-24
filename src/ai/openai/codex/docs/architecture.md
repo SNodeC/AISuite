@@ -1235,7 +1235,8 @@ canonical source tree.
 The library headers, `AISuite::OpenAICodex` target, `codex-bridge`, and
 `codex-bridge-client` are installable. The package configuration resolves the
 SNode.C components required by the exported static library. CI checks out and
-builds SNode.C `master`/HEAD, builds with parallelism eight, runs the focused
+builds SNode.C `master`/HEAD, builds with parallelism eight, prepares the shared
+SNode.C runtime directories before parallel process tests, runs the focused
 tests, and verifies installation.
 
 ### Completion audit result

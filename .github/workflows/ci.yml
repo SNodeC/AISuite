@@ -91,7 +91,12 @@ jobs:
       - name: Test codex
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib
-        run: ctest --test-dir build --output-on-failure --parallel 8
+        run: |
+          install -d -m 0770 -g snodec \
+            /etc/snode.c \
+            /var/log/snode.c \
+            /var/run/snode.c
+          ctest --test-dir build --output-on-failure --parallel 8
 
       - name: Install codex
         run: cmake --install build
