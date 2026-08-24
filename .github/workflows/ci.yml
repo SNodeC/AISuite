@@ -78,6 +78,8 @@ jobs:
         run: cmake --build build --parallel 8
 
       - name: Test codex
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/../snodec-stage/lib
         run: ctest --test-dir build --output-on-failure --parallel 8
 
       - name: Install codex
