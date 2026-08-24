@@ -11,7 +11,9 @@ permissions:
 jobs:
   codex-build:
     runs-on: ubuntu-24.04
-    container: gcc:15.3.0-trixie
+    container:
+      image: gcc:15.3.0-trixie
+      options: --cap-add=NET_ADMIN --sysctl net.ipv6.conf.all.disable_ipv6=0
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +30,7 @@ jobs:
             cmake \
             ca-certificates \
             git \
+            iproute2 \
             libbluetooth-dev \
             libmagic-dev \
             libssl-dev \
@@ -39,6 +42,14 @@ jobs:
             python3
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           getent group snodec >/dev/null || groupadd --system snodec
+
+      - name: Enable IPv6 transport coverage
+        run: |
+          ip link add codex-ci-v6 type dummy
+          ip link set codex-ci-v6 up
+          ip -6 address add fd00::1/128 dev codex-ci-v6
+          ip -6 address show dev codex-ci-v6
+          getent ahostsv6 ::1
 
       - name: Record toolchain
         shell: bash
