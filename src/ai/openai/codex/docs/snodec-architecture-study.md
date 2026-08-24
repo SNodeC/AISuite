@@ -2,10 +2,8 @@
 
 ## Purpose and Status
 
-This report records the SNode.C, MQTTSuite, and legacy AISuite architecture
-study requested before further `codex` implementation. It is a design input,
-not an implementation report. Implementation was stopped while this study was
-performed.
+This report records the SNode.C and MQTTSuite architecture constraints applied
+by the current AISuite `codex` implementation.
 
 The study focused on:
 
@@ -21,8 +19,8 @@ The study focused on:
 - WebSocket framing, limits, close behavior, and subprotocol architecture;
 - callback, transport-adapter, packet-decoder, session, and broker patterns
   from MQTT and MQTTSuite;
-- provider-process and protocol lessons from the legacy AISuite Codex stack;
-- consequences for the new slim `codex` / `codex-bridge` implementation.
+- provider-process and protocol lifecycle requirements;
+- consequences for the slim `codex` / `codex-bridge` implementation.
 
 The source trees inspected were SNode.C `master`/HEAD, the local MQTTSuite
 source tree, and the AISuite `codex-master` branch. The implemented codex
@@ -84,10 +82,9 @@ internal implementation.
    Every bridge delivery path must inspect `QueueResult`; a `void` convenience
    transmitter must be used only after bounded admission has been established.
 
-9. The legacy AISuite app-server transport contains valuable process
-   supervision and lifecycle lessons. Its `BackendCore`, reducer, snapshot,
-   frontend projection, journal, and frontend `State` architecture are exactly
-   the semantic middle layer that `codex` is intended to avoid.
+9. Provider transport owns process supervision and lifecycle handling without
+   introducing a semantic middle layer, reducer, snapshot, journal, or retained
+   frontend domain state.
 
 10. Complete typed app-server coverage should be generated from the canonical
     app-server schema. The typed objects are lossless JSON-backed views. They do
@@ -211,9 +208,8 @@ It must not duplicate Unix pathname, IP bind address, port, TLS certificate,
 TLS trust, socket timeout, queue watermark, retry, reconnect, RFCOMM, or HTTP
 listener options already supplied by SNode.C.
 
-The legacy `codex-backend` configuration frequently added options directly to
-`ConfigRoot`. That is a lesson in what not to carry into the new application:
-the new configuration must be a proper `SubCommand` subclass from the start.
+Codex application configuration is a proper `SubCommand` subclass and does not
+add application options directly to `ConfigRoot`.
 
 ## 2. Event Loop and Lifetime Model
 
@@ -284,8 +280,7 @@ themselves after terminal callbacks. Therefore:
 - bridge shutdown must invalidate deferred deliveries before contexts vanish;
 - callbacks must tolerate provider/frontend closure racing with queued work.
 
-The lifetime-token pattern used in the legacy WebSocket adapter is useful:
-deferred timers capture a `weak_ptr`, lock it, and verify that the endpoint
+Deferred timers capture a `weak_ptr`, lock it, and verify that the endpoint
 pointer remains attached before invoking it.
 
 ### 2.5 Signal and graceful-close behavior
@@ -572,10 +567,10 @@ payload can be identical, but framing semantics are not.
 ### 6.4 WebSocket transmit boundedness
 
 The convenience WebSocket transmitter currently presents `void` send methods.
-The underlying socket writer remains bounded. The legacy AISuite adapter shows
-the necessary precaution: calculate bounded WebSocket framing overhead, inspect
-the configured writer limit and outstanding bytes, probe terminal writer state,
-and only then call the transmitter. If admission is unavailable, return
+The underlying socket writer remains bounded. The adapter therefore calculates
+bounded WebSocket framing overhead, inspects the configured writer limit and
+outstanding bytes, probes terminal writer state, and only then calls the
+transmitter. If admission is unavailable, return
 backpressure or close; do not silently lose an event.
 
 A cleaner future SNode.C API could expose queue admission directly through the
@@ -684,12 +679,11 @@ deliberately narrow:
 
 It must not grow into a retained Codex semantic model.
 
-## 8. Legacy AISuite Lessons
+## 8. Provider and Protocol Requirements
 
-### 8.1 What is worth retaining
+### 8.1 Provider lifecycle
 
-The legacy stack contains mature operational work that should inform the new
-implementation:
+The provider implementation includes:
 
 - robust app-server process spawning with dedicated stdin/stdout/stderr pipes;
 - child environment overrides, including child-specific `CODEX_HOME`;
@@ -706,13 +700,12 @@ implementation:
 - server-request ownership tokens preventing duplicate/wrong responses;
 - transport close diagnostics with queue accounting and close reason.
 
-These are lifecycle and losslessness lessons. Reusing or extracting a small,
-well-bounded provider transport is reasonable if it does not pull the legacy
-semantic stack into `codex`.
+These responsibilities remain confined to a small, well-bounded provider
+transport and do not introduce Codex semantic state into AISuite.
 
 ### 8.2 AppServerClient facade shape
 
-The old `AppServerClient` correctly separates:
+The app-server client boundary separates:
 
 - transport callbacks;
 - raw JSON-RPC request/notify/respond/reject methods;
@@ -739,29 +732,9 @@ The callback argument is the concrete JSON-backed result object, not a second
 generic `Result<T>` wrapper. Failure information lives in the concrete result's
 status/error accessors and `operator bool()`.
 
-### 8.3 What must not be retained
+### 8.3 Semantic authority boundary
 
-The old stack evolved into several semantic layers:
-
-```text
-app-server events
-    -> typed decoding
-    -> BackendCore
-    -> Reducer / BackendState / Snapshot
-    -> frontend model/journal/projection/service
-    -> generated frontend protocol
-    -> frontend SDK State
-    -> CodexUI reconciliation
-```
-
-This architecture had to define authority, merge/replace behavior,
-completeness, retention, bounded projection, replay, synchronization,
-front-end snapshots, pending-request state, and semantic views. The live
-investigation showed that these boundaries are difficult to keep equivalent to
-the app-server's own state and can create history, pending-state, and reconnect
-failure modes.
-
-`codex` therefore must not include equivalents of:
+`codex` does not include:
 
 - `BackendCore`, `BackendState`, or `Reducer` for Codex state;
 - AISuite-owned thread/turn/item snapshots;
@@ -774,10 +747,8 @@ failure modes.
 
 ### 8.4 Raw pass-through is a compatibility requirement
 
-The old typed protocol required extensive hand-maintained codecs and explicit
-surface registration. The new implementation should generate complete types
-from the canonical exported app-server schema, while retaining every original
-JSON value and unknown field.
+The implementation generates complete types from the canonical exported
+app-server schema while retaining every original JSON value and unknown field.
 
 An older bridge must still forward a newer unknown notification or field.
 Typed decoding failure must not become forwarding failure unless the bridge
@@ -872,8 +843,8 @@ The required frontend SDK is a stateless transport proxy for this same API. It
 uses the same generated class names, methods, callback signatures, notification
 handlers, and server-request response types, but sends and receives them through
 the slim bridge envelope. Its only additional surface is bridge
-connection/role/controller telemetry. It must not recreate the legacy frontend
-`State`, reducer, snapshot, reconciliation, or retention architecture.
+connection/role/controller telemetry. It contains no reducer, snapshot,
+reconciliation, or retention architecture.
 
 ## 10. Recommended codex Runtime Object Graph
 
@@ -1053,11 +1024,10 @@ boundary, and then invokes `connect()` for a new cycle. Application shutdown
 terminates the flow and closes the active `ClientConnection`; it does not call
 `core::SNodeC::free()` from `main`.
 
-The familiar legacy client command grammar is an interaction reference only.
-Each supported command invokes the current typed frontend SDK or an explicit
-bridge controller operation. `watch` controls presentation of future native
-events. `read` performs a fresh `thread/read`. Any retained `snapshot` spelling
-means a transient report from fresh app-server queries and is discarded after
+Each supported client command invokes the current typed frontend SDK or an
+explicit bridge controller operation. `watch` controls presentation of future
+native events. `read` performs a fresh `thread/read`. `snapshot` means a
+transient report from fresh app-server queries and is discarded after
 presentation. `replay` has no codex implementation because the bridge owns no
 event replay log.
 
@@ -1083,8 +1053,7 @@ against these findings. The resulting source applies the following rules:
 
 6. Stdio provider ownership follows SNode.C pipe/event-loop lifecycle, including
    event-driven child observation and deterministic shutdown/reaping. It has no
-   periodic process-polling timer and imports no semantic state from the
-   previous implementation.
+   periodic process-polling timer and imports no semantic state.
 
 7. Keep `CodexBridge` free of thread, turn, item, command-output, pending-state,
    snapshot, and projection storage.
@@ -1101,9 +1070,7 @@ against these findings. The resulting source applies the following rules:
 ## 12. Build and Scope Constraints
 
 The focused `tests/codex` suite validates the implemented framing, SDK,
-controller-routing, provider, and frontend transport boundaries. Historical
-source and tests are preserved on the dedicated `legacy-codex` Git branch and
-are not part of the canonical source tree or build.
+controller-routing, provider, and frontend transport boundaries.
 
 No implementation should broaden the agreed architecture without stopping for
 explicit user approval. In particular, adding authentication, semantic cache,

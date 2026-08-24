@@ -6,9 +6,6 @@ multi-client bridge: app-server remains the semantic and persistence authority,
 while AISuite owns transport adaptation, controller routing, typed facades, and
 bounded telemetry.
 
-The previous stateful implementation is preserved on the dedicated
-`legacy-codex` Git branch. It is not part of the canonical source tree or build.
-
 ## Components
 
 - `AISuite::OpenAICodex`: backend SDK, frontend proxy SDK, bridge routing, and

@@ -5,11 +5,9 @@
 
 ## Goal
 
-`codex` is the canonical slim Codex integration for AISuite. It returns to the
-original SNode.C idea: make AI systems easy to access from SNode.C applications
-through transports, framing, typed facades, and simple routing. The previous
-stateful implementation is preserved on the dedicated `legacy-codex` Git branch
-and is not part of the canonical source tree or build.
+`codex` is the canonical slim Codex integration for AISuite. It makes Codex
+available to SNode.C applications through transports, framing, typed facades,
+and explicit routing.
 
 ## Runtime Shape
 
@@ -269,10 +267,8 @@ AISuite owns only bridge-level concerns:
 ## `codex-bridge-client` Architecture
 
 `codex-bridge-client` is a thin interactive SNode.C application built on the
-required codex frontend proxy SDK. It preserves the familiar command-line
-interaction schema of the legacy `codex-backend-client`, but it must not import
-the legacy frontend protocol, `State`, snapshot, reducer, authentication, or
-synchronization implementation.
+required codex frontend proxy SDK. Its command-line interaction maps directly
+to current typed app-server and bridge operations.
 
 The implementation follows the ordinary SNode.C client application boundary
 demonstrated by `mqttcli`, `mqttintegrator`, and `mqttbridge`. Application
@@ -351,7 +347,7 @@ The responsibilities are deliberately narrow:
 
 - `Configuration` is an SNode.C `SubCommand` containing application-specific
   options only.
-- `CommandParser` preserves the legacy interactive command grammar where the
+- `CommandParser` exposes the supported interactive command grammar where the
   app-server or bridge has an equivalent operation.
 - `ClientSession` coordinates parsed commands, typed SDK calls, callbacks,
   controller role, and reconnect lifecycle.
@@ -485,13 +481,12 @@ accounting, and the configured writer limit when delivery fails. It must not
 report success merely because JSON serialization or WebSocket framing
 succeeded.
 
-### CLI compatibility
+### CLI behavior
 
-The recognizable legacy interaction schema is preserved, including local
-commands such as `help`, `quit`, `reconnect`, and `watch on|off`, plus thread,
-turn, and read commands for which the current app-server exposes a direct
-operation. Commands are translated to typed frontend SDK calls, not to legacy
-frontend-protocol commands.
+The client provides local commands such as `help`, `quit`, `reconnect`, and
+`watch on|off`, plus thread, turn, and read commands for which the current
+app-server exposes a direct operation. Commands are translated to typed
+frontend SDK calls.
 
 `watch on` presents future app-server notifications. It does not activate or
 subscribe to a bridge-owned State publication. `read <thread-id>` invokes the
@@ -500,8 +495,8 @@ exactly the history view returned by app-server. The word `full` in an
 app-server `itemsView` is scoped to that provider history mode; it does not mean
 that every item previously emitted on the live event stream is reconstructable.
 
-If the legacy `snapshot` command spelling is retained for operator familiarity,
-it means a transient client-side report produced from fresh app-server queries,
+The `snapshot` command means a transient client-side report produced from fresh
+app-server queries,
 such as `thread/list` followed by selected `thread/read` calls. It must not
 create, request, or imply an AISuite-owned snapshot, and the transient report is
 discarded after presentation.
@@ -509,8 +504,8 @@ discarded after presentation.
 Human mode presents concise results and live events. In `--json` mode stdout is
 reserved for one JSON object per line; unchanged app-server payloads, bridge
 telemetry, and local diagnostics remain explicitly distinguishable. Logs and
-human diagnostics go to stderr. The presenter never converts messages into the
-legacy State schema.
+human diagnostics go to stderr. The presenter does not construct a retained
+domain projection.
 
 ### App-server history reconstruction limitation
 
@@ -526,7 +521,7 @@ processes:
    observed the complete live item;
 3. the isolated rollout JSONL retained the underlying custom tool call and
    custom tool output;
-4. an immediate `thread/read(includeTurns=true)` for the same legacy-history
+4. an immediate `thread/read(includeTurns=true)` for the same configured-history
    thread returned `itemsView: "full"` but omitted the command execution and
    contained only user and agent messages with reconstructed synthetic item
    IDs;
@@ -534,8 +529,8 @@ processes:
    the same runtime with JSON-RPC error `-32601` and the message
    `paginated_threads is not supported yet`.
 
-The first loss boundary in this sequence is app-server's legacy
-`thread/read` projection. It is not a codex-bridge routing, transport, SDK, or
+The first loss boundary in this sequence is the app-server `thread/read`
+projection. It is not a codex-bridge routing, transport, SDK, or
 frontend-protocol loss. The persisted rollout contains richer raw tool data,
 but that file is an app-server implementation detail and is not a replacement
 for a supported app-server protocol operation.
@@ -544,7 +539,7 @@ Consequently, with this provider version a stateless bridge can guarantee
 lossless live forwarding but cannot guarantee reconstruction of every prior
 live activity for a fresh or reconnected client. Schema presence alone is not
 proof that paginated history is available; runtime acceptance is authoritative.
-Clients and applications must not interpret a legacy `itemsView: "full"` as
+Clients and applications must not interpret `itemsView: "full"` as
 proof that omitted live command activity never existed.
 
 This limitation does not authorize an implicit AISuite cache. Caching,
@@ -585,11 +580,6 @@ SNode.C close active contexts. Dynamic replacement of a configured transport,
 if introduced later, must use the `mqttbridge` pattern: terminate and await the
 old flow before constructing or activating the replacement. No current feature
 requires a process-global registry of client sessions.
-
-The legacy client may be used as a behavioral reference for its command grammar
-and terminal ergonomics only. Its protocol, State handling, authentication,
-snapshot machinery, and synchronization barriers are not reusable codex
-components.
 
 ## Shared Application Contract
 
@@ -793,10 +783,10 @@ implementation only wraps outgoing native JSON-RPC in bridge envelopes and
 unwraps incoming envelopes before invoking the same callbacks.
 
 The proxy may additionally expose bridge connection, role, controller handoff,
-and transport telemetry. It must not contain the legacy frontend `State`, a
-reducer, snapshots, reconciliation rules, retained Codex objects, or another
-authority model. Backend SDK and frontend proxy SDK differ in transport, not in
-the Codex API presented to their users.
+and transport telemetry. It contains no reducer, snapshots, reconciliation
+rules, retained Codex objects, or additional authority model. Backend SDK and
+frontend proxy SDK differ in transport, not in the Codex API presented to their
+users.
 
 Both SDKs provide typed responses to app-server-initiated requests in addition
 to typed handlers. A response takes the stable JSON-RPC ID from the typed
@@ -870,11 +860,10 @@ timeouts, and explicit lifecycle control remain active.
 
 ## Canonical Implementation Scope
 
-The canonical source tree contains one implementation under
+The canonical source tree contains the implementation under
 `src/ai/openai/codex`, the `codex-bridge` and `codex-bridge-client`
 applications, this architecture contract, and the focused tests described
-below. It does not modify the OpenAI app-server. Historical source and tests
-remain available from the dedicated `legacy-codex` Git branch.
+below. It does not modify the OpenAI app-server.
 
 ## Implemented System Report
 
@@ -882,9 +871,8 @@ The initial codex implementation is complete for the stateless bridge scope
 defined by this document. The implementation consists of one reusable library,
 two applications, generated complete protocol facades for the imported
 app-server schema, production transport adapters, focused tests, installation
-metadata, and CI integration. It does not include any legacy reducer, frontend
-`State`, snapshot store, history cache, persistence layer, or implicit
-controller switching.
+metadata, and CI integration. It does not include a reducer, snapshot store,
+history cache, persistence layer, or implicit controller switching.
 
 ### Build products and source layout
 
@@ -1211,8 +1199,8 @@ variants, but its absence is not hidden by the current 26-test count.
 The client CLI does not need a handwritten command for every generated method
 to be protocol-complete: arbitrary schema-defined JSON-RPC remains reachable
 through `raw`, while C++ applications use the complete generated proxy API.
-CodexUI and a future CodexWebUI are expected to use that proxy API and one of
-the frontend transport rows; they are client applications, not additional
+CodexUI uses that proxy API and one selected frontend transport. Other visual
+clients use the same boundary; they are client applications, not additional
 bridge authorities.
 
 ### Application and configuration implementation
@@ -1262,16 +1250,15 @@ defects:
 
 The corrected client passes a no-`stdbuf` pipe probe, and the obsolete process
 supervision files and unused network ownership hooks have been removed. Source
-format validation with `git diff --check` is clean. The app-server legacy
-history reconstruction limitation documented above remains an explicit
+format validation with `git diff --check` is clean. The app-server history
+reconstruction limitation documented above remains an explicit
 provider limitation, not an incomplete bridge implementation.
 
 ## Focused Test Architecture
 
 The codex test suite validates the narrow bridge architecture at its actual
-boundaries. It is not a continuation of the legacy stateful Codex test suite,
-and it must not import legacy snapshots, reducers, frontend `State`, history
-reconstruction, authentication, or retained-domain assumptions.
+boundaries. It does not introduce snapshots, reducers, retained domain state,
+or an additional authentication protocol.
 
 ### Build and registration boundary
 
@@ -1599,7 +1586,7 @@ probe verified that rebuilt
 A successful run proves the implemented routing, callback, framing, process,
 and enabled transport contracts described above. It does not override the
 explicit exclusions below and does not prove that the app-server can
-reconstruct live items omitted by its own legacy `thread/read` projection.
+reconstruct live items omitted by its own `thread/read` projection.
 
 ### Explicit exclusions
 
@@ -1610,7 +1597,6 @@ These tests do not:
 - test app-server persistence or model behavior;
 - reintroduce bearer tokens or another authentication protocol;
 - test RFCOMM unless separately approved with suitable hardware/runtime setup;
-- run legacy Codex tests;
 - run broad suites, stress loops, sleeps, or timing-based workload simulations;
 - create an alternative frontend SDK or bypass the production client adapter.
 
