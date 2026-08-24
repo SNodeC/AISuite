@@ -1100,12 +1100,6 @@ against these findings. The resulting source applies the following rules:
 
 ## 12. Build and Scope Constraints
 
-The canonical incremental build directory remains:
-
-```text
-/home/voc/projects/drafts/AISuite-extraction/build/codex-build
-```
-
 The focused `tests/codex` suite validates the implemented framing, SDK,
 controller-routing, provider, and frontend transport boundaries. Historical
 source and tests are preserved on the dedicated `legacy-codex` Git branch and

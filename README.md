@@ -26,23 +26,17 @@ submission remains available alongside the typed API.
 
 ## Build
 
-AISuite consumes an installed SNode.C `master`/HEAD package. The canonical
-incremental build directory is:
-
-```text
-/home/voc/projects/drafts/AISuite-extraction/build/codex-build
-```
+AISuite consumes an installed SNode.C `master`/HEAD package.
 
 ```sh
 cmake -S . \
-  -B /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
+  -B "${BUILD_DIR}" \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix" \
   -DAISUITE_BUILD_APPS=ON \
   -DAISUITE_BUILD_CODEX_TESTS=ON
-cmake --build /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
-  --parallel 8
-ctest --test-dir /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
+cmake --build "${BUILD_DIR}" --parallel 8
+ctest --test-dir "${BUILD_DIR}" \
   -L codex --output-on-failure --parallel 8
 ```
 

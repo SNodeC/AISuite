@@ -1295,7 +1295,7 @@ Tests expose their communication instead of reporting only pass/fail assertions.
 Every process emits one compact JSON object per trace line to stdout. Running
 
 ```text
-ctest --test-dir /home/voc/projects/drafts/AISuite-extraction/build/codex-build -V -L codex
+ctest --test-dir "${BUILD_DIR}" -V -L codex
 ```
 
 shows the full focused trace.
@@ -1579,7 +1579,7 @@ The canonical build currently registers 26 codex CTest cases:
 The latest completion-audit run used:
 
 ```text
-ctest --test-dir /home/voc/projects/drafts/AISuite-extraction/build/codex-build \
+ctest --test-dir "${BUILD_DIR}" \
       -L codex --output-on-failure -j8
 ```
 
@@ -1591,8 +1591,8 @@ Result:
 
 All registered Unix, IPv4, IPv6, JSONL, TLS, WebSocket, and WSS cases passed,
 including the nine real-app-server end-to-end variants. The build of
-`codex-bridge` and `codex-bridge-client` also succeeded from the canonical
-incremental build directory. A separate pipe-level probe verified that rebuilt
+`codex-bridge` and `codex-bridge-client` also succeeded. A separate pipe-level
+probe verified that rebuilt
 `codex-bridge-client --json` emits a response before process exit without
 `stdbuf`, confirming the explicit JSONL flush behavior.
 
@@ -1620,16 +1620,6 @@ composition. Its real-process matrix additionally proves the actual app-server
 stdio handshake and schema envelope across every enabled frontend transport.
 Live model behavior and app-server persistence remain separate integration
 concerns because the real app-server is authoritative for those domains.
-
-## Build Directory
-
-All incremental local development builds for this branch must use the canonical build directory:
-
-```text
-/home/voc/projects/drafts/AISuite-extraction/build/codex-build
-```
-
-Do not create ad hoc sibling build directories for ordinary codex/codex-bridge iteration unless a task explicitly requires an isolated disposable build.
 
 ### SNode.C dependency policy
 
