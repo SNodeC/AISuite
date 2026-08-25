@@ -21,6 +21,8 @@ add_library(
     protocol/generated/ProtocolTypes.h
     protocol/JsonLineFramer.cpp
     protocol/JsonLineFramer.h
+    protocol/RuntimePaths.cpp
+    protocol/RuntimePaths.h
     provider/ChildExitObserver.cpp
     provider/ChildExitObserver.h
     provider/StdioAppServer.cpp
@@ -58,8 +60,8 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET AND TARGET snodec::websocket-server)
     )
     target_link_libraries(
         ai-openai-codex
-        PRIVATE snodec::websocket-server snodec::http-client
-                snodec::websocket-client
+        PUBLIC snodec::websocket-server snodec::http-client
+               snodec::websocket-client
     )
 endif()
 install(

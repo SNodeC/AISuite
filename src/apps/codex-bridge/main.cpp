@@ -4,6 +4,7 @@
 
 #include "ai/openai/codex/bridge/CodexBridge.h"
 #include "ai/openai/codex/frontend/StreamSocketContextFactory.h"
+#include "ai/openai/codex/protocol/RuntimePaths.h"
 #include "apps/codex-bridge/Configuration.h"
 #include "apps/codex-bridge/ProviderApplication.h"
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
@@ -82,6 +83,12 @@ int main(int argc, char* argv[]) {
         utils::Config::configRoot.newSubCommand<apps::codex_bridge::Configuration>();
     core::SNodeC::init(argc, argv);
 
+    std::string runtimeError;
+    if (!ai::openai::codex::protocol::ensurePrivateRuntimeDirectory(&runtimeError)) {
+        std::cerr << "codex-bridge: " << runtimeError << '\n';
+        return 1;
+    }
+
     int result = 1;
     {
         ai::openai::codex::bridge::CodexBridge bridge(configuration->bridgeOptions());
@@ -91,7 +98,7 @@ int main(int argc, char* argv[]) {
         auto unixServer = net::un::stream::legacy::Server<ai::openai::codex::frontend::StreamSocketContextFactory>(
             "codex-bridge",
             [](net::un::stream::legacy::config::ConfigSocketServer* config) {
-                config->Local::setSunPath("/tmp/codex-bridge.sock");
+                config->Local::setSunPath(ai::openai::codex::protocol::defaultFrontendSocketPath());
                 config->Connection::setReadTimeout(utils::Timeval({0, 0}));
                 config->Connection::setWriteTimeout(utils::Timeval({0, 0}));
                 config->Connection::setMaximumWriteQueueBytes(apps::codex_bridge::DefaultMaximumWriteQueueBytes);

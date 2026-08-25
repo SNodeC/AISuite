@@ -36,6 +36,13 @@ namespace apps::codex_bridge {
                       DefaultMaximumFrameBytes,
                       CLI::PositiveNumber),
             true);
+        maximumProviderInputQueueBytes_ = setConfigurable(
+            addOption("--app-server-maximum-queued-input-bytes",
+                      "Maximum queued bytes waiting for app-server stdin",
+                      "BYTES",
+                      DefaultMaximumProviderInputQueueBytes,
+                      CLI::PositiveNumber),
+            true);
         firstFrontendController_ = setConfigurable(
             addFlag("--bridge-first-frontend-controller{true}",
                     "Assign control to the first frontend connection",
@@ -83,7 +90,7 @@ namespace apps::codex_bridge {
         ai::openai::codex::provider::StdioAppServerOptions options;
         options.executable = appServerExecutable_->as<std::string>();
         options.maximumFrameBytes = maximumFrameBytes();
-        options.maximumQueuedInputBytes = maximumFrameBytes();
+        options.maximumQueuedInputBytes = maximumProviderInputQueueBytes_->as<std::size_t>();
         const std::string codexHome = codexHome_->as<std::string>();
         if (!codexHome.empty()) {
             options.environment.emplace_back("CODEX_HOME", codexHome);
