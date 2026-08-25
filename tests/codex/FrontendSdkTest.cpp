@@ -154,6 +154,28 @@ int main() {
                     notification.getRaw() == appServerNotificationWithoutVersion,
                 "typed notifications unwrap the real app-server method/params envelope without requiring jsonrpc");
 
+    std::optional<v2::ThreadListResponse> providerRestartResponse;
+    sdk.threadList(params, [&](v2::ThreadListResponse& response) {
+        providerRestartResponse = response;
+    });
+    connection.receive(endpoint,
+                       {{"kind", "bridge.provider"},
+                        {"state", "disconnected"},
+                        {"providerGeneration", 1},
+                        {"reason", "test provider restart"},
+                        {"seq", 5}});
+    test.expect(providerRestartResponse &&
+                    providerRestartResponse->jsonRpcErrorCode() ==
+                        std::optional<std::int64_t>{-32002},
+                "provider loss retires pending callbacks exactly once");
+    connection.receive(endpoint,
+                       {{"kind", "bridge.provider"},
+                        {"state", "ready"},
+                        {"providerGeneration", 2},
+                        {"seq", 6}});
+    test.expect(sdk.providerReady() && sdk.providerGeneration() == 2,
+                "a new provider generation becomes independently ready");
+
     std::optional<v2::ThreadListResponse> disconnectedResponse;
     std::size_t throwingDisconnectCallbacks = 0;
     sdk.threadList(params, [&](v2::ThreadListResponse& response) {
