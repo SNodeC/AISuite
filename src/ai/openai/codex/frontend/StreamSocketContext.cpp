@@ -23,6 +23,12 @@ namespace ai::openai::codex::frontend {
         , maximumFrameBytes_(maximumFrameBytes) {
     }
 
+    StreamSocketContext::~StreamSocketContext() {
+        if (!connectionId_.empty()) {
+            bridge_.unregisterFrontend(connectionId_);
+        }
+    }
+
     bool StreamSocketContext::send(const nlohmann::json& message) {
         if (disconnecting_) {
             return false;
@@ -54,6 +60,10 @@ namespace ai::openai::codex::frontend {
 
     void StreamSocketContext::onConnected() {
         connectionId_ = bridge_.registerFrontend(*this);
+        if (connectionId_.empty()) {
+            close("frontend connection limit reached");
+            return;
+        }
         std::clog << "codex-bridge: frontend connected connection=" << connectionId_ << '\n';
     }
 
@@ -72,16 +82,27 @@ namespace ai::openai::codex::frontend {
             return size;
         }
 
-        const bool accepted = framer_.consume(
-            std::string_view(bytes.data(), size),
-            [this](nlohmann::json message) {
-                if (!disconnecting_) {
-                    bridge_.receiveFromFrontend(connectionId_, message);
-                }
-            },
-            [this](std::string error) {
-                std::clog << "codex-bridge: invalid frontend frame connection=" << connectionId_ << " reason=" << error << '\n';
-            });
+        bool accepted = false;
+        try {
+            accepted = framer_.consume(
+                std::string_view(bytes.data(), size),
+                [this](nlohmann::json message) {
+                    if (!disconnecting_) {
+                        bridge_.receiveFromFrontend(connectionId_, message);
+                    }
+                },
+                [this](std::string error) {
+                    std::clog << "codex-bridge: invalid frontend frame connection=" << connectionId_ << " reason=" << error << '\n';
+                });
+        } catch (const std::exception& exception) {
+            std::clog << "codex-bridge: frontend message dispatch failed connection=" << connectionId_
+                      << " reason=" << exception.what() << '\n';
+            close("frontend message dispatch failed");
+            return size;
+        } catch (...) {
+            close("frontend message dispatch failed");
+            return size;
+        }
         if (!accepted) {
             close("invalid or oversized JSONL frame");
         }

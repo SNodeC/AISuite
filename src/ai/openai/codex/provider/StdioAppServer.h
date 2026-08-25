@@ -55,6 +55,7 @@ namespace ai::openai::codex::provider {
         void receiveStdout(const char* data, std::size_t length);
         void receiveStderr(const char* data, std::size_t length);
         void transportClosed(std::string reason);
+        void transitionToStopped(std::string reason, bool notifyBridge, bool terminateChild);
         bool observeChild();
         void childExitReady(ChildExitObserver* observer);
         void childObserverClosed(ChildExitObserver* observer) noexcept;

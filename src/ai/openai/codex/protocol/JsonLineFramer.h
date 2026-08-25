@@ -32,9 +32,11 @@ namespace ai::openai::codex::protocol {
 
     private:
         bool fail(std::string message, const ErrorHandler& onError);
+        void compact();
 
         std::size_t maximumFrameBytes_;
         std::string buffer_;
+        std::size_t bufferOffset_ = 0;
         bool failed_ = false;
     };
 

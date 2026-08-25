@@ -27,6 +27,40 @@ namespace ai::openai::codex::protocol {
         return JsonRpcKind::Invalid;
     }
 
+    JsonRpcKind classifyStrictJsonRpc(const nlohmann::json& message) noexcept {
+        if (!message.is_object()) {
+            return JsonRpcKind::Invalid;
+        }
+        const auto version = message.find("jsonrpc");
+        if (version == message.end() || !version->is_string() || *version != "2.0") {
+            return JsonRpcKind::Invalid;
+        }
+        const auto id = message.find("id");
+        if (id != message.end() && !id->is_null() && !id->is_string() &&
+            !id->is_number_integer() && !id->is_number_unsigned()) {
+            return JsonRpcKind::Invalid;
+        }
+        const auto params = message.find("params");
+        if (params != message.end() && !params->is_object() && !params->is_array()) {
+            return JsonRpcKind::Invalid;
+        }
+        const auto error = message.find("error");
+        if (error != message.end() && !error->is_object()) {
+            return JsonRpcKind::Invalid;
+        }
+        const JsonRpcKind kind = classifyJsonRpc(message);
+        if (kind == JsonRpcKind::Request || kind == JsonRpcKind::Notification) {
+            if (message.contains("result") || message.contains("error")) {
+                return JsonRpcKind::Invalid;
+            }
+        } else if (kind == JsonRpcKind::Response) {
+            if (message.contains("method") || message.contains("params")) {
+                return JsonRpcKind::Invalid;
+            }
+        }
+        return kind;
+    }
+
     std::optional<std::string> jsonRpcIdKey(const nlohmann::json& message) {
         if (!message.is_object() || !message.contains("id") || message["id"].is_null()) {
             return std::nullopt;
@@ -74,6 +108,20 @@ namespace ai::openai::codex::protocol {
     nlohmann::json controllerEvent(std::optional<std::string_view> controllerConnectionId, std::uint64_t sequence) {
         nlohmann::json event{{"kind", "bridge.controller"}, {"seq", sequence}};
         event["controllerConnectionId"] = controllerConnectionId ? nlohmann::json(*controllerConnectionId) : nlohmann::json(nullptr);
+        return event;
+    }
+
+    nlohmann::json providerEvent(std::string_view state,
+                                 std::uint64_t providerGeneration,
+                                 std::uint64_t sequence,
+                                 std::string_view reason) {
+        nlohmann::json event{{"kind", "bridge.provider"},
+                             {"state", state},
+                             {"providerGeneration", providerGeneration},
+                             {"seq", sequence}};
+        if (!reason.empty()) {
+            event["reason"] = reason;
+        }
         return event;
     }
 

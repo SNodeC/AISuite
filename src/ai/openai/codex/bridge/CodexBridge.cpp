@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <iostream>
 #include <ranges>
 #include <stdexcept>
 #include <utility>
@@ -25,6 +26,9 @@ namespace ai::openai::codex::bridge {
     }
 
     std::string CodexBridge::registerFrontend(FrontendEndpoint& frontend) {
+        if (frontends_.size() >= options_.maximumFrontends) {
+            return {};
+        }
         const std::string id = "frontend-" + std::to_string(nextConnectionNumber_++);
         const bool becomesController = options_.firstFrontendBecomesController && !controller_.has_value();
         frontends_.emplace(id, FrontendRecord{&frontend, becomesController ? protocol::Role::Controller : protocol::Role::Observer});
@@ -32,6 +36,12 @@ namespace ai::openai::codex::bridge {
             controller_ = id;
         }
         sendTo(id, protocol::connectionEvent("opened", id, frontends_.at(id).role, nextSequence()));
+        const std::string_view providerState =
+            appServerReady_ ? "ready"
+                            : appServer_ != nullptr && appServer_->isConnected()
+                                  ? "connected"
+                                  : "disconnected";
+        sendTo(id, protocol::providerEvent(providerState, providerGeneration_, nextSequence()));
         broadcastController();
         return id;
     }
@@ -45,6 +55,9 @@ namespace ai::openai::codex::bridge {
         failFrontendServerRequests(connectionId, "frontend disconnected before responding");
         std::erase_if(frontendRequestOwners_, [connectionId](const auto& entry) {
             return entry.second.connectionId == connectionId;
+        });
+        std::erase_if(frontendRequestKeys_, [connectionId](const auto& entry) {
+            return entry.first.starts_with(std::string(connectionId) + '\n');
         });
 
         const bool wasController = controller_ && *controller_ == connectionId;
@@ -76,7 +89,11 @@ namespace ai::openai::codex::bridge {
 
     void CodexBridge::receiveFromAppServer(const nlohmann::json& message) {
         if (rawHandler_) {
-            rawHandler_(protocol::AppServerDirection::FromAppServer, message);
+            try {
+                rawHandler_(protocol::AppServerDirection::FromAppServer, message);
+            } catch (...) {
+                std::clog << "codex-bridge: raw provider callback failed\n";
+            }
         }
 
         const protocol::JsonRpcKind kind = protocol::classifyJsonRpc(message);
@@ -87,7 +104,11 @@ namespace ai::openai::codex::bridge {
                 LocalResponseHandler handler = std::move(local->second.handler);
                 localRequests_.erase(local);
                 if (handler) {
-                    handler(message);
+                    try {
+                        handler(message);
+                    } catch (...) {
+                        std::clog << "codex-bridge: local response callback failed\n";
+                    }
                 }
                 return;
             }
@@ -96,6 +117,7 @@ namespace ai::openai::codex::bridge {
             if (owner != frontendRequestOwners_.end()) {
                 const FrontendRequest request = owner->second;
                 frontendRequestOwners_.erase(owner);
+                frontendRequestKeys_.erase(request.frontendKey);
                 const auto frontend = frontends_.find(request.connectionId);
                 if (frontend != frontends_.end()) {
                     nlohmann::json response = message;
@@ -133,7 +155,13 @@ namespace ai::openai::codex::bridge {
                 appServerRequestOwners_.emplace(*id,
                                                 ServerRequestOwner{ServerRequestOwnerKind::LocalApplication, std::string{}, message["id"]});
                 LocalEventHandler handler = localHandler->second;
-                handler(message);
+                try {
+                    handler(message);
+                } catch (...) {
+                    std::clog << "codex-bridge: local server-request callback failed\n";
+                    sendToAppServer(protocol::jsonRpcError(message["id"], -32603, "local request handler failed"));
+                    appServerRequestOwners_.erase(*id);
+                }
                 return;
             }
 
@@ -170,7 +198,11 @@ namespace ai::openai::codex::bridge {
                 const auto localHandler = serverNotificationHandlers_.find(*method);
                 if (localHandler != serverNotificationHandlers_.end() && localHandler->second) {
                     LocalEventHandler handler = localHandler->second;
-                    handler(message);
+                    try {
+                        handler(message);
+                    } catch (...) {
+                        std::clog << "codex-bridge: local notification callback failed\n";
+                    }
                 }
             }
             std::vector<std::string> ids;
@@ -194,10 +226,15 @@ namespace ai::openai::codex::bridge {
     void CodexBridge::appServerConnected() {
         appServerReady_ = false;
         ++providerGeneration_;
+        broadcast(protocol::providerEvent("connected", providerGeneration_, nextSequence()));
         emitDiagnostic(
             "appserver-connected", "app-server transport connected", std::nullopt, {{"providerGeneration", providerGeneration_}});
         if (providerLifecycleHandler_) {
-            providerLifecycleHandler_(true);
+            try {
+                providerLifecycleHandler_(true);
+            } catch (...) {
+                std::clog << "codex-bridge: provider-connected callback failed\n";
+            }
         }
     }
 
@@ -206,12 +243,17 @@ namespace ai::openai::codex::bridge {
         failLocalRequests(reason);
         failFrontendRequests(reason);
         appServerRequestOwners_.clear();
+        broadcast(protocol::providerEvent("disconnected", providerGeneration_, nextSequence(), reason));
         emitDiagnostic("appserver-disconnected",
                        "app-server transport disconnected",
                        std::nullopt,
                        {{"reason", reason}, {"providerGeneration", providerGeneration_}});
         if (providerLifecycleHandler_) {
-            providerLifecycleHandler_(false);
+            try {
+                providerLifecycleHandler_(false);
+            } catch (...) {
+                std::clog << "codex-bridge: provider-disconnected callback failed\n";
+            }
         }
     }
 
@@ -220,6 +262,7 @@ namespace ai::openai::codex::bridge {
             return;
         }
         appServerReady_ = true;
+        broadcast(protocol::providerEvent("ready", providerGeneration_, nextSequence()));
         emitDiagnostic("appserver-ready", "app-server session initialized", std::nullopt, {{"providerGeneration", providerGeneration_}});
     }
 
@@ -290,7 +333,7 @@ namespace ai::openai::codex::bridge {
             reject(connectionId, nlohmann::json::object(), -32600, "appserver envelope is missing payload");
             return;
         }
-        const protocol::JsonRpcKind kind = protocol::classifyJsonRpc(*payload);
+        const protocol::JsonRpcKind kind = protocol::classifyStrictJsonRpc(*payload);
         const std::optional<std::string> id = protocol::jsonRpcIdKey(*payload);
         if (kind == protocol::JsonRpcKind::Invalid) {
             reject(connectionId, *payload, -32600, "payload is not a valid JSON-RPC request, notification, or response");
@@ -337,13 +380,23 @@ namespace ai::openai::codex::bridge {
                 reject(connectionId, *payload, -32600, "frontend request is missing an id");
                 return;
             }
+            const std::string frontendKey = std::string(connectionId) + '\n' + id.value();
+            if (frontendRequestKeys_.contains(frontendKey)) {
+                reject(connectionId, *payload, -32600,
+                       "frontend reused an outstanding request id");
+                return;
+            }
             nlohmann::json forwarded = *payload;
             const std::string upstreamId = nextFrontendRequestId(connectionId);
             const std::string upstreamKey = nlohmann::json(upstreamId).dump();
-            frontendRequestOwners_.emplace(upstreamKey, FrontendRequest{std::string(connectionId), (*payload)["id"]});
+            frontendRequestOwners_.emplace(
+                upstreamKey,
+                FrontendRequest{std::string(connectionId), (*payload)["id"], frontendKey});
+            frontendRequestKeys_.emplace(frontendKey, upstreamKey);
             forwarded["id"] = upstreamId;
             if (!sendToAppServer(forwarded)) {
                 frontendRequestOwners_.erase(upstreamKey);
+                frontendRequestKeys_.erase(frontendKey);
                 reject(connectionId, *payload, -32005, "app-server transport rejected the message");
             }
             return;
@@ -355,7 +408,10 @@ namespace ai::openai::codex::bridge {
     }
 
     void CodexBridge::handleControllerCommand(std::string_view connectionId, const nlohmann::json& message) {
-        const std::string action = message.value("action", std::string{});
+        const auto actionMember = message.find("action");
+        const std::string action = actionMember != message.end() && actionMember->is_string()
+            ? actionMember->get<std::string>()
+            : std::string{};
         if (action == "claim") {
             if (!controller_ || *controller_ == connectionId) {
                 setController(std::string(connectionId));
@@ -380,7 +436,10 @@ namespace ai::openai::codex::bridge {
                 emitDiagnostic("controller-transfer-rejected", "only the controller may transfer control", connectionId);
                 return;
             }
-            const std::string target = message.value("targetConnectionId", std::string{});
+            const auto targetMember = message.find("targetConnectionId");
+            const std::string target = targetMember != message.end() && targetMember->is_string()
+                ? targetMember->get<std::string>()
+                : std::string{};
             if (!frontends_.contains(target)) {
                 emitDiagnostic(
                     "controller-transfer-rejected", "target frontend does not exist", connectionId, {{"targetConnectionId", target}});
@@ -484,8 +543,15 @@ namespace ai::openai::codex::bridge {
 
     void CodexBridge::sendTo(std::string_view connectionId, const nlohmann::json& message) {
         const auto frontend = frontends_.find(std::string(connectionId));
-        if (frontend != frontends_.end() && !frontend->second.endpoint->send(message)) {
-            frontend->second.endpoint->close("outbound bridge message rejected");
+        if (frontend == frontends_.end()) {
+            return;
+        }
+        FrontendEndpoint* const endpoint = frontend->second.endpoint;
+        if (!endpoint->send(message)) {
+            const auto retained = frontends_.find(std::string(connectionId));
+            if (retained != frontends_.end() && retained->second.endpoint == endpoint) {
+                endpoint->close("outbound bridge message rejected");
+            }
         }
     }
 
@@ -511,7 +577,11 @@ namespace ai::openai::codex::bridge {
             return false;
         }
         if (rawHandler_) {
-            rawHandler_(protocol::AppServerDirection::ToAppServer, message);
+            try {
+                rawHandler_(protocol::AppServerDirection::ToAppServer, message);
+            } catch (...) {
+                std::clog << "codex-bridge: raw outbound callback failed\n";
+            }
         }
         return true;
     }
@@ -533,7 +603,13 @@ namespace ai::openai::codex::bridge {
                 const nlohmann::json failedId = pending->second.id;
                 localRequests_.erase(pending);
                 if (failed) {
-                    failed(protocol::jsonRpcError(failedId, -32002, "app-server transport is unavailable"));
+                    try {
+                        failed(protocol::jsonRpcError(
+                            failedId, -32002,
+                            "app-server transport is unavailable"));
+                    } catch (...) {
+                        std::clog << "codex-bridge: local send-failure callback failed\n";
+                    }
                 }
             }
         }
@@ -591,6 +667,7 @@ namespace ai::openai::codex::bridge {
     void CodexBridge::failFrontendRequests(std::string_view reason) {
         auto requests = std::move(frontendRequestOwners_);
         frontendRequestOwners_.clear();
+        frontendRequestKeys_.clear();
         for (const auto& [key, request] : requests) {
             static_cast<void>(key);
             const auto frontend = frontends_.find(request.connectionId);
@@ -610,7 +687,11 @@ namespace ai::openai::codex::bridge {
         for (auto& [key, request] : pending) {
             static_cast<void>(key);
             if (request.handler) {
-                request.handler(protocol::jsonRpcError(request.id, -32002, reason));
+                try {
+                    request.handler(protocol::jsonRpcError(request.id, -32002, reason));
+                } catch (...) {
+                    std::clog << "codex-bridge: local disconnect callback failed\n";
+                }
             }
         }
     }

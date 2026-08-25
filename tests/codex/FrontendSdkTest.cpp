@@ -97,6 +97,11 @@ int main() {
     connection.receive(
         endpoint, {{"kind", "bridge.connection"}, {"event", "opened"}, {"connectionId", "frontend-7"}, {"role", "observer"}, {"seq", 1}});
     connection.receive(endpoint, {{"kind", "bridge.controller"}, {"controllerConnectionId", "frontend-7"}, {"seq", 2}});
+    connection.receive(endpoint,
+                       {{"kind", "bridge.provider"},
+                        {"state", "ready"},
+                        {"providerGeneration", 1},
+                        {"seq", 3}});
     test.expect(sdk.connectionId() == std::optional<std::string>{"frontend-7"} && sdk.isController(),
                 "bridge telemetry establishes identity and controller role");
 
@@ -122,7 +127,7 @@ int main() {
     test.expect(typedResponse && typedResponse->getRaw() == responsePayload && typedResponse->data().items().empty(),
                 "typed callback and getRaw expose the same complete app-server response");
     test.expect(rawOutbound == 1 && rawInbound == 1, "raw observation reports both SDK directions exactly once");
-    test.expect(bridgeEvents == 2, "non-app-server telemetry remains separately observable");
+    test.expect(bridgeEvents == 3, "non-app-server telemetry remains separately observable");
 
     std::optional<v2::ThreadStartResponse> threadStartResponse;
     const v2::ThreadStartParams startParams({{"cwd", "/tmp"}});
@@ -150,15 +155,23 @@ int main() {
                 "typed notifications unwrap the real app-server method/params envelope without requiring jsonrpc");
 
     std::optional<v2::ThreadListResponse> disconnectedResponse;
+    std::size_t throwingDisconnectCallbacks = 0;
     sdk.threadList(params, [&](v2::ThreadListResponse& response) {
         tests::codex::traceCommunication("FrontendSdk", "typed-callback", "local", "transport-error", response.getRaw());
         disconnectedResponse = response;
+    });
+    sdk.threadList(params, [&](v2::ThreadListResponse&) {
+        ++throwingDisconnectCallbacks;
+        throw nlohmann::json::type_error::create(
+            302, "disconnect callback failure", nullptr);
     });
     connection.detach(endpoint, "test transport loss");
     test.expect(disconnected == 1 && !connection.online() && !connection.attached(),
                 "transport detach publishes one disconnected transition");
     test.expect(disconnectedResponse && disconnectedResponse->jsonRpcErrorCode() == std::optional<std::int64_t>{-32020},
                 "transport loss deterministically retires a pending typed callback");
+    test.expect(throwingDisconnectCallbacks == 1,
+                "a throwing disconnect callback is contained and invoked exactly once");
     connection.detach(endpoint, "duplicate detach");
     test.expect(disconnected == 1, "duplicate detach does not repeat the disconnect callback");
     test.expect(failures == 0 && endpoint.closeCount == 0, "normal detach is not misclassified as failure or local close");

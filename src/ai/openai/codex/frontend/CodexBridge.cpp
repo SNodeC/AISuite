@@ -4,6 +4,7 @@
 
 #include "ai/openai/codex/frontend/CodexBridge.h"
 
+#include <iostream>
 #include <utility>
 
 namespace ai::openai::codex::frontend {
@@ -27,7 +28,11 @@ namespace ai::openai::codex::frontend {
         if (*kind != "appserver") {
             updateBridgeState(bridgeMessage);
             if (bridgeEventHandler_) {
-                bridgeEventHandler_(bridgeMessage);
+                try {
+                    bridgeEventHandler_(bridgeMessage);
+                } catch (...) {
+                    std::clog << "codex-bridge-client: bridge event callback failed\n";
+                }
             }
             return true;
         }
@@ -37,7 +42,11 @@ namespace ai::openai::codex::frontend {
             return false;
         }
         if (rawHandler_) {
-            rawHandler_(protocol::AppServerDirection::FromAppServer, *payload);
+            try {
+                rawHandler_(protocol::AppServerDirection::FromAppServer, *payload);
+            } catch (...) {
+                std::clog << "codex-bridge-client: raw inbound callback failed\n";
+            }
         }
 
         const protocol::JsonRpcKind messageKind = protocol::classifyJsonRpc(*payload);
@@ -48,7 +57,11 @@ namespace ai::openai::codex::frontend {
                 PendingHandler handler = std::move(pending->second);
                 pending_.erase(pending);
                 if (handler) {
-                    handler(*payload);
+                    try {
+                        handler(*payload);
+                    } catch (...) {
+                        std::clog << "codex-bridge-client: response callback failed\n";
+                    }
                 }
             }
             return true;
@@ -59,7 +72,22 @@ namespace ai::openai::codex::frontend {
             const auto handler = serverRequestHandlers_.find(*method);
             if (handler != serverRequestHandlers_.end() && handler->second) {
                 EventDispatcher dispatcher = handler->second;
-                dispatcher(*payload);
+                try {
+                    dispatcher(*payload);
+                } catch (...) {
+                    std::clog << "codex-bridge-client: server-request callback failed\n";
+                    if (id) {
+                        static_cast<void>(sendServerError((*payload)["id"],
+                                                          -32603,
+                                                          "frontend request handler failed",
+                                                          nullptr));
+                    }
+                }
+            } else if (id) {
+                static_cast<void>(sendServerError((*payload)["id"],
+                                                  -32601,
+                                                  "frontend has no handler for the server request",
+                                                  nullptr));
             }
             return true;
         }
@@ -67,7 +95,11 @@ namespace ai::openai::codex::frontend {
             const auto handler = serverNotificationHandlers_.find(*method);
             if (handler != serverNotificationHandlers_.end() && handler->second) {
                 EventDispatcher dispatcher = handler->second;
-                dispatcher(*payload);
+                try {
+                    dispatcher(*payload);
+                } catch (...) {
+                    std::clog << "codex-bridge-client: notification callback failed\n";
+                }
             }
             return true;
         }
@@ -88,19 +120,31 @@ namespace ai::openai::codex::frontend {
     }
 
     void CodexBridge::transportDisconnected(std::string_view reason) {
-        auto pending = std::move(pending_);
-        pending_.clear();
+        failPending(reason, -32020);
         connectionId_.reset();
         controllerConnectionId_.reset();
         role_.reset();
+        providerGeneration_ = 0;
+        providerReady_ = false;
+    }
+
+    void CodexBridge::failPending(std::string_view reason, int code) noexcept {
+        auto pending = std::move(pending_);
+        pending_.clear();
         for (auto& [key, handler] : pending) {
             if (!handler) {
                 continue;
             }
+            nlohmann::json id = nullptr;
             try {
-                handler(protocol::jsonRpcError(nlohmann::json::parse(key), -32020, reason));
+                id = nlohmann::json::parse(key);
             } catch (const nlohmann::json::exception&) {
-                handler(protocol::jsonRpcError(nullptr, -32020, reason));
+            }
+            try {
+                handler(protocol::jsonRpcError(id, code, reason));
+            } catch (...) {
+                // A lifecycle callback is invoked exactly once and may never
+                // escape into a noexcept transport teardown path.
             }
         }
     }
@@ -135,6 +179,14 @@ namespace ai::openai::codex::frontend {
         return role_ == protocol::Role::Controller;
     }
 
+    std::uint64_t CodexBridge::providerGeneration() const noexcept {
+        return providerGeneration_;
+    }
+
+    bool CodexBridge::providerReady() const noexcept {
+        return providerReady_;
+    }
+
     std::string CodexBridge::requestTyped(std::string_view method,
                                           std::optional<nlohmann::json> params,
                                           PendingHandler handler) {
@@ -145,9 +197,17 @@ namespace ai::openai::codex::frontend {
             request["params"] = std::move(*params);
         }
 
-        if (!connectionId_) {
+        if (!connectionId_ || !providerReady_) {
             if (handler) {
-                handler(protocol::jsonRpcError(id, -32021, "frontend bridge connection is not established"));
+                try {
+                    handler(protocol::jsonRpcError(
+                        id,
+                        connectionId_ ? -32002 : -32021,
+                        connectionId_ ? "app-server provider is not ready"
+                                      : "frontend bridge connection is not established"));
+                } catch (...) {
+                    std::clog << "codex-bridge-client: rejected request callback failed\n";
+                }
             }
             return id;
         }
@@ -158,7 +218,13 @@ namespace ai::openai::codex::frontend {
                 PendingHandler failed = std::move(pending->second);
                 pending_.erase(pending);
                 if (failed) {
-                    failed(protocol::jsonRpcError(id, -32020, "frontend bridge transport rejected request"));
+                    try {
+                        failed(protocol::jsonRpcError(
+                            id, -32020,
+                            "frontend bridge transport rejected request"));
+                    } catch (...) {
+                        std::clog << "codex-bridge-client: send-failure callback failed\n";
+                    }
                 }
             }
         }
@@ -189,7 +255,11 @@ namespace ai::openai::codex::frontend {
             return false;
         }
         if (rawHandler_) {
-            rawHandler_(protocol::AppServerDirection::ToAppServer, message);
+            try {
+                rawHandler_(protocol::AppServerDirection::ToAppServer, message);
+            } catch (...) {
+                std::clog << "codex-bridge-client: raw outbound callback failed\n";
+            }
         }
         return true;
     }
@@ -215,13 +285,21 @@ namespace ai::openai::codex::frontend {
     }
 
     void CodexBridge::updateBridgeState(const nlohmann::json& message) {
-        const std::string kind = message.value("kind", std::string{});
-        if (kind == "bridge.connection" && message.value("event", std::string{}) == "opened") {
+        const auto kindMember = message.find("kind");
+        if (kindMember == message.end() || !kindMember->is_string()) {
+            return;
+        }
+        const std::string kind = kindMember->get<std::string>();
+        const auto stringMember = [&message](std::string_view name) {
+            const auto member = message.find(name);
+            return member != message.end() && member->is_string() ? member->get<std::string>() : std::string{};
+        };
+        if (kind == "bridge.connection" && stringMember("event") == "opened") {
             const auto id = message.find("connectionId");
             if (id != message.end() && id->is_string()) {
                 connectionId_ = id->get<std::string>();
             }
-            const std::string role = message.value("role", std::string{});
+            const std::string role = stringMember("role");
             role_ = role == "controller" ? std::optional<protocol::Role>(protocol::Role::Controller)
                                          : role == "observer" ? std::optional<protocol::Role>(protocol::Role::Observer)
                                                               : std::nullopt;
@@ -235,6 +313,37 @@ namespace ai::openai::codex::frontend {
             if (connectionId_) {
                 role_ = controllerConnectionId_ && *controllerConnectionId_ == *connectionId_ ? protocol::Role::Controller
                                                                                               : protocol::Role::Observer;
+            }
+        } else if (kind == "bridge.provider") {
+            const auto generation = message.find("providerGeneration");
+            if (generation == message.end() ||
+                (!generation->is_number_unsigned() && !generation->is_number_integer())) {
+                return;
+            }
+            std::uint64_t nextGeneration = 0;
+            if (generation->is_number_unsigned()) {
+                nextGeneration = generation->get<std::uint64_t>();
+            } else {
+                const std::int64_t generationValue = generation->get<std::int64_t>();
+                if (generationValue < 0) {
+                    return;
+                }
+                nextGeneration = static_cast<std::uint64_t>(generationValue);
+            }
+            const std::string state = stringMember("state");
+            if (nextGeneration < providerGeneration_) {
+                return;
+            }
+            if (providerGeneration_ != 0 && nextGeneration > providerGeneration_) {
+                failPending("app-server provider generation changed", -32002);
+            }
+            providerGeneration_ = nextGeneration;
+            providerReady_ = state == "ready";
+            if (state == "disconnected") {
+                const std::string reason = stringMember("reason");
+                failPending(reason.empty() ? std::string_view{"app-server disconnected"}
+                                           : std::string_view{reason},
+                            -32002);
             }
         }
     }

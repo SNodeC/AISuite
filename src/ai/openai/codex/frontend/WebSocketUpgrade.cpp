@@ -55,10 +55,19 @@ namespace ai::openai::codex::frontend {
     }
 
     ScopedWebSocketUpgrade::~ScopedWebSocketUpgrade() {
-        if (activeUpgrade != this) {
-            std::terminate();
+        if (activeUpgrade == this) {
+            activeUpgrade = previous_;
+            return;
         }
-        activeUpgrade = previous_;
+        // Recover safely if scopes are destroyed out of stack order: unlink
+        // this node so a later destruction cannot restore a dangling pointer.
+        ScopedWebSocketUpgrade* current = activeUpgrade;
+        while (current != nullptr && current->previous_ != this) {
+            current = current->previous_;
+        }
+        if (current != nullptr) {
+            current->previous_ = previous_;
+        }
     }
 
     web::websocket::server::SubProtocol* ScopedWebSocketUpgrade::consume(web::websocket::SubProtocolContext* context) {

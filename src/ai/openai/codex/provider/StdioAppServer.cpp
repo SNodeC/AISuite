@@ -154,23 +154,27 @@ namespace ai::openai::codex::provider {
         stderrReader_ = stderrPipe.releaseReadAsSink(core::pipe::PipeSink::DEFAULT_MAX_BYTES_PER_EVENT, utils::Timeval({0, 0}));
         if (stdinWriter_ == nullptr || stdoutReader_ == nullptr || stderrReader_ == nullptr) {
             std::cerr << "codex-bridge: unable to attach app-server pipe receivers\n";
-            stop();
+            transitionToStopped("unable to attach app-server pipe receivers", false, true);
             return false;
         }
 
         stdinWriter_->setOnError([this](int error) {
+            stdinWriter_ = nullptr;
             transportClosed(std::string("stdin error: ") + std::strerror(error));
         });
         stdinWriter_->setOnClosed([this]() {
             stdinWriter_ = nullptr;
+            transportClosed("app-server stdin closed");
         });
         stdoutReader_->setOnData([this](const char* data, std::size_t length) {
             receiveStdout(data, length);
         });
         stdoutReader_->setOnEof([this]() {
+            stdoutReader_ = nullptr;
             transportClosed("app-server stdout EOF");
         });
         stdoutReader_->setOnError([this](int error) {
+            stdoutReader_ = nullptr;
             transportClosed(std::string("stdout error: ") + std::strerror(error));
         });
         stdoutReader_->setOnClosed([this]() {
@@ -183,12 +187,12 @@ namespace ai::openai::codex::provider {
             stderrReader_ = nullptr;
         });
 
-        connected_ = true;
         if (!observeChild()) {
             std::cerr << "codex-bridge: unable to observe app-server process with pidfd\n";
-            stop();
+            transitionToStopped("unable to observe app-server process", false, true);
             return false;
         }
+        connected_ = true;
         std::clog << "codex-bridge: app-server spawned pid=" << childPid_ << '\n';
         bridge_.appServerConnected();
         return true;
@@ -199,19 +203,7 @@ namespace ai::openai::codex::provider {
             return;
         }
         stopping_ = true;
-        detachChildObserver();
-        const bool wasConnected = connected_;
-        connected_ = false;
-        if (stdinWriter_ != nullptr) {
-            stdinWriter_->eof();
-        }
-        if (childPid_ > 0) {
-            ChildExitObserver::terminateAndReap(childPid_);
-            childPid_ = -1;
-        }
-        if (wasConnected) {
-            bridge_.appServerDisconnected("app-server stopped");
-        }
+        transitionToStopped("app-server stopped", connected_, true);
     }
 
     bool StdioAppServer::send(const nlohmann::json& message) {
@@ -241,14 +233,24 @@ namespace ai::openai::codex::provider {
     }
 
     void StdioAppServer::receiveStdout(const char* data, std::size_t length) {
-        const bool accepted = stdoutFramer_.consume(
-            std::string_view(data, length),
-            [this](nlohmann::json message) {
-                bridge_.receiveFromAppServer(message);
-            },
-            [](std::string error) {
-                std::clog << "codex-bridge: invalid app-server frame reason=" << error << '\n';
-            });
+        bool accepted = false;
+        try {
+            accepted = stdoutFramer_.consume(
+                std::string_view(data, length),
+                [this](nlohmann::json message) {
+                    bridge_.receiveFromAppServer(message);
+                },
+                [](std::string error) {
+                    std::clog << "codex-bridge: invalid app-server frame reason=" << error << '\n';
+                });
+        } catch (const std::exception& exception) {
+            std::clog << "codex-bridge: app-server message dispatch failed reason=" << exception.what() << '\n';
+            transportClosed("app-server message dispatch failed");
+            return;
+        } catch (...) {
+            transportClosed("app-server message dispatch failed");
+            return;
+        }
         if (!accepted) {
             transportClosed("invalid or oversized app-server JSONL frame");
         }
@@ -273,9 +275,23 @@ namespace ai::openai::codex::provider {
         if (!connected_) {
             return;
         }
-        connected_ = false;
         std::clog << "codex-bridge: app-server transport closed reason=" << reason << '\n';
-        bridge_.appServerDisconnected(reason);
+        transitionToStopped(std::move(reason), true, true);
+    }
+
+    void StdioAppServer::transitionToStopped(std::string reason,
+                                             bool notifyBridge,
+                                             bool terminateChild) {
+        const bool wasConnected = std::exchange(connected_, false);
+        detachChildObserver();
+        detachCallbacks();
+        if (terminateChild && childPid_ > 0) {
+            ChildExitObserver::terminateAndReap(childPid_);
+            childPid_ = -1;
+        }
+        if (notifyBridge && wasConnected) {
+            bridge_.appServerDisconnected(reason);
+        }
     }
 
     bool StdioAppServer::observeChild() {
@@ -316,13 +332,17 @@ namespace ai::openai::codex::provider {
         childPid_ = -1;
         const bool wasConnected = connected_;
         connected_ = false;
+        detachCallbacks();
         if (wasConnected) {
             bridge_.appServerDisconnected("app-server process exited");
         }
-        detachCallbacks();
         std::clog << "codex-bridge: app-server process exited status=" << exitStatus << '\n';
         if (!stopping_ && options_.onExit) {
-            options_.onExit(exitStatus);
+            try {
+                options_.onExit(exitStatus);
+            } catch (...) {
+                std::clog << "codex-bridge: app-server exit callback failed\n";
+            }
         }
     }
 

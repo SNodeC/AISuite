@@ -176,6 +176,8 @@ namespace ai::openai::codex::frontend {
         const std::optional<std::string>& controllerConnectionId() const noexcept;
         std::optional<protocol::Role> role() const noexcept;
         bool isController() const noexcept;
+        std::uint64_t providerGeneration() const noexcept;
+        bool providerReady() const noexcept;
 
     private:
         using PendingHandler = std::function<void(nlohmann::json)>;
@@ -192,6 +194,7 @@ namespace ai::openai::codex::frontend {
         void registerServerRequestHandler(std::string_view method, EventDispatcher handler);
         void registerServerNotificationHandler(std::string_view method, EventDispatcher handler);
         void updateBridgeState(const nlohmann::json& message);
+        void failPending(std::string_view reason, int code) noexcept;
         std::string nextRequestId();
 
         Sender sender_;
@@ -203,6 +206,8 @@ namespace ai::openai::codex::frontend {
         std::optional<std::string> connectionId_;
         std::optional<std::string> controllerConnectionId_;
         std::optional<protocol::Role> role_;
+        std::uint64_t providerGeneration_ = 0;
+        bool providerReady_ = false;
         std::uint64_t nextRequestNumber_ = 1;
     };
 

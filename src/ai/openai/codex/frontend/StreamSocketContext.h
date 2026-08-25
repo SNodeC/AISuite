@@ -25,6 +25,7 @@ namespace ai::openai::codex::frontend {
         StreamSocketContext(core::socket::stream::SocketConnection* socketConnection,
                             bridge::CodexBridge& bridge,
                             std::size_t maximumFrameBytes);
+        ~StreamSocketContext() override;
 
         bool send(const nlohmann::json& message) override;
         void close(std::string_view reason) override;

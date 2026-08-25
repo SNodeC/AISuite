@@ -31,6 +31,7 @@ namespace ai::openai::codex::provider {
 
         constexpr std::uint16_t CloseUnsupportedData = 1003;
         constexpr std::uint16_t ClosePolicyViolation = 1008;
+        constexpr std::uint16_t CloseUnexpectedCondition = 1011;
         constexpr std::size_t WebSocketFramePayloadBytes = 16U * 1024U;
         constexpr std::size_t MaximumClientFrameHeaderBytes = 8;
 
@@ -175,16 +176,23 @@ namespace ai::openai::codex::provider {
                     inbound_.clear();
                     return;
                 }
+                nlohmann::json message;
                 try {
-                    nlohmann::json message = nlohmann::json::parse(inbound_);
+                    message = nlohmann::json::parse(inbound_);
+                } catch (const nlohmann::json::exception&) {
                     inbound_.clear();
+                    closing_ = true;
+                    sendBoundedClose(*this, ClosePolicyViolation, "invalid app-server JSON message");
+                    return;
+                }
+                inbound_.clear();
+                try {
                     if (bridge::CodexBridge* const bridge = state_->bridge()) {
                         bridge->receiveFromAppServer(message);
                     }
                 } catch (...) {
-                    inbound_.clear();
                     closing_ = true;
-                    sendBoundedClose(*this, ClosePolicyViolation, "invalid app-server JSON message");
+                    sendBoundedClose(*this, CloseUnexpectedCondition, "app-server message handling failed");
                 }
             }
 
@@ -277,8 +285,11 @@ namespace ai::openai::codex::provider {
                     return nullptr;
                 }
                 auto* httpContext = dynamic_cast<AppServerHttpSocketContext*>(connection->getSocketContext());
-                return httpContext == nullptr ? nullptr
-                                              : new AppServerSocketContextUpgrade(connection, this, httpContext->state());
+                if (httpContext == nullptr) {
+                    checkRefCount();
+                    return nullptr;
+                }
+                return new AppServerSocketContextUpgrade(connection, this, httpContext->state());
             }
         };
 
