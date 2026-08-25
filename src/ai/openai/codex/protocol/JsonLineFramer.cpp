@@ -21,21 +21,24 @@ namespace ai::openai::codex::protocol {
             return false;
         }
 
+        compact();
         buffer_.append(bytes);
         while (true) {
-            const std::size_t newline = buffer_.find('\n');
+            const std::size_t newline = buffer_.find('\n', bufferOffset_);
             if (newline == std::string::npos) {
-                if (buffer_.size() > maximumFrameBytes_) {
+                if (bufferedBytes() > maximumFrameBytes_) {
                     return fail("JSONL frame exceeds configured maximum before delimiter", onError);
                 }
+                compact();
                 return true;
             }
-            if (newline > maximumFrameBytes_) {
+            const std::size_t lineBytes = newline - bufferOffset_;
+            if (lineBytes > maximumFrameBytes_) {
                 return fail("JSONL frame exceeds configured maximum", onError);
             }
 
-            std::string line = buffer_.substr(0, newline);
-            buffer_.erase(0, newline + 1);
+            std::string line = buffer_.substr(bufferOffset_, lineBytes);
+            bufferOffset_ = newline + 1;
             if (!line.empty() && line.back() == '\r') {
                 line.pop_back();
             }
@@ -43,16 +46,22 @@ namespace ai::openai::codex::protocol {
                 continue;
             }
 
+            nlohmann::json message;
             try {
-                onMessage(nlohmann::json::parse(line));
+                message = nlohmann::json::parse(line);
             } catch (const nlohmann::json::exception& exception) {
                 return fail(std::string("invalid JSONL frame: ") + exception.what(), onError);
             }
+            // Application dispatch is deliberately outside the parse-error
+            // boundary. Its exceptions belong to the caller, not the byte
+            // stream, and must not poison this framer.
+            onMessage(std::move(message));
         }
     }
 
     void JsonLineFramer::reset() {
         buffer_.clear();
+        bufferOffset_ = 0;
         failed_ = false;
     }
 
@@ -61,7 +70,7 @@ namespace ai::openai::codex::protocol {
     }
 
     std::size_t JsonLineFramer::bufferedBytes() const noexcept {
-        return buffer_.size();
+        return buffer_.size() - bufferOffset_;
     }
 
     bool JsonLineFramer::failed() const noexcept {
@@ -80,10 +89,24 @@ namespace ai::openai::codex::protocol {
     bool JsonLineFramer::fail(std::string message, const ErrorHandler& onError) {
         failed_ = true;
         buffer_.clear();
+        bufferOffset_ = 0;
         if (onError) {
             onError(std::move(message));
         }
         return false;
+    }
+
+    void JsonLineFramer::compact() {
+        if (bufferOffset_ == 0) {
+            return;
+        }
+        if (bufferOffset_ == buffer_.size()) {
+            buffer_.clear();
+            bufferOffset_ = 0;
+        } else if (bufferOffset_ >= buffer_.size() / 2) {
+            buffer_.erase(0, bufferOffset_);
+            bufferOffset_ = 0;
+        }
     }
 
 } // namespace ai::openai::codex::protocol

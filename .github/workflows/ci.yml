@@ -60,13 +60,17 @@ jobs:
           ninja --version
           nproc
 
-      - name: Prepare SNode.C master dependency
+      - name: Prepare pinned SNode.C dependency
         run: |
-          git clone --depth 1 --branch master --single-branch \
-            https://github.com/SNodeC/snode.c.git ../snodec
+          git init ../snodec
+          git -C ../snodec remote add origin https://github.com/SNodeC/snode.c.git
+          git -C ../snodec fetch --depth 1 origin \
+            212bd4f8a16637405ab850a52adb9da8555dca3d
+          git -C ../snodec checkout --detach \
+            212bd4f8a16637405ab850a52adb9da8555dca3d
           git -C ../snodec rev-parse HEAD
 
-      - name: Build and install SNode.C master dependency
+      - name: Build and install pinned SNode.C dependency
         run: |
           cmake -S ../snodec -B ../snodec-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \

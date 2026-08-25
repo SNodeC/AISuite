@@ -298,16 +298,12 @@ namespace {
                 router.setAppServer(&provider);
                 router.appServerConnected();
                 router.setAppServerReady();
-                scenario.providerReady = true;
             } else {
                 realProvider = std::make_unique<tests::codex::RealAppServerFixture>(
                     router,
                     realAppServerExecutable,
                     std::string(name(transport)),
-                    [&scenario] {
-                        scenario.providerReady = true;
-                        scenario.begin();
-                    },
+                    [] {},
                     [&scenario](std::string reason) { scenario.fail(std::move(reason)); });
                 scenario.workingDirectory = realProvider->codexHome();
                 test.expect(realProvider->start(), std::string(name(transport)) + " starts a real Codex app-server");
@@ -326,7 +322,15 @@ namespace {
             });
             sdk.onBridgeEvent([&scenario](const nlohmann::json& event) {
                 tests::codex::traceCommunication(name(scenario.transport), "frontend-sdk", "bridge-to-client", "bridge-telemetry", event);
+                if (event.value("kind", std::string{}) == "bridge.provider" &&
+                    event.value("state", std::string{}) == "ready") {
+                    scenario.providerReady = true;
+                }
                 if (event.value("kind", std::string{}) == "bridge.connection" && event.value("event", std::string{}) == "opened") {
+                    core::EventReceiver::atNextTick([&scenario] {
+                        scenario.begin();
+                    });
+                } else if (scenario.providerReady) {
                     core::EventReceiver::atNextTick([&scenario] {
                         scenario.begin();
                     });

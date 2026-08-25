@@ -106,6 +106,10 @@ namespace ai::openai::codex::frontend {
 
     void WebSocketSubProtocol::onConnected() {
         connectionId_ = bridge_.registerFrontend(*this);
+        if (connectionId_.empty()) {
+            closeWebSocket(ClosePolicyViolation, "frontend connection limit reached");
+            return;
+        }
         registered_ = true;
         std::clog << "codex-bridge: WebSocket frontend connected connection=" << connectionId_ << '\n';
     }
@@ -138,15 +142,18 @@ namespace ai::openai::codex::frontend {
             inbound_.clear();
             return;
         }
+        nlohmann::json message;
         try {
-            nlohmann::json message = nlohmann::json::parse(inbound_);
-            inbound_.clear();
-            bridge_.receiveFromFrontend(connectionId_, message);
+            message = nlohmann::json::parse(inbound_);
         } catch (const nlohmann::json::exception&) {
             inbound_.clear();
             closeWebSocket(ClosePolicyViolation, "invalid bridge JSON message");
+            return;
+        }
+        inbound_.clear();
+        try {
+            bridge_.receiveFromFrontend(connectionId_, message);
         } catch (...) {
-            inbound_.clear();
             closeWebSocket(CloseUnexpectedCondition, "bridge message handling failed");
         }
     }

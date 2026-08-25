@@ -9,6 +9,7 @@
 #include "ai/openai/codex/protocol/Envelope.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -24,6 +25,7 @@ namespace ai::openai::codex::bridge {
     struct CodexBridgeOptions {
         bool firstFrontendBecomesController = true;
         bool observersMayRead = true;
+        std::size_t maximumFrontends = 16;
     };
 
     class CodexBridge {
@@ -209,6 +211,7 @@ namespace ai::openai::codex::bridge {
         struct FrontendRequest {
             std::string connectionId;
             nlohmann::json frontendId;
+            std::string frontendKey;
         };
 
         void handleAppServerEnvelope(std::string_view connectionId, const nlohmann::json& message);
@@ -247,6 +250,7 @@ namespace ai::openai::codex::bridge {
         std::unordered_map<std::string, FrontendRecord> frontends_;
         std::optional<std::string> controller_;
         std::unordered_map<std::string, FrontendRequest> frontendRequestOwners_;
+        std::unordered_map<std::string, std::string> frontendRequestKeys_;
         std::unordered_map<std::string, LocalRequest> localRequests_;
         std::unordered_map<std::string, ServerRequestOwner> appServerRequestOwners_;
         std::unordered_map<std::string, LocalEventHandler> serverRequestHandlers_;

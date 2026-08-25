@@ -11,7 +11,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
-option(AISUITE_BUILD_CODEX_TESTS "Build the focused codex tests" ON)
+option(AISUITE_BUILD_CODEX_TESTS "Build the focused codex tests" OFF)
 
 option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
 option(AISUITE_DISABLE_LOGLEVEL_LOGGING "Disable SNode.C LOG/PLOG logging" OFF)

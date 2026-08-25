@@ -20,6 +20,7 @@ namespace ai::openai::codex::protocol {
 
     std::string_view toString(Role role) noexcept;
     JsonRpcKind classifyJsonRpc(const nlohmann::json& message) noexcept;
+    JsonRpcKind classifyStrictJsonRpc(const nlohmann::json& message) noexcept;
     std::optional<std::string> jsonRpcIdKey(const nlohmann::json& message);
     std::optional<std::string> jsonRpcMethod(const nlohmann::json& message);
 
@@ -32,6 +33,10 @@ namespace ai::openai::codex::protocol {
                                    Role role,
                                    std::uint64_t sequence);
     nlohmann::json controllerEvent(std::optional<std::string_view> controllerConnectionId, std::uint64_t sequence);
+    nlohmann::json providerEvent(std::string_view state,
+                                 std::uint64_t providerGeneration,
+                                 std::uint64_t sequence,
+                                 std::string_view reason = {});
     nlohmann::json diagnosticEvent(std::string_view code,
                                    std::string_view message,
                                    std::optional<std::string_view> connectionId,

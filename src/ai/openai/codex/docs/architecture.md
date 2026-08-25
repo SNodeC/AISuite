@@ -155,6 +155,12 @@ WSS listeners use the same Codex text-message subprotocol over their respective
 HTTP/TLS transports. Transport adapters perform framing, bounds, queue
 admission, lifecycle callbacks, and diagnostics only.
 
+The default Unix listener uses a private per-user runtime directory: a valid
+private `XDG_RUNTIME_DIR`, or `/tmp/codex-bridge-<uid>` created with mode
+`0700`. Its default socket path is shared with CodexUI. Frontend count is
+bounded (16 by default). Network and RFCOMM listeners remain disabled unless
+explicitly configured and require the deployment's own identity policy.
+
 Each accepted frontend endpoint registers once and receives a bridge connection
 identity and role. One frontend is controller according to configured policy;
 the others are observers. Control transfer is explicit. Disconnecting the
@@ -454,7 +460,9 @@ available SNode.C build:
 - IPv4 and IPv6 WebSocket
 - IPv4 and IPv6 WSS
 
-There is no authentication or bearer-token layer.
+The bridge protocol has no bearer-token layer. The default Unix connection is
+scoped by its private per-user runtime directory; explicitly enabled remote
+transports require an appropriate deployment trust policy.
 
 Like `mqttcli`, every compiled transport instance starts disabled. The user
 enables exactly one through the ordinary SNode.C instance configuration. This
@@ -669,16 +677,17 @@ Bridge-owned messages are separate:
 
 ```json
 {
-  "kind": "bridge.diagnostic",
-  "code": "appserver-ready",
-  "message": "app-server session initialized",
-  "connectionId": null,
-  "seq": 43,
-  "details": {
-    "providerGeneration": 1
-  }
+  "kind": "bridge.provider",
+  "state": "ready",
+  "providerGeneration": 1,
+  "seq": 43
 }
 ```
+
+`bridge.provider` reports `connected`, `ready`, and `disconnected` with a
+provider generation that is independent of the frontend connection identity.
+Frontend requests are admitted only in `ready`; generation loss retires their
+outstanding callbacks exactly once.
 
 Unknown app-server methods, fields, events, and result members must pass through without loss.
 
@@ -997,6 +1006,9 @@ provides `attach`, `connected`, `receive`, `failed`, `detach`, `disconnect`, and
 `shutdown` to mediate exactly one physical client transport.
 
 `protocol::JsonLineFramer` provides bounded `consume`, `encode`, and `reset`.
+It separates JSON parsing from application dispatch, so a consumer exception
+does not poison later valid frames. A framing failure is terminal for the
+owning transport.
 `protocol::classifyJsonRpc`, `jsonRpcIdKey`, and `jsonRpcMethod` classify native
 messages without requiring the optional `jsonrpc` member. The production
 `StreamSocketContextFactory` classes and WebSocket factories/subprotocols are

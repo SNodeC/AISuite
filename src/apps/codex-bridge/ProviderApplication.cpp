@@ -6,6 +6,7 @@
 
 #include "ai/openai/codex/bridge/CodexBridge.h"
 #include "ai/openai/codex/provider/StdioAppServer.h"
+#include "ai/openai/codex/protocol/RuntimePaths.h"
 #include "apps/codex-bridge/Configuration.h"
 #include "core/SNodeC.h"
 
@@ -125,7 +126,7 @@ namespace apps::codex_bridge {
                           [this](const auto& request) { endpoint().beginUpgrade(request); },
                           [this](const auto& request) { endpoint().httpDisconnected(request); },
                           endpoint().state()) {
-                client_.getConfig()->Remote::setSunPath("/tmp/codex-bridge-app-server.sock");
+                client_.getConfig()->Remote::setSunPath(codex::protocol::defaultAppServerSocketPath());
                 configure();
             }
 

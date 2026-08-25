@@ -290,6 +290,11 @@ namespace {
                 core::EventReceiver::atNextTick([&scenario] {
                     scenario.begin();
                 });
+            } else if (event.value("kind", std::string{}) == "bridge.provider" &&
+                       event.value("state", std::string{}) == "ready") {
+                core::EventReceiver::atNextTick([&scenario] {
+                    scenario.begin();
+                });
             }
         });
         sdk.onThreadNameUpdated([&scenario](v2::ThreadNameUpdatedNotification& notification) {
@@ -336,7 +341,6 @@ namespace {
             std::string(name(scenario.transport)),
             [&scenario] {
                 scenario.providerReady = true;
-                scenario.begin();
             },
             [&scenario](std::string reason) { scenario.fail(std::move(reason)); });
         scenario.workingDirectory = realProvider->codexHome();

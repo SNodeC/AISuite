@@ -41,6 +41,24 @@ int main() {
     test.expectEqual(fragmented.bufferedBytes(), std::size_t{0}, "complete frames leave no buffered bytes");
     test.expect(errors.empty() && !fragmented.failed(), "valid framing produces no terminal error");
 
+    protocol::JsonLineFramer callbackBoundary(64);
+    bool callbackThrew = false;
+    try {
+        callbackBoundary.consume(
+            "{\"valid\":true}\n",
+            [](nlohmann::json) {
+                throw nlohmann::json::type_error::create(
+                    302, "application callback failure", nullptr);
+            },
+            onError);
+    } catch (const nlohmann::json::exception&) {
+        callbackThrew = true;
+    }
+    test.expect(callbackThrew && !callbackBoundary.failed(),
+                "application JSON exceptions propagate without poisoning framing");
+    test.expect(callbackBoundary.consume("{}\n", onMessage, onError),
+                "framing remains usable after an application callback failure");
+
     protocol::JsonLineFramer invalid(64);
     test.expect(!invalid.consume("{not-json}\n", onMessage, onError), "invalid JSON is rejected");
     test.expect(invalid.failed() && !invalid.consume("{}\n", onMessage, onError), "a failed framer remains terminal until reset");
