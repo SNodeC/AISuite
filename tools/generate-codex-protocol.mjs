@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-// Generates lossless C++ views for every named and anonymous Codex app-server
-// schema node. The OpenAI schema is input only; this script writes exclusively
-// to paths passed by the caller.
+// Generates lossless C++ views and optional structural TypeScript declarations
+// for every named and anonymous Codex app-server schema node. The OpenAI schema
+// is input only; this script writes exclusively to paths passed by the caller.
 
 import fs from "node:fs";
 import crypto from "node:crypto";
 
-if (process.argv.length !== 6) {
-    throw new Error("usage: generate-codex-protocol.mjs SCHEMA PROTOCOL_SOURCE OUTPUT_HEADER OUTPUT_MANIFEST");
+if (process.argv.length !== 6 && process.argv.length !== 7) {
+    throw new Error("usage: generate-codex-protocol.mjs SCHEMA PROTOCOL_SOURCE OUTPUT_HEADER OUTPUT_MANIFEST [OUTPUT_TYPESCRIPT]");
 }
 
-const [schemaPath, protocolSourcePath, outputPath, manifestPath] = process.argv.slice(2);
+const [schemaPath, protocolSourcePath, outputPath, manifestPath, typescriptOutputPath] = process.argv.slice(2);
 const schemaText = fs.readFileSync(schemaPath, "utf8");
 const schema = JSON.parse(schemaText);
 const schemaSha256 = crypto.createHash("sha256").update(schemaText).digest("hex");
@@ -423,6 +423,109 @@ function operationMacro(name, operations) {
     return `#define ${name}(X) \\\n${entries.join(" \\\n")}\n`;
 }
 
+function typescriptName(definition) {
+    if (!definition) return "unknown";
+    return `${definition.ns === "v2" ? "V2" : "Root"}${definition.name}`;
+}
+
+function typescriptRef(ref) {
+    const target = refTarget(ref);
+    return `${target.ns === "v2" ? "V2" : "Root"}${target.name}`;
+}
+
+function typescriptLiteral(value) {
+    if (value === null) return "null";
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return JSON.stringify(value);
+    }
+    return "unknown";
+}
+
+function typescriptType(node, definition, location = null) {
+    if (!node || typeof node !== "object") return "unknown";
+    if (node.$ref) return typescriptRef(node.$ref);
+
+    const child = location === null ? null : definition.children.get(location);
+    if (child) return typescriptName(child);
+
+    if (Object.hasOwn(node, "const")) return typescriptLiteral(node.const);
+    if (Array.isArray(node.enum) && node.enum.length > 0) {
+        return node.enum.map(typescriptLiteral).join(" | ");
+    }
+
+    for (const unionName of ["oneOf", "anyOf"]) {
+        if (Array.isArray(node[unionName]) && node[unionName].length > 0) {
+            return node[unionName]
+                .map((variant, index) => typescriptType(variant, definition, `${unionName}:${index}`))
+                .join(" | ");
+        }
+    }
+    if (Array.isArray(node.allOf) && node.allOf.length > 0) {
+        return node.allOf
+            .map((variant, index) => typescriptType(variant, definition, `allOf:${index}`))
+            .join(" & ");
+    }
+
+    if (Array.isArray(node.type)) {
+        return node.type
+            .map((type) => typescriptType({...node, type}, definition, location))
+            .join(" | ");
+    }
+
+    const type = nodeType(node);
+    if (type === "string") return "string";
+    if (type === "integer" || type === "number") return "number";
+    if (type === "boolean") return "boolean";
+    if (type === "null") return "null";
+    if (type === "array") {
+        const item = node.items ? typescriptType(node.items, definition, "items") : "unknown";
+        return `ReadonlyArray<${item}>`;
+    }
+    if (type === "object" || node.properties || node.additionalProperties) {
+        const required = new Set(node.required ?? []);
+        const properties = Object.entries(node.properties ?? {}).map(([name, property]) => {
+            const optional = required.has(name) ? "" : "?";
+            return `    readonly ${JSON.stringify(name)}${optional}: ${typescriptType(property, definition, `property:${name}`)};`;
+        });
+        if (node.additionalProperties !== false) {
+            properties.push("    readonly [key: string]: unknown;");
+        }
+        if (properties.length === 0) {
+            return node.additionalProperties === false ? "Record<string, never>" : "Record<string, unknown>";
+        }
+        return `{\n${properties.join("\n")}\n}`;
+    }
+    return "unknown";
+}
+
+function typescriptDefinition(definition) {
+    return `export type ${typescriptName(definition)} = ${typescriptType(definition.node, definition)};`;
+}
+
+function typescriptOperationMap(name, operations) {
+    const lines = operations.map((operation) => {
+        const fields = [
+            `readonly params: ${typescriptName(operation.params)};`,
+            `readonly paramsRequired: ${operation.paramsRequired ? "true" : "false"};`
+        ];
+        if (operation.response) fields.splice(1, 0, `readonly response: ${typescriptName(operation.response)};`);
+        return `    readonly ${JSON.stringify(operation.method)}: { ${fields.join(" ")} };`;
+    });
+    return `export interface ${name} {\n${lines.join("\n")}\n}`;
+}
+
+function typescriptOperationMetadata(name, operations) {
+    const entries = operations.map((operation) => {
+        const fields = [
+            `paramsRequired: ${operation.paramsRequired ? "true" : "false"}`,
+            `paramsType: ${JSON.stringify(typescriptName(operation.params))}`
+        ];
+        if (operation.response) fields.push(`responseType: ${JSON.stringify(typescriptName(operation.response))}`);
+        return `    ${JSON.stringify(operation.method)}: {${fields.join(", ")}},`;
+    });
+    return `export const ${name} = {\n${entries.join("\n")}\n} as const;`;
+}
+
 const rootDefinitions = definitions.filter((entry) => entry.ns === "root");
 const v2Definitions = definitions.filter((entry) => entry.ns === "v2");
 let output = `/*\n * Generated from Codex app-server protocol exports. DO NOT EDIT.\n * Schema SHA-256: ${schemaSha256}\n * Protocol source SHA-256: ${protocolSourceSha256}\n * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT\n */\n\n`;
@@ -465,4 +568,25 @@ const manifest = {
     serverNotifications: serverNotifications.length
 };
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+
+if (typescriptOutputPath) {
+    let typescript = `/*\n * Generated from Codex app-server protocol exports. DO NOT EDIT.\n * Schema SHA-256: ${schemaSha256}\n * Protocol source SHA-256: ${protocolSourceSha256}\n * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT\n */\n\n`;
+    typescript += `export const protocolGeneration = {\n`;
+    typescript += `    schemaSha256: ${JSON.stringify(schemaSha256)},\n`;
+    typescript += `    protocolSourceSha256: ${JSON.stringify(protocolSourceSha256)},\n`;
+    typescript += `    generatedTypes: ${definitions.length},\n`;
+    typescript += `    canonicalRootTypes: ${manifest.canonicalRootTypes},\n`;
+    typescript += `    canonicalV2Types: ${manifest.canonicalV2Types},\n`;
+    typescript += `} as const;\n\n`;
+    typescript += definitions.map(typescriptDefinition).join("\n\n") + "\n\n";
+    typescript += typescriptOperationMap("ClientRequestMap", clientRequests) + "\n\n";
+    typescript += typescriptOperationMap("ServerRequestMap", serverRequests) + "\n\n";
+    typescript += typescriptOperationMap("ClientNotificationMap", clientNotifications) + "\n\n";
+    typescript += typescriptOperationMap("ServerNotificationMap", serverNotifications) + "\n\n";
+    typescript += typescriptOperationMetadata("clientRequestOperations", clientRequests) + "\n\n";
+    typescript += typescriptOperationMetadata("serverRequestOperations", serverRequests) + "\n\n";
+    typescript += typescriptOperationMetadata("clientNotificationOperations", clientNotifications) + "\n\n";
+    typescript += typescriptOperationMetadata("serverNotificationOperations", serverNotifications) + "\n";
+    fs.writeFileSync(typescriptOutputPath, typescript);
+}
 console.log(JSON.stringify(manifest));

@@ -10,6 +10,8 @@ bounded telemetry.
 
 - `AISuite::OpenAICodex`: backend SDK, frontend proxy SDK, bridge routing, and
   provider/frontend transport adapters.
+- `@snodec/codex-frontend`: framework-neutral TypeScript frontend proxy and
+  generated protocol declarations for browser and Node clients.
 - `codex-bridge`: one app-server provider connection exposed to multiple
   controller or observer clients.
 - `codex-bridge-client`: interactive SNode.C client using the frontend proxy SDK.
@@ -20,6 +22,14 @@ The generated protocol datatypes cover every JSON-RPC message represented by
 the selected app-server schema. Typed values expose direct field access and
 `getRaw()` for lossless access to the original `nlohmann::json`. Raw JSON-RPC
 submission remains available alongside the typed API.
+
+The TypeScript declarations are generated from the same pinned schema and
+operation bindings as the C++ views. Their focused equality suite builds the
+package and compares source hashes, type names, operation bindings, and counts:
+
+```sh
+npm test --prefix packages/codex-frontend
+```
 
 ## Build
 
