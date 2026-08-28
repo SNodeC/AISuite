@@ -1,4 +1,8 @@
-import {CodexBridgeClient} from "../src/index.js";
+import {
+    ClientConnection,
+    CodexBridgeClient,
+    WebSocketTransport,
+} from "../src/index.js";
 import type {JsonRpcRequest} from "../src/index.js";
 
 const client = new CodexBridgeClient(() => true);
@@ -17,6 +21,10 @@ client.onServerNotification("thread/started", (notification) => {
     notification.params?.thread;
 });
 client.respond({id: "request", method: "example"} satisfies JsonRpcRequest, {});
+
+const connection = new ClientConnection(client);
+const transport = new WebSocketTransport(connection, "ws://localhost:8080/codex");
+transport.connected;
 
 // @ts-expect-error thread/list parameters are required.
 client.request("thread/list", undefined, () => undefined);

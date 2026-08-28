@@ -41,3 +41,26 @@ const response = await client.requestPromise("thread/list", {
 
 The proxy retains only pending JSON-RPC callbacks and bridge connection state.
 It does not retain threads, turns, items, settings, or other Codex-domain data.
+
+`ClientConnection` and `WebSocketTransport` provide the browser equivalent of
+the native client connection and WebSocket binding:
+
+```ts
+import {
+    ClientConnection,
+    CodexBridgeClient,
+    WebSocketTransport,
+} from "@snodec/codex-frontend";
+
+const client = new CodexBridgeClient();
+const connection = new ClientConnection(client);
+const transport = new WebSocketTransport(
+    connection,
+    "ws://localhost:8080/codex",
+);
+```
+
+The transport negotiates the `codex` subprotocol, accepts JSON text messages,
+and applies the same 64 MiB default message bound as the C++ client. It does
+not reconnect automatically; application intent owns construction of a new
+transport after a completed detach.
