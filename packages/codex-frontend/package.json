@@ -1,6 +1,6 @@
 {
   "name": "@snodec/codex-frontend",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Framework-neutral TypeScript frontend SDK for AISuite codex-bridge",
   "type": "module",
   "files": [
@@ -18,7 +18,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "test": "npm run build && tsc -p tsconfig.type-tests.json && node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
   },
   "license": "LGPL-3.0-or-later OR MIT"
 }
