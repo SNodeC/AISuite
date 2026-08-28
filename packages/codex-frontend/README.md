@@ -18,3 +18,26 @@ node tools/generate-codex-protocol.mjs \
 `npm test --prefix packages/codex-frontend` builds the declarations and proves
 that the checked-in C++ and TypeScript type names, operation bindings,
 required-parameter flags, counts, and source hashes remain equal.
+
+## Frontend proxy
+
+`CodexBridgeClient` mirrors the observable routing and lifecycle contract of
+AISuite's C++ frontend proxy while exposing generated method typing:
+
+```ts
+import {CodexBridgeClient} from "@snodec/codex-frontend";
+
+const client = new CodexBridgeClient((message) => transport.send(message));
+
+client.onServerNotification("thread/started", (notification) => {
+    console.log(notification.params?.thread);
+});
+
+const response = await client.requestPromise("thread/list", {
+    limit: 20,
+    archived: false,
+});
+```
+
+The proxy retains only pending JSON-RPC callbacks and bridge connection state.
+It does not retain threads, turns, items, settings, or other Codex-domain data.
