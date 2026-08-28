@@ -189,9 +189,9 @@ int main(int argc, char* argv[]) {
         webSocketIpv6App.getConfig()->Connection::setMaximumWriteQueueBytes(apps::codex_bridge::DefaultMaximumWriteQueueBytes);
         configureWebSocketPolicy(webSocketIpv6App.getConfig(), maximumFrameBytes);
         apps::codex_bridge::configureWebSocketApplication(
-            webSocketIpv4App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes);
+            webSocketIpv4App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes, configuration->webRoot());
         apps::codex_bridge::configureWebSocketApplication(
-            webSocketIpv6App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes);
+            webSocketIpv6App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes, configuration->webRoot());
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
         express::tls::in::WebApp webSocketTlsIpv4App("codex-bridge-wss-ipv4");
         express::tls::in6::WebApp webSocketTlsIpv6App("codex-bridge-wss-ipv6");
@@ -208,9 +208,9 @@ int main(int argc, char* argv[]) {
         webSocketTlsIpv6App.getConfig()->Connection::setMaximumWriteQueueBytes(apps::codex_bridge::DefaultMaximumWriteQueueBytes);
         configureWebSocketPolicy(webSocketTlsIpv6App.getConfig(), maximumFrameBytes);
         apps::codex_bridge::configureWebSocketApplication(
-            webSocketTlsIpv4App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes);
+            webSocketTlsIpv4App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes, configuration->webRoot());
         apps::codex_bridge::configureWebSocketApplication(
-            webSocketTlsIpv6App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes);
+            webSocketTlsIpv6App, bridge, configuration->webSocketEndpoint(), maximumFrameBytes, configuration->webRoot());
 #endif
 #endif
 

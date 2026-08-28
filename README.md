@@ -31,6 +31,26 @@ package and compares source hashes, type names, operation bindings, and counts:
 npm test --prefix packages/codex-frontend
 ```
 
+## Integrated browser listener
+
+`codex-bridge` serves a built CodexWebUI and the frontend WebSocket from one
+HTTP listener. The installed defaults are:
+
+- `/` and `/assets/...`: static files below
+  `${CMAKE_INSTALL_FULL_DATADIR}/codexui/web`;
+- `/codex`: WebSocket upgrade using the `codex` subprotocol.
+
+Enable the IPv4 listener with, for example:
+
+```sh
+codex-bridge codex-bridge-websocket-ipv4 --disabled=false \
+  local --host 127.0.0.1 --port 8080
+```
+
+`--bridge-web-root PATH` overrides the static directory. An empty value
+disables static delivery without changing WebSocket behavior. No Node process
+is required after the web artifact has been built and installed.
+
 ## Build
 
 AISuite consumes an installed SNode.C `master`/HEAD package.

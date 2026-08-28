@@ -64,6 +64,15 @@ namespace apps::codex_bridge {
                       std::string{"/codex"},
                       CLI::Validator{}),
             true);
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        webRoot_ = setConfigurable(
+            addOption("--bridge-web-root",
+                      "Directory containing the built CodexWebUI static files",
+                      "PATH",
+                      std::string{AISUITE_CODEXUI_WEB_ROOT},
+                      CLI::Validator{}),
+            true);
+#endif
     }
 
     Configuration::~Configuration() = default;
@@ -104,6 +113,14 @@ namespace apps::codex_bridge {
 
     std::string Configuration::webSocketEndpoint() const {
         return webSocketEndpoint_->as<std::string>();
+    }
+
+    std::string Configuration::webRoot() const {
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+        return webRoot_->as<std::string>();
+#else
+        return {};
+#endif
     }
 
 } // namespace apps::codex_bridge

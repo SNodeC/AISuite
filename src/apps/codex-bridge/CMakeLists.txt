@@ -40,7 +40,9 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
         codex-bridge PRIVATE WebSocketApplication.cpp WebSocketApplication.h
     )
     target_compile_definitions(
-        codex-bridge PRIVATE AISUITE_CODEX_FRONTEND_WEBSOCKET=1
+        codex-bridge
+        PRIVATE AISUITE_CODEX_FRONTEND_WEBSOCKET=1
+                AISUITE_CODEXUI_WEB_ROOT="${CMAKE_INSTALL_FULL_DATADIR}/codexui/web"
     )
     target_link_libraries(
         codex-bridge

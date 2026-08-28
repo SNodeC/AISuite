@@ -382,7 +382,8 @@ namespace {
             webApp.getConfig()->Instance::forceUnrequired();
             webApp.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
             configureWebSocketPolicy(webApp.getConfig());
-            apps::codex_bridge::configureWebSocketApplication(webApp, router, std::string(Endpoint), MaximumMessageBytes);
+            apps::codex_bridge::configureWebSocketApplication(
+                webApp, router, std::string(Endpoint), MaximumMessageBytes, "/tmp/codex-webui-test-root");
 
             client::linkWebSocketClient();
             auto binding = std::make_shared<client::WebSocketBinding>(connection, MaximumMessageBytes);
