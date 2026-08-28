@@ -38,6 +38,7 @@ namespace apps::codex_bridge {
         ai::openai::codex::provider::StdioAppServerOptions stdioAppServerOptions() const;
         std::size_t maximumFrameBytes() const;
         std::string webSocketEndpoint() const;
+        std::string webRoot() const;
 
     private:
         CLI::Option* appServerExecutable_ = nullptr;
@@ -48,6 +49,7 @@ namespace apps::codex_bridge {
         CLI::Option* firstFrontendController_ = nullptr;
         CLI::Option* observerReads_ = nullptr;
         CLI::Option* webSocketEndpoint_ = nullptr;
+        CLI::Option* webRoot_ = nullptr;
     };
 
 } // namespace apps::codex_bridge

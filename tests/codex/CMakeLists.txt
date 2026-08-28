@@ -195,10 +195,20 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
         WebSocketTransportAcceptanceTest.cpp
         ${PROJECT_SOURCE_DIR}/src/apps/codex-bridge/WebSocketApplication.cpp
     )
+    add_executable(
+        CodexWebUiPathTest
+        WebUiPathTest.cpp
+        ${PROJECT_SOURCE_DIR}/src/apps/codex-bridge/WebSocketApplication.cpp
+    )
     target_compile_features(CodexWebSocketTransportAcceptanceTest
                             PRIVATE cxx_std_20)
+    target_compile_features(CodexWebUiPathTest PRIVATE cxx_std_20)
     target_include_directories(
         CodexWebSocketTransportAcceptanceTest
+        PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src
+    )
+    target_include_directories(
+        CodexWebUiPathTest
         PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src
     )
     target_link_libraries(
@@ -209,6 +219,17 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
                 snodec::websocket-server snodec::http-client
                 snodec::websocket-client
     )
+    target_link_libraries(
+        CodexWebUiPathTest
+        PRIVATE AISuite::OpenAICodex snodec::core
+                snodec::http-server-express-legacy-in
+                snodec::http-server-express-legacy-in6
+                snodec::websocket-server snodec::http-client
+                snodec::websocket-client
+    )
+    add_test(NAME CodexWebUiPathTest COMMAND CodexWebUiPathTest)
+    set_tests_properties(CodexWebUiPathTest
+                         PROPERTIES LABELS "codex;webui;focused" TIMEOUT 5)
 
     foreach(transport IN ITEMS websocket-ipv4 websocket-ipv6)
         string(REPLACE "-" "_" transport_id "${transport}")

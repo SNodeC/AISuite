@@ -6,6 +6,7 @@
 #define APPS_CODEX_BRIDGE_WEBSOCKETAPPLICATION_H
 
 #include <cstddef>
+#include <optional>
 #include <string>
 
 namespace express {
@@ -21,7 +22,10 @@ namespace apps::codex_bridge {
     void configureWebSocketApplication(express::Router& router,
                                        ai::openai::codex::bridge::CodexBridge& bridge,
                                        std::string endpoint,
-                                       std::size_t maximumFrameBytes);
+                                       std::size_t maximumFrameBytes,
+                                       std::string webRoot = {});
+
+    std::optional<std::string> resolveWebUiPath(const std::string& webRoot, const std::string& requestPath);
 
 } // namespace apps::codex_bridge
 
