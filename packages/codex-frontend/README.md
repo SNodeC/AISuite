@@ -63,4 +63,6 @@ const transport = new WebSocketTransport(
 The transport negotiates the `codex` subprotocol, accepts JSON text messages,
 and applies the same 64 MiB default message bound as the C++ client. It does
 not reconnect automatically; application intent owns construction of a new
-transport after a completed detach.
+transport after a completed detach. `ClientConnectionCallbacks.onDetached`
+reports that completion even when a socket failed before it became online;
+`onDisconnected` remains the online-to-offline lifecycle notification.

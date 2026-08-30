@@ -9,6 +9,7 @@ export interface TransportEndpoint {
 export interface ClientConnectionCallbacks {
     readonly onConnected?: () => void;
     readonly onDisconnected?: () => void;
+    readonly onDetached?: () => void;
     readonly onFailure?: (reason: string) => void;
 }
 
@@ -73,6 +74,7 @@ export class ClientConnection {
         this.sdk.transportDisconnected(
             this.isShuttingDown ? "bridge client shutdown" : reason,
         );
+        this.invokeContained(this.callbacks.onDetached);
         if (wasOnline) this.invokeContained(this.callbacks.onDisconnected);
     }
 

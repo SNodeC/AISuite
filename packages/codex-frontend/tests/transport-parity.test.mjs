@@ -131,6 +131,10 @@ test("ClientConnection matches attach, online, detach, and callback containment"
             lifecycle.push("disconnected");
             throw new Error("contained disconnected callback");
         },
+        onDetached: () => {
+            lifecycle.push("detached");
+            throw new Error("contained detached callback");
+        },
         onFailure: (reason) => {
             lifecycle.push(`failure:${reason}`);
             throw new Error("contained failure callback");
@@ -162,7 +166,13 @@ test("ClientConnection matches attach, online, detach, and callback containment"
     connection.detach(endpoint, "test transport loss");
     assert.equal(connection.attached, false);
     assert.equal(connection.online, false);
-    assert.deepEqual(lifecycle.at(-1), "disconnected");
+    assert.deepEqual(lifecycle.slice(-2), ["detached", "disconnected"]);
+
+    assert.equal(connection.attach(other), true);
+    connection.detach(other, "failed before opening");
+    assert.equal(connection.attached, false);
+    assert.deepEqual(lifecycle.slice(-3), ["detached", "disconnected", "detached"],
+        "pre-open detach is observable without claiming an online disconnect");
     connection.detach(endpoint, "duplicate detach");
     assert.equal(lifecycle.filter((entry) => entry === "disconnected").length, 1);
     connection.dispose();
