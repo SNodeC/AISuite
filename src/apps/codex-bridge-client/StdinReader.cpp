@@ -5,7 +5,8 @@
 #include "apps/codex-bridge-client/StdinReader.h"
 
 #include "core/EventReceiver.h"
-#include "log/SemanticLogger.h"
+
+#include <Log.h>
 
 #include <array>
 #include <cerrno>
@@ -26,12 +27,10 @@ namespace apps::codex_bridge_client {
                              int descriptor)
         : core::eventreceiver::ReadEventReceiver(
               "codex-bridge-client stdin",
-              logger::LogScope{logger::LogOrigin::Application,
-                               logger::LogBoundary::Application,
-                               "app",
-                               "codex-bridge-client",
-                               logger::LogRole::Unknown,
-                               {}},
+              snode::log::Scope{.origin = snode::log::Origin::Application,
+                                .boundary = snode::log::Boundary::Application,
+                                .component = "app",
+                                .identity = {.instance = "codex-bridge-client"}},
               core::DescriptorEventReceiver::TIMEOUT::DISABLE)
         , maximumLineBytes_(maximumLineBytes)
         , onLine_(std::move(onLine))

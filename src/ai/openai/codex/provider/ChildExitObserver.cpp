@@ -5,7 +5,8 @@
 #include "ai/openai/codex/provider/ChildExitObserver.h"
 
 #include "core/system/unistd.h"
-#include "log/SemanticLogger.h"
+
+#include <Log.h>
 
 #include <cerrno>
 #include <csignal>
@@ -83,14 +84,13 @@ namespace ai::openai::codex::provider {
     }
 
     ChildExitObserver::ChildExitObserver(int pidfd, Callback onExit, Callback onClosed)
-        : core::eventreceiver::ReadEventReceiver("codex app-server pidfd",
-                                                 logger::LogScope{logger::LogOrigin::Application,
-                                                                  logger::LogBoundary::Application,
-                                                                  "codex.provider",
-                                                                  "app-server",
-                                                                  logger::LogRole::Unknown,
-                                                                  {}},
-                                                 TIMEOUT::DISABLE)
+        : core::eventreceiver::ReadEventReceiver(
+              "codex app-server pidfd",
+              snode::log::Scope{.origin = snode::log::Origin::Application,
+                                .boundary = snode::log::Boundary::Application,
+                                .component = "codex.provider",
+                                .identity = {.instance = "app-server"}},
+              TIMEOUT::DISABLE)
         , onExit_(std::move(onExit))
         , onClosed_(std::move(onClosed)) {
         if (!ReadEventReceiver::enable(pidfd)) {

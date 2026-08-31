@@ -14,8 +14,6 @@ option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
 option(AISUITE_BUILD_CODEX_TESTS "Build the focused codex tests" OFF)
 
 option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
-option(AISUITE_DISABLE_LOGLEVEL_LOGGING "Disable SNode.C LOG/PLOG logging" OFF)
-option(AISUITE_DISABLE_VERBOSE_LOGGING "Disable SNode.C VLOG logging" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,13 +55,6 @@ if(AISUITE_ENABLE_ASAN)
     add_link_options(LINKER:--as-needed -fsanitize=address)
 else()
     add_link_options(LINKER:--as-needed LINKER:--no-undefined)
-endif()
-
-if(AISUITE_DISABLE_LOGLEVEL_LOGGING)
-    add_compile_definitions(SNODEC_DISABLE_LOGLEVEL_LOGGING)
-endif()
-if(AISUITE_DISABLE_VERBOSE_LOGGING)
-    add_compile_definitions(SNODEC_DISABLE_VERBOSE_LOGGING)
 endif()
 
 find_package(nlohmann_json 3.11 CONFIG QUIET)
