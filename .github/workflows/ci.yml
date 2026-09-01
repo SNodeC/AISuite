@@ -65,9 +65,9 @@ jobs:
           git init ../snodec
           git -C ../snodec remote add origin https://github.com/SNodeC/snode.c.git
           git -C ../snodec fetch --depth 1 origin \
-            212bd4f8a16637405ab850a52adb9da8555dca3d
+            86992e7ead06c5790bf03a3d5280adaf14b5acb6
           git -C ../snodec checkout --detach \
-            212bd4f8a16637405ab850a52adb9da8555dca3d
+            86992e7ead06c5790bf03a3d5280adaf14b5acb6
           git -C ../snodec rev-parse HEAD
 
       - name: Build and install pinned SNode.C dependency
