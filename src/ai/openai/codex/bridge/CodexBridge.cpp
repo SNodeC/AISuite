@@ -496,7 +496,9 @@ namespace ai::openai::codex::bridge {
             std::string_view{"thread/goal/get"},
             std::string_view{"thread/list"},
             std::string_view{"thread/loaded/list"},
+            std::string_view{"thread/items/list"},
             std::string_view{"thread/read"},
+            std::string_view{"thread/turns/list"},
             std::string_view{"threadSection/list"},
         };
         return std::ranges::find(exactMethods, method) != exactMethods.end();

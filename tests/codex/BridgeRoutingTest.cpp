@@ -96,6 +96,21 @@ int main() {
     test.expect(second.lastPayload() != nullptr && second.lastPayload()->at("id") == 10,
                 "provider response is routed only to its owner with the original id restored");
 
+    for (const std::string_view method : {std::string_view{"thread/turns/list"}, std::string_view{"thread/items/list"}}) {
+        const std::size_t beforePage = provider.messages.size();
+        router.receiveFromFrontend(
+            secondId,
+            envelope({{"jsonrpc", "2.0"}, {"id", std::string(method)}, {"method", method}, {"params", {{"threadId", "thread-a"}}}}));
+        test.expect(provider.messages.size() == beforePage + 1 && provider.messages.back().at("method") == method,
+                    std::string("observer pagination forwards ") + std::string(method));
+        if (provider.messages.size() == beforePage + 1) {
+            const nlohmann::json upstreamId = provider.messages.back().at("id");
+            router.receiveFromAppServer({{"jsonrpc", "2.0"}, {"id", upstreamId}, {"result", {{"data", nlohmann::json::array()}}}});
+            test.expect(second.lastPayload() != nullptr && second.lastPayload()->at("id") == method,
+                        std::string("observer pagination restores the frontend id for ") + std::string(method));
+        }
+    }
+
     const std::size_t providerCount = provider.messages.size();
     router.receiveFromFrontend(
         secondId, envelope({{"jsonrpc", "2.0"}, {"id", 11}, {"method", "thread/start"}, {"params", nlohmann::json::object()}}));
