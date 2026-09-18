@@ -1,7 +1,10 @@
 /*
  * Generated from Codex app-server protocol exports. DO NOT EDIT.
- * Schema SHA-256: 48f025b407c0a96bffed6e06f0fe1c9e23e770039d9262688d6f7b708d1890fd
- * Protocol source SHA-256: a88f193d64f6c24364ee9d8c6895698c7f4d4b22c83468ac0488966b7f49f907
+ * Codex release: rust-v0.154.0
+ * Codex revision: 6b9826e3aa83b1a5947db50f4332cb9c65f1b340
+ * Experimental API: true
+ * Schema SHA-256: 24df528acec2952e6b96c1c2b061f98e60177d059e12c90cf318621380c9de9e
+ * Protocol source SHA-256: 6aa47ec984c9198ea797bf63b784cf6a88cc0ab85efb0a4ac75e01aabffc2cfa
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
@@ -74,6 +77,16 @@ namespace root {
     class ClientRequest;
     class InitializeRequest;
     class InitializeRequestMethod;
+    class ServerDiagnosticsRequest;
+    class ServerDiagnosticsRequestMethod;
+    class UserVerificationStatusRequest;
+    class UserVerificationStatusRequestMethod;
+    class UserVerificationEnrollRequest;
+    class UserVerificationEnrollRequestMethod;
+    class UserVerificationDeleteRequest;
+    class UserVerificationDeleteRequestMethod;
+    class UserVerificationVerifyRequest;
+    class UserVerificationVerifyRequestMethod;
     class ThreadStartRequest;
     class ThreadStartRequestMethod;
     class ThreadResumeRequest;
@@ -86,6 +99,10 @@ namespace root {
     class ThreadDeleteRequestMethod;
     class ThreadUnsubscribeRequest;
     class ThreadUnsubscribeRequestMethod;
+    class ThreadIncrementElicitationRequest;
+    class ThreadIncrementElicitationRequestMethod;
+    class ThreadDecrementElicitationRequest;
+    class ThreadDecrementElicitationRequestMethod;
     class ThreadNameSetRequest;
     class ThreadNameSetRequestMethod;
     class ThreadGoalSetRequest;
@@ -94,10 +111,28 @@ namespace root {
     class ThreadGoalGetRequestMethod;
     class ThreadGoalClearRequest;
     class ThreadGoalClearRequestMethod;
+    class ThreadQueueAddRequest;
+    class ThreadQueueAddRequestMethod;
+    class ThreadQueueListRequest;
+    class ThreadQueueListRequestMethod;
+    class ThreadQueueUpdateRequest;
+    class ThreadQueueUpdateRequestMethod;
+    class ThreadQueueDeleteRequest;
+    class ThreadQueueDeleteRequestMethod;
+    class ThreadQueueReorderRequest;
+    class ThreadQueueReorderRequestMethod;
+    class ThreadQueueStartRequest;
+    class ThreadQueueStartRequestMethod;
     class ThreadMetadataUpdateRequest;
     class ThreadMetadataUpdateRequestMethod;
     class ThreadSectionMoveRequest;
     class ThreadSectionMoveRequestMethod;
+    class ThreadSettingsUpdateRequest;
+    class ThreadSettingsUpdateRequestMethod;
+    class ThreadMemoryModeSetRequest;
+    class ThreadMemoryModeSetRequestMethod;
+    class MemoryResetRequest;
+    class MemoryResetRequestMethod;
     class ThreadUnarchiveRequest;
     class ThreadUnarchiveRequestMethod;
     class ThreadCompactStartRequest;
@@ -106,10 +141,32 @@ namespace root {
     class ThreadShellCommandRequestMethod;
     class ThreadApproveGuardianDeniedActionRequest;
     class ThreadApproveGuardianDeniedActionRequestMethod;
+    class ThreadBackgroundTerminalsCleanRequest;
+    class ThreadBackgroundTerminalsCleanRequestMethod;
+    class ThreadBackgroundTerminalsListRequest;
+    class ThreadBackgroundTerminalsListRequestMethod;
+    class ThreadBackgroundTerminalsTerminateRequest;
+    class ThreadBackgroundTerminalsTerminateRequestMethod;
     class ThreadRollbackRequest;
     class ThreadRollbackRequestMethod;
+    class ThreadRevertRequest;
+    class ThreadRevertRequestMethod;
     class ThreadListRequest;
     class ThreadListRequestMethod;
+    class ProjectListRequest;
+    class ProjectListRequestMethod;
+    class ProjectReadRequest;
+    class ProjectReadRequestMethod;
+    class ProjectCreateRequest;
+    class ProjectCreateRequestMethod;
+    class ProjectImportRequest;
+    class ProjectImportRequestMethod;
+    class ProjectUpdateRequest;
+    class ProjectUpdateRequestMethod;
+    class ProjectMoveRequest;
+    class ProjectMoveRequestMethod;
+    class ProjectDeleteRequest;
+    class ProjectDeleteRequestMethod;
     class ThreadSectionListRequest;
     class ThreadSectionListRequestMethod;
     class ThreadSectionCreateRequest;
@@ -118,10 +175,18 @@ namespace root {
     class ThreadSectionUpdateRequestMethod;
     class ThreadSectionDeleteRequest;
     class ThreadSectionDeleteRequestMethod;
+    class ThreadSearchRequest;
+    class ThreadSearchRequestMethod;
+    class ThreadSearchOccurrencesRequest;
+    class ThreadSearchOccurrencesRequestMethod;
     class ThreadLoadedListRequest;
     class ThreadLoadedListRequestMethod;
     class ThreadReadRequest;
     class ThreadReadRequestMethod;
+    class ThreadTurnsListRequest;
+    class ThreadTurnsListRequestMethod;
+    class ThreadItemsListRequest;
+    class ThreadItemsListRequestMethod;
     class ThreadInjectItemsRequest;
     class ThreadInjectItemsRequestMethod;
     class SkillsListRequest;
@@ -138,8 +203,12 @@ namespace root {
     class MarketplaceUpgradeRequestMethod;
     class PluginListRequest;
     class PluginListRequestMethod;
+    class PluginSearchRequest;
+    class PluginSearchRequestMethod;
     class PluginInstalledRequest;
     class PluginInstalledRequestMethod;
+    class PluginReconcileRequest;
+    class PluginReconcileRequestMethod;
     class PluginReadRequest;
     class PluginReadRequestMethod;
     class PluginSkillReadRequest;
@@ -186,10 +255,26 @@ namespace root {
     class PluginUninstallRequestMethod;
     class TurnStartRequest;
     class TurnStartRequestMethod;
+    class TurnSettingsUpdateRequest;
+    class TurnSettingsUpdateRequestMethod;
     class TurnSteerRequest;
     class TurnSteerRequestMethod;
     class TurnInterruptRequest;
     class TurnInterruptRequestMethod;
+    class ThreadRealtimeStartRequest;
+    class ThreadRealtimeStartRequestMethod;
+    class ThreadRealtimeAppendAudioRequest;
+    class ThreadRealtimeAppendAudioRequestMethod;
+    class ThreadRealtimeAppendTextRequest;
+    class ThreadRealtimeAppendTextRequestMethod;
+    class ThreadRealtimeAppendSpeechRequest;
+    class ThreadRealtimeAppendSpeechRequestMethod;
+    class ThreadRealtimeStopRequest;
+    class ThreadRealtimeStopRequestMethod;
+    class ThreadTimelineListRequest;
+    class ThreadTimelineListRequestMethod;
+    class ThreadRealtimeListVoicesRequest;
+    class ThreadRealtimeListVoicesRequestMethod;
     class ReviewStartRequest;
     class ReviewStartRequestMethod;
     class ModelListRequest;
@@ -202,6 +287,32 @@ namespace root {
     class PermissionProfileListRequestMethod;
     class ExperimentalFeatureEnablementSetRequest;
     class ExperimentalFeatureEnablementSetRequestMethod;
+    class RemoteControlEnableRequest;
+    class RemoteControlEnableRequestMethod;
+    class RemoteControlEnableRequestParams;
+    class RemoteControlDisableRequest;
+    class RemoteControlDisableRequestMethod;
+    class RemoteControlDisableRequestParams;
+    class RemoteControlStatusReadRequest;
+    class RemoteControlStatusReadRequestMethod;
+    class RemoteControlPairingStartRequest;
+    class RemoteControlPairingStartRequestMethod;
+    class RemoteControlPairingStatusRequest;
+    class RemoteControlPairingStatusRequestMethod;
+    class RemoteControlClientListRequest;
+    class RemoteControlClientListRequestMethod;
+    class RemoteControlClientRevokeRequest;
+    class RemoteControlClientRevokeRequestMethod;
+    class CollaborationModeListRequest;
+    class CollaborationModeListRequestMethod;
+    class MockExperimentalMethodRequest;
+    class MockExperimentalMethodRequestMethod;
+    class EnvironmentAddRequest;
+    class EnvironmentAddRequestMethod;
+    class EnvironmentInfoRequest;
+    class EnvironmentInfoRequestMethod;
+    class EnvironmentStatusRequest;
+    class EnvironmentStatusRequestMethod;
     class McpServerOauthLoginRequest;
     class McpServerOauthLoginRequestMethod;
     class ConfigMcpServerReloadRequest;
@@ -210,6 +321,10 @@ namespace root {
     class McpServerStatusListRequestMethod;
     class McpServerResourceReadRequest;
     class McpServerResourceReadRequestMethod;
+    class McpServerEventStreamStartRequest;
+    class McpServerEventStreamStartRequestMethod;
+    class McpServerEventStreamStopRequest;
+    class McpServerEventStreamStopRequestMethod;
     class McpServerToolCallRequest;
     class McpServerToolCallRequestMethod;
     class WindowsSandboxSetupStartRequest;
@@ -218,12 +333,17 @@ namespace root {
     class WindowsSandboxReadinessRequestMethod;
     class AccountLoginStartRequest;
     class AccountLoginStartRequestMethod;
+    class AccountBedrockDiscoverRequest;
+    class AccountBedrockDiscoverRequestMethod;
+    class AccountBedrockSetupRequest;
+    class AccountBedrockSetupRequestMethod;
     class AccountLoginCancelRequest;
     class AccountLoginCancelRequestMethod;
     class AccountLogoutRequest;
     class AccountLogoutRequestMethod;
     class AccountRateLimitsReadRequest;
     class AccountRateLimitsReadRequestMethod;
+    class AccountRateLimitsReadRequestParams;
     class AccountRateLimitResetCreditConsumeRequest;
     class AccountRateLimitResetCreditConsumeRequestMethod;
     class AccountUsageReadRequest;
@@ -243,6 +363,14 @@ namespace root {
     class CommandExecTerminateRequestMethod;
     class CommandExecResizeRequest;
     class CommandExecResizeRequestMethod;
+    class ProcessSpawnRequest;
+    class ProcessSpawnRequestMethod;
+    class ProcessWriteStdinRequest;
+    class ProcessWriteStdinRequestMethod;
+    class ProcessKillRequest;
+    class ProcessKillRequestMethod;
+    class ProcessResizePtyRequest;
+    class ProcessResizePtyRequestMethod;
     class ConfigReadRequest;
     class ConfigReadRequestMethod;
     class ExternalAgentConfigDetectRequest;
@@ -263,6 +391,12 @@ namespace root {
     class AccountReadRequestMethod;
     class FuzzyFileSearchRequest;
     class FuzzyFileSearchRequestMethod;
+    class FuzzyFileSearchSessionStartRequest;
+    class FuzzyFileSearchSessionStartRequestMethod;
+    class FuzzyFileSearchSessionUpdateRequest;
+    class FuzzyFileSearchSessionUpdateRequestMethod;
+    class FuzzyFileSearchSessionStopRequest;
+    class FuzzyFileSearchSessionStopRequestMethod;
     class CommandExecutionApprovalDecision;
     class CommandExecutionApprovalDecisionOneOf1;
     class CommandExecutionApprovalDecisionOneOf2;
@@ -273,13 +407,19 @@ namespace root {
     class ApplyNetworkPolicyAmendmentCommandExecutionApprovalDecisionApplyNetworkPolicyAmendment;
     class CommandExecutionApprovalDecisionOneOf5;
     class CommandExecutionApprovalDecisionOneOf6;
+    class CommandExecutionApprovalKind;
     class CommandExecutionRequestApprovalParams;
+    class CommandExecutionRequestApprovalParamsAdditionalPermissions;
+    class CommandExecutionRequestApprovalParamsAvailableDecisions;
     class CommandExecutionRequestApprovalParamsCommandActions;
     class CommandExecutionRequestApprovalParamsCwd;
+    class CommandExecutionRequestApprovalParamsKind;
     class CommandExecutionRequestApprovalParamsNetworkApprovalContext;
     class CommandExecutionRequestApprovalParamsProposedExecpolicyAmendment;
     class CommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendments;
     class CommandExecutionRequestApprovalResponse;
+    class CurrentTimeReadParams;
+    class CurrentTimeReadResponse;
     class DynamicToolCallParams;
     class DynamicToolCallResponse;
     class DynamicToolCallResponseContentItems;
@@ -309,6 +449,13 @@ namespace root {
     class FuzzyFileSearchResult;
     class FuzzyFileSearchResultIndices;
     class FuzzyFileSearchSessionCompletedNotification;
+    class FuzzyFileSearchSessionStartParams;
+    class FuzzyFileSearchSessionStartParamsRoots;
+    class FuzzyFileSearchSessionStartResponse;
+    class FuzzyFileSearchSessionStopParams;
+    class FuzzyFileSearchSessionStopResponse;
+    class FuzzyFileSearchSessionUpdateParams;
+    class FuzzyFileSearchSessionUpdateResponse;
     class FuzzyFileSearchSessionUpdatedNotification;
     class FuzzyFileSearchSessionUpdatedNotificationFiles;
     class GrantedPermissionProfile;
@@ -369,6 +516,10 @@ namespace root {
     class McpServerElicitationRequestParamsOneOf2Mode;
     class McpServerElicitationRequestParamsOneOf3;
     class McpServerElicitationRequestParamsOneOf3Mode;
+    class McpServerElicitationRequestParamsOneOf4;
+    class McpServerElicitationRequestParamsOneOf4Mode;
+    class McpServerElicitationRequestParamsOneOf5;
+    class McpServerElicitationRequestParamsOneOf5Mode;
     class McpServerElicitationRequestResponse;
     class NetworkApprovalContext;
     class NetworkPolicyAmendment;
@@ -515,6 +666,10 @@ namespace root {
     class ModelReroutedNotificationMethod;
     class ModelVerificationNotification;
     class ModelVerificationNotificationMethod;
+    class ModelProviderAuthRecoveryStartedNotification;
+    class ModelProviderAuthRecoveryStartedNotificationMethod;
+    class ModelProviderAuthRecoveryCompletedNotification;
+    class ModelProviderAuthRecoveryCompletedNotificationMethod;
     class TurnModerationMetadataNotification;
     class TurnModerationMetadataNotificationMethod;
     class ModelSafetyBufferingUpdatedNotification;
@@ -535,6 +690,12 @@ namespace root {
     class ThreadRealtimeStartedNotificationMethod;
     class ThreadRealtimeItemAddedNotification;
     class ThreadRealtimeItemAddedNotificationMethod;
+    class ThreadRealtimeItemStartedNotification;
+    class ThreadRealtimeItemStartedNotificationMethod;
+    class ThreadRealtimeItemTranscriptDeltaNotification;
+    class ThreadRealtimeItemTranscriptDeltaNotificationMethod;
+    class ThreadRealtimeItemCompletedNotification;
+    class ThreadRealtimeItemCompletedNotificationMethod;
     class ThreadRealtimeTranscriptDeltaNotification;
     class ThreadRealtimeTranscriptDeltaNotificationMethod;
     class ThreadRealtimeTranscriptDoneNotification;
@@ -570,6 +731,8 @@ namespace root {
     class AccountChatgptAuthTokensRefreshRequestMethod;
     class AttestationGenerateRequest;
     class AttestationGenerateRequestMethod;
+    class CurrentTimeReadRequest;
+    class CurrentTimeReadRequestMethod;
     class ApplyPatchApprovalRequest;
     class ApplyPatchApprovalRequestMethod;
     class ExecCommandApprovalRequest;
@@ -627,6 +790,7 @@ namespace v2 {
     class AppConfig;
     class AppConfigApprovalsReviewer;
     class AppConfigDefaultToolsApprovalMode;
+    class AppConfigLinks;
     class AppConfigTools;
     class AppInfo;
     class AppInfoAppMetadata;
@@ -635,6 +799,10 @@ namespace v2 {
     class AppInfoIconDarkAssets;
     class AppInfoLabels;
     class AppInfoPluginDisplayNames;
+    class AppLinkConfig;
+    class AppLinkConfigApprovalsReviewer;
+    class AppLinkConfigDefaultToolsApprovalMode;
+    class AppLinksConfig;
     class AppListUpdatedNotification;
     class AppListUpdatedNotificationData;
     class AppMetadata;
@@ -654,6 +822,10 @@ namespace v2 {
     class AppToolConfigApprovalMode;
     class AppToolSummary;
     class AppToolsConfig;
+    class ApplicationNetworkRequirements;
+    class ApplicationNetworkRequirementsDomains;
+    class ApplicationRequirements;
+    class ApplicationRequirementsNetwork;
     class ApprovalsReviewer;
     class AppsConfig;
     class AppsConfigDefault;
@@ -675,6 +847,8 @@ namespace v2 {
     class AskForApprovalOneOf1;
     class GranularAskForApproval;
     class GranularAskForApprovalGranular;
+    class AsyncUserInputQuestion;
+    class AsyncUserInputQuestionOptions;
     class AuthMode;
     class AuthModeOneOf1;
     class AuthModeOneOf2;
@@ -683,6 +857,8 @@ namespace v2 {
     class AuthModeOneOf5;
     class AuthModeOneOf6;
     class AuthModeOneOf7;
+    class AuthModeOneOf8;
+    class AuthRecoveryNotification;
     class AutoCompactTokenLimitScope;
     class AutoCompactTokenLimitScopeOneOf1;
     class AutoCompactTokenLimitScopeOneOf2;
@@ -690,6 +866,19 @@ namespace v2 {
     class AutoReviewRequirements;
     class AutoReviewRequirementsIgnoreRules;
     class AutoReviewRequirementsRequiredOnModels;
+    class AwsCredentialType;
+    class BedrockAwsProfile;
+    class BedrockDiscoverParams;
+    class BedrockDiscoverResponse;
+    class BedrockDiscoverResponseEnvironmentCredentials;
+    class BedrockDiscoverResponseProfiles;
+    class BedrockEnvironmentCredential;
+    class BedrockSetupParams;
+    class Profilev2BedrockSetupParams;
+    class Profilev2BedrockSetupParamsType;
+    class Environmentv2BedrockSetupParams;
+    class Environmentv2BedrockSetupParamsType;
+    class BedrockSetupResponse;
     class BrowserUseAccessApprovalLifetime;
     class BrowserUseConfig;
     class BrowserUseConfigDefaultOriginPolicy;
@@ -735,6 +924,9 @@ namespace v2 {
     class CollabAgentTool;
     class CollabAgentToolCallStatus;
     class CollaborationMode;
+    class CollaborationModeListParams;
+    class CollaborationModeListResponse;
+    class CollaborationModeListResponseData;
     class CollaborationModeMask;
     class CollaborationModeMaskMode;
     class CollaborationModeMaskReasoningEffort;
@@ -795,6 +987,7 @@ namespace v2 {
     class ConfigAnalytics;
     class ConfigApprovalPolicy;
     class ConfigApprovalsReviewer;
+    class ConfigApps;
     class ConfigBrowserUse;
     class ConfigComputerUse;
     class ConfigDesktop;
@@ -841,10 +1034,12 @@ namespace v2 {
     class ConfigReadResponseOrigins;
     class ConfigRequirements;
     class ConfigRequirementsAllowedApprovalPolicies;
+    class ConfigRequirementsAllowedApprovalsReviewers;
     class ConfigRequirementsAllowedPermissionProfiles;
     class ConfigRequirementsAllowedSandboxModes;
     class ConfigRequirementsAllowedWebSearchModes;
     class ConfigRequirementsAllowedWindowsSandboxImplementations;
+    class ConfigRequirementsApplication;
     class ConfigRequirementsAutoReview;
     class ConfigRequirementsBrowserUse;
     class ConfigRequirementsCliAuthCredentialsStore;
@@ -852,8 +1047,10 @@ namespace v2 {
     class ConfigRequirementsEnforceResidency;
     class ConfigRequirementsFeatureRequirements;
     class ConfigRequirementsFeedback;
+    class ConfigRequirementsHooks;
     class ConfigRequirementsInAppBrowser;
     class ConfigRequirementsModels;
+    class ConfigRequirementsNetwork;
     class ConfigRequirementsReadResponse;
     class ConfigRequirementsReadResponseRequirements;
     class ConfigValueWriteParams;
@@ -862,6 +1059,7 @@ namespace v2 {
     class ConfigWriteResponse;
     class ConfigWriteResponseFilePath;
     class ConfigWriteResponseOverriddenMetadata;
+    class ConfigurationReasoning;
     class ConfiguredHookHandler;
     class CommandConfiguredHookHandler;
     class CommandConfiguredHookHandlerType;
@@ -897,6 +1095,7 @@ namespace v2 {
     class ContextCompactedNotification;
     class ConversationTextRole;
     class CreditsSnapshot;
+    class CyberAccessProgram;
     class DeprecationNoticeNotification;
     class DesktopOnboardingEntrypoint;
     class DynamicToolCallOutputContentItem;
@@ -916,7 +1115,21 @@ namespace v2 {
     class NamespaceDynamicToolSpec;
     class NamespaceDynamicToolSpecTools;
     class NamespaceDynamicToolSpecType;
+    class EnvironmentAddParams;
+    class EnvironmentAddResponse;
     class EnvironmentConnectionNotification;
+    class EnvironmentInfoParams;
+    class EnvironmentInfoResponse;
+    class EnvironmentInfoResponseCwd;
+    class EnvironmentShellInfo;
+    class EnvironmentStatusKind;
+    class EnvironmentStatusKindOneOf1;
+    class EnvironmentStatusKindOneOf2;
+    class EnvironmentStatusKindOneOf3;
+    class EnvironmentStatusKindOneOf4;
+    class EnvironmentStatusParams;
+    class EnvironmentStatusResponse;
+    class EnvironmentStatusResponseStatus;
     class ErrorNotification;
     class ExperimentalFeature;
     class ExperimentalFeatureStage2;
@@ -1051,6 +1264,7 @@ namespace v2 {
     class EncryptedContentFunctionCallOutputContentItem;
     class EncryptedContentFunctionCallOutputContentItemType;
     class GetAccountParams;
+    class GetAccountRateLimitsParams;
     class GetAccountRateLimitsResponse;
     class GetAccountRateLimitsResponseRateLimitResetCredits;
     class GetAccountRateLimitsResponseRateLimits;
@@ -1073,6 +1287,8 @@ namespace v2 {
     class ExecveGuardianApprovalReviewAction;
     class ExecveGuardianApprovalReviewActionArgv;
     class ExecveGuardianApprovalReviewActionType;
+    class WriteStdinGuardianApprovalReviewAction;
+    class WriteStdinGuardianApprovalReviewActionType;
     class ApplyPatchGuardianApprovalReviewAction;
     class ApplyPatchGuardianApprovalReviewActionFiles;
     class ApplyPatchGuardianApprovalReviewActionType;
@@ -1159,6 +1375,8 @@ namespace v2 {
     class ChatgptAuthTokensv2LoginAccountParamsType;
     class AmazonBedrockv2LoginAccountParams;
     class AmazonBedrockv2LoginAccountParamsType;
+    class AmazonBedrockAccessKeysv2LoginAccountParams;
+    class AmazonBedrockAccessKeysv2LoginAccountParamsType;
     class LoginAccountResponse;
     class ApiKeyv2LoginAccountResponse;
     class ApiKeyv2LoginAccountResponseType;
@@ -1173,6 +1391,7 @@ namespace v2 {
     class LoginAppBrand;
     class LogoutAccountResponse;
     class ManagedHooksRequirements;
+    class ManagedHooksRequirementsInterrupt;
     class ManagedHooksRequirementsPermissionRequest;
     class ManagedHooksRequirementsPostCompact;
     class ManagedHooksRequirementsPostToolUse;
@@ -1205,6 +1424,10 @@ namespace v2 {
     class McpServerConnectionStatus;
     class McpServerEventNotification;
     class McpServerEventStreamNotification;
+    class McpServerEventStreamStartParams;
+    class McpServerEventStreamStartResponse;
+    class McpServerEventStreamStopParams;
+    class McpServerEventStreamStopResponse;
     class McpServerInfo;
     class McpServerInfoIcons;
     class McpServerMigration;
@@ -1239,6 +1462,7 @@ namespace v2 {
     class MemoryCitationEntries;
     class MemoryCitationThreadIds;
     class MemoryCitationEntry;
+    class MemoryResetResponse;
     class MergeStrategy;
     class MessagePhase;
     class MessagePhaseOneOf1;
@@ -1252,6 +1476,11 @@ namespace v2 {
     class MigrationDetailsSessions;
     class MigrationDetailsSkills;
     class MigrationDetailsSubagents;
+    class MisalignmentErrorDetails;
+    class MisalignmentErrorDetailsSteer;
+    class MisalignmentSteer;
+    class MockExperimentalMethodParams;
+    class MockExperimentalMethodResponse;
     class ModeKind;
     class Model;
     class ModelAdditionalSpeedTiers;
@@ -1296,7 +1525,10 @@ namespace v2 {
     class NewThreadModelDefaults;
     class NewThreadModelDefaultsModelReasoningEffort;
     class NonSteerableTurnKind;
+    class NullableGetAccountRateLimitsParams;
     class NullableGetAccountTokenUsageParams;
+    class NullableRemoteControlDisableParams;
+    class NullableRemoteControlEnableParams;
     class OverriddenMetadata;
     class PatchApplyStatus;
     class PatchChangeKind;
@@ -1363,6 +1595,17 @@ namespace v2 {
     class PluginReadParams;
     class PluginReadParamsMarketplacePath;
     class PluginReadResponse;
+    class PluginReconcileChangedPlugin;
+    class PluginReconcileParams;
+    class PluginReconcileResponse;
+    class PluginReconcileResponseChangedPlugins;
+    class PluginReconcileResponseFailedMaterializationRemotePluginIds;
+    class PluginReconcileResponseFailedRemotePluginIds;
+    class PluginSearchParams;
+    class PluginSearchParamsCwds;
+    class PluginSearchParamsScope;
+    class PluginSearchResponse;
+    class PluginSearchResponseData;
     class PluginSearchResult;
     class PluginSearchResultMarketplacePath;
     class PluginSearchScope;
@@ -1417,18 +1660,56 @@ namespace v2 {
     class PluginsMigration;
     class PluginsMigrationPluginNames;
     class ProcessExitedNotification;
+    class ProcessKillParams;
+    class ProcessKillResponse;
     class ProcessOutputDeltaNotification;
     class ProcessOutputDeltaNotificationStream;
     class ProcessOutputStream;
     class ProcessOutputStreamOneOf1;
     class ProcessOutputStreamOneOf2;
+    class ProcessResizePtyParams;
+    class ProcessResizePtyParamsSize;
+    class ProcessResizePtyResponse;
+    class ProcessSpawnParams;
+    class ProcessSpawnParamsCommand;
+    class ProcessSpawnParamsCwd;
+    class ProcessSpawnParamsEnv;
+    class ProcessSpawnParamsSize;
+    class ProcessSpawnResponse;
     class ProcessTerminalSize;
+    class ProcessWriteStdinParams;
+    class ProcessWriteStdinResponse;
     class Project;
     class ProjectMetadata;
     class ProjectRoots;
     class ProjectChangeType;
     class ProjectChangedNotification;
+    class ProjectCreateParams;
+    class ProjectCreateParamsMetadata;
+    class ProjectCreateParamsRoots;
+    class ProjectCreateResponse;
+    class ProjectDeleteParams;
+    class ProjectDeleteResponse;
+    class ProjectImportParams;
+    class ProjectImportParamsMetadata;
+    class ProjectImportParamsRoots;
+    class ProjectImportParamsThreads;
+    class ProjectImportResponse;
+    class ProjectListParams;
+    class ProjectListParamsSortDirection;
+    class ProjectListParamsSortKey;
+    class ProjectListResponse;
+    class ProjectListResponseData;
+    class ProjectMoveParams;
+    class ProjectMoveResponse;
+    class ProjectReadParams;
+    class ProjectReadResponse;
     class ProjectRoot;
+    class ProjectSortKey;
+    class ProjectUpdateParams;
+    class ProjectUpdateParamsMetadata;
+    class ProjectUpdateParamsRoots;
+    class ProjectUpdateResponse;
     class QueuedSubmission;
     class QueuedSubmissionInput;
     class RateLimitReachedType;
@@ -1447,6 +1728,7 @@ namespace v2 {
     class RateLimitWindow;
     class RawResponseCompletedNotification;
     class RawResponseCompletedNotificationUsage;
+    class RawResponseCompletedNotificationUsageMetadata;
     class RawResponseItemCompletedNotification;
     class RealtimeConversationVersion;
     class RealtimeOutputModality;
@@ -1470,10 +1752,25 @@ namespace v2 {
     class ReasoningSummaryPartAddedNotification;
     class ReasoningSummaryTextDeltaNotification;
     class ReasoningTextDeltaNotification;
+    class RemoteControlClient;
+    class RemoteControlClientsListOrder;
+    class RemoteControlClientsListParams;
+    class RemoteControlClientsListParamsOrder;
+    class RemoteControlClientsListResponse;
+    class RemoteControlClientsListResponseData;
+    class RemoteControlClientsRevokeParams;
+    class RemoteControlClientsRevokeResponse;
     class RemoteControlConnectionStatus;
     class RemoteControlDisableParams;
+    class RemoteControlDisableResponse;
     class RemoteControlEnableParams;
+    class RemoteControlEnableResponse;
+    class RemoteControlPairingStartParams;
+    class RemoteControlPairingStartResponse;
+    class RemoteControlPairingStatusParams;
+    class RemoteControlPairingStatusResponse;
     class RemoteControlStatusChangedNotification;
+    class RemoteControlStatusReadResponse;
     class RequestId;
     class RequestPermissionProfile;
     class RequestPermissionProfileFileSystem;
@@ -1533,6 +1830,8 @@ namespace v2 {
     class CompactionResponseItem;
     class CompactionResponseItemInternalChatMessageMetadataPassthrough;
     class CompactionResponseItemType;
+    class ConfigurationUpdateResponseItem;
+    class ConfigurationUpdateResponseItemType;
     class CompactionTriggerResponseItem;
     class CompactionTriggerResponseItemType;
     class ContextCompactionResponseItem;
@@ -1540,6 +1839,7 @@ namespace v2 {
     class ContextCompactionResponseItemType;
     class OtherResponseItem;
     class OtherResponseItemType;
+    class ResponseUsageMetadata;
     class ResponsesApiWebSearchAction;
     class SearchResponsesApiWebSearchAction;
     class SearchResponsesApiWebSearchActionQueries;
@@ -1595,7 +1895,10 @@ namespace v2 {
     class SendAddCreditsNudgeEmailParams;
     class SendAddCreditsNudgeEmailResponse;
     class ServerDiagnosticsGauge;
+    class ServerDiagnosticsParams;
     class ServerDiagnosticsProcess;
+    class ServerDiagnosticsResponse;
+    class ServerDiagnosticsResponseGauges;
     class ServerRequestResolvedNotification;
     class SessionMigration;
     class SessionSource;
@@ -1651,7 +1954,11 @@ namespace v2 {
     class TextRange;
     class Thread;
     class ThreadCwd;
+    class ThreadEnvironments;
+    class ThreadExtra2;
     class ThreadGitInfo;
+    class ThreadHistoryMode2;
+    class ThreadReasoningEffort;
     class ThreadSection2;
     class ThreadSource2;
     class ThreadStatus2;
@@ -1663,23 +1970,39 @@ namespace v2 {
     class ThreadArchiveParams;
     class ThreadArchiveResponse;
     class ThreadArchivedNotification;
+    class ThreadBackgroundTerminal;
+    class ThreadBackgroundTerminalsCleanParams;
+    class ThreadBackgroundTerminalsCleanResponse;
+    class ThreadBackgroundTerminalsListParams;
+    class ThreadBackgroundTerminalsListResponse;
+    class ThreadBackgroundTerminalsListResponseData;
+    class ThreadBackgroundTerminalsTerminateParams;
+    class ThreadBackgroundTerminalsTerminateResponse;
     class ThreadClosedNotification;
     class ThreadCompactStartParams;
     class ThreadCompactStartResponse;
+    class ThreadDecrementElicitationParams;
+    class ThreadDecrementElicitationResponse;
     class ThreadDeleteParams;
     class ThreadDeleteResponse;
     class ThreadDeletedNotification;
+    class ThreadEnvironment;
+    class ThreadEnvironmentRuntimeWorkspaceRoots;
     class ThreadExtra;
     class ThreadForkParams;
     class ThreadForkParamsApprovalPolicy;
     class ThreadForkParamsApprovalsReviewer;
     class ThreadForkParamsConfig;
+    class ThreadForkParamsRuntimeWorkspaceRoots;
     class ThreadForkParamsSandbox;
     class ThreadForkParamsThreadSource;
     class ThreadForkResponse;
+    class ThreadForkResponseActivePermissionProfile;
     class ThreadForkResponseApprovalsReviewer;
     class ThreadForkResponseInstructionSources;
+    class ThreadForkResponseMultiAgentMode;
     class ThreadForkResponseReasoningEffort;
+    class ThreadForkResponseRuntimeWorkspaceRoots;
     class ThreadForkResponseSandbox;
     class ThreadGoal;
     class ThreadGoalClearParams;
@@ -1695,6 +2018,8 @@ namespace v2 {
     class ThreadGoalUpdatedNotification;
     class ThreadHistoryMode;
     class ThreadId;
+    class ThreadIncrementElicitationParams;
+    class ThreadIncrementElicitationResponse;
     class ThreadInjectItemsParams;
     class ThreadInjectItemsParamsItems;
     class ThreadInjectItemsResponse;
@@ -1709,7 +2034,10 @@ namespace v2 {
     class AgentMessageThreadItemDelivery;
     class AgentMessageThreadItemMemoryCitation;
     class AgentMessageThreadItemPhase;
+    class AgentMessageThreadItemQuestions;
     class AgentMessageThreadItemType;
+    class FunctionCallOutputThreadItem;
+    class FunctionCallOutputThreadItemType;
     class PlanThreadItem;
     class PlanThreadItemType;
     class ReasoningThreadItem;
@@ -1760,11 +2088,16 @@ namespace v2 {
     class ContextCompactionThreadItem;
     class ContextCompactionThreadItemType;
     class ThreadItemEntry;
+    class ThreadItemsListParams;
+    class ThreadItemsListParamsSortDirection;
+    class ThreadItemsListResponse;
+    class ThreadItemsListResponseData;
     class ThreadListCwdFilter;
     class ThreadListCwdFilterAnyOf2;
     class ThreadListParams;
     class ThreadListParamsCwd;
     class ThreadListParamsModelProviders;
+    class ThreadListParamsOriginators;
     class ThreadListParamsSortDirection;
     class ThreadListParamsSortKey;
     class ThreadListParamsSourceKinds;
@@ -1774,22 +2107,78 @@ namespace v2 {
     class ThreadLoadedListResponse;
     class ThreadLoadedListResponseData;
     class ThreadMemoryMode;
+    class ThreadMemoryModeSetParams;
+    class ThreadMemoryModeSetResponse;
     class ThreadMetadataGitInfoUpdateParams;
     class ThreadMetadataUpdateParams;
     class ThreadMetadataUpdateParamsGitInfo;
     class ThreadMetadataUpdateResponse;
     class ThreadNameUpdatedNotification;
     class ThreadProjectUpdatedNotification;
+    class ThreadQueueAddParams;
+    class ThreadQueueAddParamsInput;
+    class ThreadQueueAddResponse;
     class ThreadQueueChangedNotification;
+    class ThreadQueueDeleteParams;
+    class ThreadQueueDeleteResponse;
+    class ThreadQueueListParams;
+    class ThreadQueueListResponse;
+    class ThreadQueueListResponseData;
+    class ThreadQueueReorderParams;
+    class ThreadQueueReorderParamsQueuedSubmissionIds;
+    class ThreadQueueReorderResponse;
+    class ThreadQueueStartParams;
+    class ThreadQueueStartResponse;
+    class ThreadQueueUpdateParams;
+    class ThreadQueueUpdateParamsInput;
+    class ThreadQueueUpdateResponse;
     class ThreadReadParams;
     class ThreadReadResponse;
+    class ThreadRealtimeAppendAudioParams;
+    class ThreadRealtimeAppendAudioResponse;
+    class ThreadRealtimeAppendSpeechParams;
+    class ThreadRealtimeAppendSpeechResponse;
+    class ThreadRealtimeAppendTextParams;
+    class ThreadRealtimeAppendTextParamsRole;
+    class ThreadRealtimeAppendTextResponse;
     class ThreadRealtimeAudioChunk;
+    class ThreadRealtimeBemItemPresentation;
+    class WholeItemThreadRealtimeBemItemPresentation;
+    class WholeItemThreadRealtimeBemItemPresentationType;
+    class InlineMarkdownThreadRealtimeBemItemPresentation;
+    class InlineMarkdownThreadRealtimeBemItemPresentationType;
+    class InlineVisualizationThreadRealtimeBemItemPresentation;
+    class InlineVisualizationThreadRealtimeBemItemPresentationType;
     class ThreadRealtimeClosedNotification;
     class ThreadRealtimeErrorNotification;
     class ThreadRealtimeInitialItem;
+    class ThreadRealtimeItem;
+    class RealtimeSessionStartedThreadRealtimeItem;
+    class RealtimeSessionStartedThreadRealtimeItemType;
+    class TranscriptSegmentThreadRealtimeItem;
+    class TranscriptSegmentThreadRealtimeItemType;
+    class BemItemPromotedThreadRealtimeItem;
+    class BemItemPromotedThreadRealtimeItemType;
+    class RealtimeSessionClosedThreadRealtimeItem;
+    class RealtimeSessionClosedThreadRealtimeItemType;
     class ThreadRealtimeItemAddedNotification;
+    class ThreadRealtimeItemCompletedNotification;
+    class ThreadRealtimeItemStartedNotification;
+    class ThreadRealtimeItemTranscriptDeltaNotification;
+    class ThreadRealtimeListVoicesParams;
+    class ThreadRealtimeListVoicesResponse;
     class ThreadRealtimeOutputAudioDeltaNotification;
     class ThreadRealtimeSdpNotification;
+    class ThreadRealtimeSessionOutcome;
+    class ThreadRealtimeStartParams;
+    class ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes;
+    class ThreadRealtimeStartParamsCodexResponseHandoffMode;
+    class ThreadRealtimeStartParamsInitialItems;
+    class ThreadRealtimeStartParamsOutputModality;
+    class ThreadRealtimeStartParamsTransport;
+    class ThreadRealtimeStartParamsVersion;
+    class ThreadRealtimeStartParamsVoice;
+    class ThreadRealtimeStartResponse;
     class ThreadRealtimeStartTransport;
     class WebsocketThreadRealtimeStartTransport;
     class WebsocketThreadRealtimeStartTransportType;
@@ -1798,8 +2187,11 @@ namespace v2 {
     class ExistingCallThreadRealtimeStartTransport;
     class ExistingCallThreadRealtimeStartTransportType;
     class ThreadRealtimeStartedNotification;
+    class ThreadRealtimeStopParams;
+    class ThreadRealtimeStopResponse;
     class ThreadRealtimeTranscriptDeltaNotification;
     class ThreadRealtimeTranscriptDoneNotification;
+    class ThreadRealtimeTranscriptRole;
     class ThreadResumeInitialTurnsPageParams;
     class ThreadResumeInitialTurnsPageParamsItemsView;
     class ThreadResumeInitialTurnsPageParamsSortDirection;
@@ -1807,19 +2199,41 @@ namespace v2 {
     class ThreadResumeParamsApprovalPolicy;
     class ThreadResumeParamsApprovalsReviewer;
     class ThreadResumeParamsConfig;
+    class ThreadResumeParamsHistory;
+    class ThreadResumeParamsInitialTurnsPage;
     class ThreadResumeParamsPersonality;
+    class ThreadResumeParamsRuntimeWorkspaceRoots;
     class ThreadResumeParamsSandbox;
     class ThreadResumeResponse;
+    class ThreadResumeResponseActivePermissionProfile;
     class ThreadResumeResponseApprovalsReviewer;
+    class ThreadResumeResponseInitialTurnsPage;
     class ThreadResumeResponseInstructionSources;
+    class ThreadResumeResponseMultiAgentMode;
     class ThreadResumeResponseReasoningEffort;
+    class ThreadResumeResponseRuntimeWorkspaceRoots;
     class ThreadResumeResponseSandbox;
+    class ThreadRevertParams;
+    class ThreadRevertResponse;
+    class ThreadRevertResponseThread;
     class ThreadRevertedNotification;
     class ThreadRollbackParams;
     class ThreadRollbackResponse;
     class ThreadRollbackResponseThread;
+    class ThreadSearchOccurrence;
+    class ThreadSearchOccurrenceSnippetMatchRange;
+    class ThreadSearchOccurrencesParams;
+    class ThreadSearchOccurrencesResponse;
+    class ThreadSearchOccurrencesResponseData;
+    class ThreadSearchParams;
+    class ThreadSearchParamsSortDirection;
+    class ThreadSearchParamsSortKey;
+    class ThreadSearchParamsSourceKinds;
+    class ThreadSearchResponse;
+    class ThreadSearchResponseData;
     class ThreadSearchResult;
     class ThreadSearchSortKey;
+    class ThreadSearchTextRange;
     class ThreadSection;
     class ThreadSectionAppearance2;
     class ThreadSectionAppearance;
@@ -1841,8 +2255,19 @@ namespace v2 {
     class ThreadSettings;
     class ThreadSettingsActivePermissionProfile;
     class ThreadSettingsEffort;
+    class ThreadSettingsMultiAgentMode;
     class ThreadSettingsPersonality;
     class ThreadSettingsSummary;
+    class ThreadSettingsUpdateParams;
+    class ThreadSettingsUpdateParamsApprovalPolicy;
+    class ThreadSettingsUpdateParamsApprovalsReviewer;
+    class ThreadSettingsUpdateParamsCollaborationMode;
+    class ThreadSettingsUpdateParamsEffort;
+    class ThreadSettingsUpdateParamsMultiAgentMode;
+    class ThreadSettingsUpdateParamsPersonality;
+    class ThreadSettingsUpdateParamsSandboxPolicy;
+    class ThreadSettingsUpdateParamsSummary;
+    class ThreadSettingsUpdateResponse;
     class ThreadSettingsUpdatedNotification;
     class ThreadShellCommandParams;
     class ThreadShellCommandResponse;
@@ -1853,14 +2278,23 @@ namespace v2 {
     class ThreadStartParamsApprovalPolicy;
     class ThreadStartParamsApprovalsReviewer;
     class ThreadStartParamsConfig;
+    class ThreadStartParamsDynamicTools;
+    class ThreadStartParamsEnvironments;
+    class ThreadStartParamsHistoryMode;
+    class ThreadStartParamsMultiAgentMode;
     class ThreadStartParamsPersonality;
+    class ThreadStartParamsRuntimeWorkspaceRoots;
     class ThreadStartParamsSandbox;
+    class ThreadStartParamsSelectedCapabilityRoots;
     class ThreadStartParamsSessionStartSource;
     class ThreadStartParamsThreadSource;
     class ThreadStartResponse;
+    class ThreadStartResponseActivePermissionProfile;
     class ThreadStartResponseApprovalsReviewer;
     class ThreadStartResponseInstructionSources;
+    class ThreadStartResponseMultiAgentMode;
     class ThreadStartResponseReasoningEffort;
+    class ThreadStartResponseRuntimeWorkspaceRoots;
     class ThreadStartResponseSandbox;
     class ThreadStartSource;
     class ThreadStartedNotification;
@@ -1875,8 +2309,26 @@ namespace v2 {
     class ActiveThreadStatusActiveFlags;
     class ActiveThreadStatusType;
     class ThreadStatusChangedNotification;
+    class ThreadTimelineEntry;
+    class ItemThreadTimelineEntry;
+    class ItemThreadTimelineEntryType;
+    class RealtimeThreadTimelineEntry;
+    class RealtimeThreadTimelineEntryType;
+    class TurnStartedThreadTimelineEntry;
+    class TurnStartedThreadTimelineEntryType;
+    class TurnCompletedThreadTimelineEntry;
+    class TurnCompletedThreadTimelineEntryError;
+    class TurnCompletedThreadTimelineEntryType;
+    class ThreadTimelineListParams;
+    class ThreadTimelineListResponse;
+    class ThreadTimelineListResponseData;
     class ThreadTokenUsage;
     class ThreadTokenUsageUpdatedNotification;
+    class ThreadTurnsListParams;
+    class ThreadTurnsListParamsItemsView;
+    class ThreadTurnsListParamsSortDirection;
+    class ThreadTurnsListResponse;
+    class ThreadTurnsListResponseData;
     class ThreadUnarchiveParams;
     class ThreadUnarchiveResponse;
     class ThreadUnarchivedNotification;
@@ -1901,6 +2353,7 @@ namespace v2 {
     class TurnEnvironmentParamsRuntimeWorkspaceRoots;
     class TurnError;
     class TurnErrorCodexErrorInfo;
+    class TurnErrorMisalignment;
     class TurnInterruptParams;
     class TurnInterruptResponse;
     class TurnItemsView;
@@ -1912,20 +2365,39 @@ namespace v2 {
     class TurnPlanStepStatus;
     class TurnPlanUpdatedNotification;
     class TurnPlanUpdatedNotificationPlan;
+    class TurnSettingsUpdateParams;
+    class TurnSettingsUpdateParamsApprovalsReviewer;
+    class TurnSettingsUpdateParamsEffort;
+    class TurnSettingsUpdateParamsSummary;
+    class TurnSettingsUpdateResponse;
+    class TurnSettingsUpdateStatus;
+    class TurnSettingsUpdateStatusOneOf1;
+    class TurnSettingsUpdateStatusOneOf2;
     class TurnStartParams;
+    class TurnStartParamsAdditionalContext;
     class TurnStartParamsApprovalPolicy;
     class TurnStartParamsApprovalsReviewer;
+    class TurnStartParamsCollaborationMode;
+    class TurnStartParamsCyberAccessProgram;
     class TurnStartParamsEffort;
+    class TurnStartParamsEnvironments;
     class TurnStartParamsInput;
+    class TurnStartParamsMultiAgentMode;
     class TurnStartParamsPersonality;
+    class TurnStartParamsResponsesapiClientMetadata;
+    class TurnStartParamsRuntimeWorkspaceRoots;
     class TurnStartParamsSandboxPolicy;
     class TurnStartParamsSummary;
+    class TurnStartParamsToolOutput;
     class TurnStartResponse;
     class TurnStartedNotification;
     class TurnStatus;
     class TurnSteerParams;
+    class TurnSteerParamsAdditionalContext;
     class TurnSteerParamsInput;
+    class TurnSteerParamsResponsesapiClientMetadata;
     class TurnSteerResponse;
+    class TurnToolOutput;
     class TurnsPage;
     class TurnsPageData;
     class UserInput;
@@ -1946,6 +2418,30 @@ namespace v2 {
     class SkillUserInputType;
     class MentionUserInput;
     class MentionUserInputType;
+    class UserVerificationCancellationReason;
+    class UserVerificationDeleteParams;
+    class UserVerificationDeleteResponse;
+    class UserVerificationEnrollParams;
+    class UserVerificationEnrollResponse;
+    class UserVerificationErrorDetails;
+    class InvalidRequestUserVerificationErrorDetails;
+    class InvalidRequestUserVerificationErrorDetailsType;
+    class UnavailableUserVerificationErrorDetails;
+    class UnavailableUserVerificationErrorDetailsType;
+    class CancelledUserVerificationErrorDetails;
+    class CancelledUserVerificationErrorDetailsType;
+    class FailedUserVerificationErrorDetails;
+    class FailedUserVerificationErrorDetailsType;
+    class UserVerificationFailureReason;
+    class UserVerificationInvalidRequestReason;
+    class UserVerificationProof;
+    class UserVerificationRpcError;
+    class UserVerificationStatusParams;
+    class UserVerificationStatusResponse;
+    class UserVerificationStatusResponseUnavailableReason;
+    class UserVerificationUnavailableReason;
+    class UserVerificationVerifyParams;
+    class UserVerificationVerifyResponse;
     class Verbosity;
     class WarningNotification;
     class WebSearchAction;
@@ -2107,7 +2603,7 @@ namespace root {
     class ClientRequest final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 95;
+        static constexpr std::size_t variantCount = 159;
     };
 
     class InitializeRequest final : public Value {
@@ -2120,6 +2616,91 @@ namespace root {
     };
 
     class InitializeRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ServerDiagnosticsRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ServerDiagnosticsRequestMethod method() const;
+        v2::ServerDiagnosticsParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ServerDiagnosticsRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationStatusRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        UserVerificationStatusRequestMethod method() const;
+        v2::UserVerificationStatusParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationStatusRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationEnrollRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        UserVerificationEnrollRequestMethod method() const;
+        v2::UserVerificationEnrollParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationEnrollRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationDeleteRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        UserVerificationDeleteRequestMethod method() const;
+        v2::UserVerificationDeleteParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationDeleteRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationVerifyRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        UserVerificationVerifyRequestMethod method() const;
+        v2::UserVerificationVerifyParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationVerifyRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -2229,6 +2810,40 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadIncrementElicitationRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadIncrementElicitationRequestMethod method() const;
+        v2::ThreadIncrementElicitationParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadIncrementElicitationRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadDecrementElicitationRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadDecrementElicitationRequestMethod method() const;
+        v2::ThreadDecrementElicitationParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadDecrementElicitationRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadNameSetRequest final : public Value {
     public:
         using Value::Value;
@@ -2297,6 +2912,108 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadQueueAddRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadQueueAddRequestMethod method() const;
+        v2::ThreadQueueAddParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueAddRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadQueueListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadQueueListRequestMethod method() const;
+        v2::ThreadQueueListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadQueueUpdateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadQueueUpdateRequestMethod method() const;
+        v2::ThreadQueueUpdateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueUpdateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadQueueDeleteRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadQueueDeleteRequestMethod method() const;
+        v2::ThreadQueueDeleteParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueDeleteRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadQueueReorderRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadQueueReorderRequestMethod method() const;
+        v2::ThreadQueueReorderParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueReorderRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadQueueStartRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadQueueStartRequestMethod method() const;
+        v2::ThreadQueueStartParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueStartRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadMetadataUpdateRequest final : public Value {
     public:
         using Value::Value;
@@ -2324,6 +3041,57 @@ namespace root {
     };
 
     class ThreadSectionMoveRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadSettingsUpdateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadSettingsUpdateRequestMethod method() const;
+        v2::ThreadSettingsUpdateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSettingsUpdateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadMemoryModeSetRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadMemoryModeSetRequestMethod method() const;
+        v2::ThreadMemoryModeSetParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadMemoryModeSetRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class MemoryResetRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        MemoryResetRequestMethod method() const;
+        nlohmann::json params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class MemoryResetRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -2399,6 +3167,57 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadBackgroundTerminalsCleanRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadBackgroundTerminalsCleanRequestMethod method() const;
+        v2::ThreadBackgroundTerminalsCleanParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsCleanRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadBackgroundTerminalsListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadBackgroundTerminalsListRequestMethod method() const;
+        v2::ThreadBackgroundTerminalsListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadBackgroundTerminalsTerminateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadBackgroundTerminalsTerminateRequestMethod method() const;
+        v2::ThreadBackgroundTerminalsTerminateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsTerminateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadRollbackRequest final : public Value {
     public:
         using Value::Value;
@@ -2416,6 +3235,23 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadRevertRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRevertRequestMethod method() const;
+        v2::ThreadRevertParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRevertRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadListRequest final : public Value {
     public:
         using Value::Value;
@@ -2426,6 +3262,125 @@ namespace root {
     };
 
     class ThreadListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectListRequestMethod method() const;
+        v2::ProjectListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectReadRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectReadRequestMethod method() const;
+        v2::ProjectReadParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectReadRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectCreateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectCreateRequestMethod method() const;
+        v2::ProjectCreateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectCreateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectImportRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectImportRequestMethod method() const;
+        v2::ProjectImportParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectImportRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectUpdateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectUpdateRequestMethod method() const;
+        v2::ProjectUpdateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectUpdateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectMoveRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectMoveRequestMethod method() const;
+        v2::ProjectMoveParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectMoveRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectDeleteRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProjectDeleteRequestMethod method() const;
+        v2::ProjectDeleteParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectDeleteRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -2501,6 +3456,40 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadSearchRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadSearchRequestMethod method() const;
+        v2::ThreadSearchParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadSearchOccurrencesRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadSearchOccurrencesRequestMethod method() const;
+        v2::ThreadSearchOccurrencesParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchOccurrencesRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadLoadedListRequest final : public Value {
     public:
         using Value::Value;
@@ -2528,6 +3517,40 @@ namespace root {
     };
 
     class ThreadReadRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadTurnsListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadTurnsListRequestMethod method() const;
+        v2::ThreadTurnsListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadTurnsListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadItemsListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadItemsListRequestMethod method() const;
+        v2::ThreadItemsListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadItemsListRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -2671,6 +3694,23 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class PluginSearchRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        PluginSearchRequestMethod method() const;
+        v2::PluginSearchParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginSearchRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class PluginInstalledRequest final : public Value {
     public:
         using Value::Value;
@@ -2681,6 +3721,23 @@ namespace root {
     };
 
     class PluginInstalledRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class PluginReconcileRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        PluginReconcileRequestMethod method() const;
+        v2::PluginReconcileParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginReconcileRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -3079,6 +4136,23 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class TurnSettingsUpdateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        TurnSettingsUpdateRequestMethod method() const;
+        v2::TurnSettingsUpdateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnSettingsUpdateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class TurnSteerRequest final : public Value {
     public:
         using Value::Value;
@@ -3106,6 +4180,125 @@ namespace root {
     };
 
     class TurnInterruptRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeStartRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRealtimeStartRequestMethod method() const;
+        v2::ThreadRealtimeStartParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeStartRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeAppendAudioRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRealtimeAppendAudioRequestMethod method() const;
+        v2::ThreadRealtimeAppendAudioParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendAudioRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeAppendTextRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRealtimeAppendTextRequestMethod method() const;
+        v2::ThreadRealtimeAppendTextParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendTextRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeAppendSpeechRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRealtimeAppendSpeechRequestMethod method() const;
+        v2::ThreadRealtimeAppendSpeechParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendSpeechRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeStopRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRealtimeStopRequestMethod method() const;
+        v2::ThreadRealtimeStopParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeStopRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadTimelineListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadTimelineListRequestMethod method() const;
+        v2::ThreadTimelineListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadTimelineListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeListVoicesRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ThreadRealtimeListVoicesRequestMethod method() const;
+        v2::ThreadRealtimeListVoicesParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeListVoicesRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -3215,6 +4408,222 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class RemoteControlEnableRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlEnableRequestMethod method() const;
+        RemoteControlEnableRequestParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlEnableRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlEnableRequestParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class RemoteControlDisableRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlDisableRequestMethod method() const;
+        RemoteControlDisableRequestParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlDisableRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlDisableRequestParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class RemoteControlStatusReadRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlStatusReadRequestMethod method() const;
+        nlohmann::json params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlStatusReadRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlPairingStartRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlPairingStartRequestMethod method() const;
+        v2::RemoteControlPairingStartParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlPairingStartRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlPairingStatusRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlPairingStatusRequestMethod method() const;
+        v2::RemoteControlPairingStatusParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlPairingStatusRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlClientListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlClientListRequestMethod method() const;
+        v2::RemoteControlClientsListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlClientListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlClientRevokeRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        RemoteControlClientRevokeRequestMethod method() const;
+        v2::RemoteControlClientsRevokeParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlClientRevokeRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class CollaborationModeListRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        CollaborationModeListRequestMethod method() const;
+        v2::CollaborationModeListParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class CollaborationModeListRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class MockExperimentalMethodRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        MockExperimentalMethodRequestMethod method() const;
+        v2::MockExperimentalMethodParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class MockExperimentalMethodRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentAddRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        EnvironmentAddRequestMethod method() const;
+        v2::EnvironmentAddParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentAddRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentInfoRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        EnvironmentInfoRequestMethod method() const;
+        v2::EnvironmentInfoParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentInfoRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentStatusRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        EnvironmentStatusRequestMethod method() const;
+        v2::EnvironmentStatusParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentStatusRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class McpServerOauthLoginRequest final : public Value {
     public:
         using Value::Value;
@@ -3276,6 +4685,40 @@ namespace root {
     };
 
     class McpServerResourceReadRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class McpServerEventStreamStartRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        McpServerEventStreamStartRequestMethod method() const;
+        v2::McpServerEventStreamStartParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerEventStreamStartRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class McpServerEventStreamStopRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        McpServerEventStreamStopRequestMethod method() const;
+        v2::McpServerEventStreamStopParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerEventStreamStopRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -3351,6 +4794,40 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class AccountBedrockDiscoverRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        AccountBedrockDiscoverRequestMethod method() const;
+        v2::BedrockDiscoverParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class AccountBedrockDiscoverRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class AccountBedrockSetupRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        AccountBedrockSetupRequestMethod method() const;
+        v2::BedrockSetupParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class AccountBedrockSetupRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class AccountLoginCancelRequest final : public Value {
     public:
         using Value::Value;
@@ -3390,7 +4867,7 @@ namespace root {
         using Value::Value;
         v2::RequestId id() const;
         AccountRateLimitsReadRequestMethod method() const;
-        nlohmann::json params() const;
+        AccountRateLimitsReadRequestParams params() const;
         std::vector<std::string> keys() const;
     };
 
@@ -3400,6 +4877,12 @@ namespace root {
         std::optional<std::string> value() const;
         bool isKnown() const;
         static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class AccountRateLimitsReadRequestParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
     };
 
     class AccountRateLimitResetCreditConsumeRequest final : public Value {
@@ -3554,6 +5037,74 @@ namespace root {
     };
 
     class CommandExecResizeRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProcessSpawnRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProcessSpawnRequestMethod method() const;
+        v2::ProcessSpawnParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessSpawnRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProcessWriteStdinRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProcessWriteStdinRequestMethod method() const;
+        v2::ProcessWriteStdinParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessWriteStdinRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProcessKillRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProcessKillRequestMethod method() const;
+        v2::ProcessKillParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessKillRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProcessResizePtyRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        ProcessResizePtyRequestMethod method() const;
+        v2::ProcessResizePtyParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessResizePtyRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -3731,6 +5282,57 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class FuzzyFileSearchSessionStartRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        FuzzyFileSearchSessionStartRequestMethod method() const;
+        FuzzyFileSearchSessionStartParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionStartRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class FuzzyFileSearchSessionUpdateRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        FuzzyFileSearchSessionUpdateRequestMethod method() const;
+        FuzzyFileSearchSessionUpdateParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionUpdateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class FuzzyFileSearchSessionStopRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        FuzzyFileSearchSessionStopRequestMethod method() const;
+        FuzzyFileSearchSessionStopParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionStopRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class CommandExecutionApprovalDecision final : public Value {
     public:
         using Value::Value;
@@ -3803,15 +5405,26 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class CommandExecutionApprovalKind final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class CommandExecutionRequestApprovalParams final : public Value {
     public:
         using Value::Value;
+        CommandExecutionRequestApprovalParamsAdditionalPermissions additionalPermissions() const;
         std::optional<std::string> approvalId() const;
+        CommandExecutionRequestApprovalParamsAvailableDecisions availableDecisions() const;
         std::optional<std::string> command() const;
         CommandExecutionRequestApprovalParamsCommandActions commandActions() const;
         CommandExecutionRequestApprovalParamsCwd cwd() const;
         std::optional<std::string> environmentId() const;
         std::optional<std::string> itemId() const;
+        CommandExecutionRequestApprovalParamsKind kind() const;
         CommandExecutionRequestApprovalParamsNetworkApprovalContext networkApprovalContext() const;
         CommandExecutionRequestApprovalParamsProposedExecpolicyAmendment proposedExecpolicyAmendment() const;
         CommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendments proposedNetworkPolicyAmendments() const;
@@ -3820,6 +5433,18 @@ namespace root {
         std::optional<std::string> threadId() const;
         std::optional<std::string> turnId() const;
         std::vector<std::string> keys() const;
+    };
+
+    class CommandExecutionRequestApprovalParamsAdditionalPermissions final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class CommandExecutionRequestApprovalParamsAvailableDecisions final : public Value {
+    public:
+        using Value::Value;
+        std::vector<CommandExecutionApprovalDecision> items() const;
     };
 
     class CommandExecutionRequestApprovalParamsCommandActions final : public Value {
@@ -3832,6 +5457,12 @@ namespace root {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class CommandExecutionRequestApprovalParamsKind final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
     };
 
     class CommandExecutionRequestApprovalParamsNetworkApprovalContext final : public Value {
@@ -3856,6 +5487,20 @@ namespace root {
     public:
         using Value::Value;
         CommandExecutionApprovalDecision decision() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class CurrentTimeReadParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class CurrentTimeReadResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> currentTimeAt() const;
         std::vector<std::string> keys() const;
     };
 
@@ -4087,6 +5732,53 @@ namespace root {
     public:
         using Value::Value;
         std::optional<std::string> sessionId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionStartParams final : public Value {
+    public:
+        using Value::Value;
+        FuzzyFileSearchSessionStartParamsRoots roots() const;
+        std::optional<std::string> sessionId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionStartParamsRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class FuzzyFileSearchSessionStartResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionStopParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> sessionId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionStopResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionUpdateParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> query() const;
+        std::optional<std::string> sessionId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FuzzyFileSearchSessionUpdateResponse final : public Value {
+    public:
+        using Value::Value;
         std::vector<std::string> keys() const;
     };
 
@@ -4519,10 +6211,10 @@ namespace root {
     class McpServerElicitationRequestParamsOneOf1 final : public Value {
     public:
         using Value::Value;
-        nlohmann::json meta() const;
-        std::optional<std::string> message() const;
+        std::optional<std::string> challenge() const;
+        std::optional<std::string> description() const;
         McpServerElicitationRequestParamsOneOf1Mode mode() const;
-        McpElicitationSchema requestedSchema() const;
+        std::optional<std::string> title() const;
         std::vector<std::string> keys() const;
     };
 
@@ -4540,7 +6232,7 @@ namespace root {
         nlohmann::json meta() const;
         std::optional<std::string> message() const;
         McpServerElicitationRequestParamsOneOf2Mode mode() const;
-        nlohmann::json requestedSchema() const;
+        McpElicitationSchema requestedSchema() const;
         std::vector<std::string> keys() const;
     };
 
@@ -4556,14 +6248,50 @@ namespace root {
     public:
         using Value::Value;
         nlohmann::json meta() const;
-        std::optional<std::string> elicitationId() const;
         std::optional<std::string> message() const;
         McpServerElicitationRequestParamsOneOf3Mode mode() const;
-        std::optional<std::string> url() const;
+        nlohmann::json requestedSchema() const;
         std::vector<std::string> keys() const;
     };
 
     class McpServerElicitationRequestParamsOneOf3Mode final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class McpServerElicitationRequestParamsOneOf4 final : public Value {
+    public:
+        using Value::Value;
+        nlohmann::json meta() const;
+        std::optional<std::string> message() const;
+        McpServerElicitationRequestParamsOneOf4Mode mode() const;
+        nlohmann::json requestedSchema() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerElicitationRequestParamsOneOf4Mode final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class McpServerElicitationRequestParamsOneOf5 final : public Value {
+    public:
+        using Value::Value;
+        nlohmann::json meta() const;
+        std::optional<std::string> elicitationId() const;
+        std::optional<std::string> message() const;
+        McpServerElicitationRequestParamsOneOf5Mode mode() const;
+        std::optional<std::string> url() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerElicitationRequestParamsOneOf5Mode final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -4690,7 +6418,7 @@ namespace root {
     class PermissionsRequestApprovalParams final : public Value {
     public:
         using Value::Value;
-        v2::AbsolutePathBuf cwd() const;
+        v2::LegacyAppPathString cwd() const;
         std::optional<std::string> environmentId() const;
         std::optional<std::string> itemId() const;
         v2::RequestPermissionProfile permissions() const;
@@ -5735,6 +7463,38 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ModelProviderAuthRecoveryStartedNotification final : public Value {
+    public:
+        using Value::Value;
+        ModelProviderAuthRecoveryStartedNotificationMethod method() const;
+        v2::AuthRecoveryNotification params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ModelProviderAuthRecoveryStartedNotificationMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ModelProviderAuthRecoveryCompletedNotification final : public Value {
+    public:
+        using Value::Value;
+        ModelProviderAuthRecoveryCompletedNotificationMethod method() const;
+        v2::AuthRecoveryNotification params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ModelProviderAuthRecoveryCompletedNotificationMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class TurnModerationMetadataNotification final : public Value {
     public:
         using Value::Value;
@@ -5895,6 +7655,54 @@ namespace root {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadRealtimeItemStartedNotification final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeItemStartedNotificationMethod method() const;
+        v2::ThreadRealtimeItemStartedNotification params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeItemStartedNotificationMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeItemTranscriptDeltaNotification final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeItemTranscriptDeltaNotificationMethod method() const;
+        v2::ThreadRealtimeItemTranscriptDeltaNotification params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeItemTranscriptDeltaNotificationMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeItemCompletedNotification final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeItemCompletedNotificationMethod method() const;
+        v2::ThreadRealtimeItemCompletedNotification params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeItemCompletedNotificationMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadRealtimeTranscriptDeltaNotification final : public Value {
     public:
         using Value::Value;
@@ -6042,7 +7850,7 @@ namespace root {
     class ServerRequest final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 10;
+        static constexpr std::size_t variantCount = 11;
     };
 
     class ItemCommandExecutionRequestApprovalRequest final : public Value {
@@ -6174,6 +7982,23 @@ namespace root {
     };
 
     class AttestationGenerateRequestMethod final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class CurrentTimeReadRequest final : public Value {
+    public:
+        using Value::Value;
+        v2::RequestId id() const;
+        CurrentTimeReadRequestMethod method() const;
+        CurrentTimeReadParams params() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class CurrentTimeReadRequestMethod final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -6589,6 +8414,7 @@ namespace v2 {
         std::optional<bool> defaultToolsEnabled() const;
         std::optional<bool> destructiveEnabled() const;
         std::optional<bool> enabled() const;
+        AppConfigLinks links() const;
         std::optional<bool> openWorldEnabled() const;
         AppConfigTools tools() const;
         std::vector<std::string> keys() const;
@@ -6601,6 +8427,12 @@ namespace v2 {
     };
 
     class AppConfigDefaultToolsApprovalMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class AppConfigLinks final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -6667,6 +8499,32 @@ namespace v2 {
     public:
         using Value::Value;
         std::vector<std::string> items() const;
+    };
+
+    class AppLinkConfig final : public Value {
+    public:
+        using Value::Value;
+        AppLinkConfigApprovalsReviewer approvalsReviewer() const;
+        AppLinkConfigDefaultToolsApprovalMode defaultToolsApprovalMode() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class AppLinkConfigApprovalsReviewer final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class AppLinkConfigDefaultToolsApprovalMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class AppLinksConfig final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
     };
 
     class AppListUpdatedNotification final : public Value {
@@ -6825,6 +8683,33 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ApplicationNetworkRequirements final : public Value {
+    public:
+        using Value::Value;
+        ApplicationNetworkRequirementsDomains domains() const;
+        std::optional<bool> enabled() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ApplicationNetworkRequirementsDomains final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ApplicationRequirements final : public Value {
+    public:
+        using Value::Value;
+        ApplicationRequirementsNetwork network() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ApplicationRequirementsNetwork final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class ApprovalsReviewer final : public Value {
     public:
         using Value::Value;
@@ -6981,10 +8866,24 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class AsyncUserInputQuestion final : public Value {
+    public:
+        using Value::Value;
+        AsyncUserInputQuestionOptions options() const;
+        std::optional<std::string> title() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class AsyncUserInputQuestionOptions final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
     class AuthMode final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 7;
+        static constexpr std::size_t variantCount = 8;
     };
 
     class AuthModeOneOf1 final : public Value {
@@ -7043,6 +8942,24 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class AuthModeOneOf8 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class AuthRecoveryNotification final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> message() const;
+        std::optional<std::string> provider() const;
+        std::optional<std::string> threadId() const;
+        std::optional<std::string> turnId() const;
+        std::vector<std::string> keys() const;
+    };
+
     class AutoCompactTokenLimitScope final : public Value {
     public:
         using Value::Value;
@@ -7091,6 +9008,101 @@ namespace v2 {
     public:
         using Value::Value;
         std::vector<std::string> items() const;
+    };
+
+    class AwsCredentialType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class BedrockAwsProfile final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> name() const;
+        std::optional<std::string> region() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class BedrockDiscoverParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class BedrockDiscoverResponse final : public Value {
+    public:
+        using Value::Value;
+        BedrockDiscoverResponseEnvironmentCredentials environmentCredentials() const;
+        BedrockDiscoverResponseProfiles profiles() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class BedrockDiscoverResponseEnvironmentCredentials final : public Value {
+    public:
+        using Value::Value;
+        std::vector<BedrockEnvironmentCredential> items() const;
+    };
+
+    class BedrockDiscoverResponseProfiles final : public Value {
+    public:
+        using Value::Value;
+        std::vector<BedrockAwsProfile> items() const;
+    };
+
+    class BedrockEnvironmentCredential final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> region() const;
+        AwsCredentialType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class BedrockSetupParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class Profilev2BedrockSetupParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> profile() const;
+        std::optional<std::string> region() const;
+        Profilev2BedrockSetupParamsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class Profilev2BedrockSetupParamsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class Environmentv2BedrockSetupParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> region() const;
+        Environmentv2BedrockSetupParamsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class Environmentv2BedrockSetupParamsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class BedrockSetupResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
     };
 
     class BrowserUseAccessApprovalLifetime final : public Value {
@@ -7210,6 +9222,7 @@ namespace v2 {
         using Value::Value;
         std::optional<bool> allowGlobalPersistentApproval() const;
         std::optional<bool> allowHistoryAccess() const;
+        std::optional<bool> allowWebmcp() const;
         BrowserUseRequirementsDefaultOriginPolicy defaultOriginPolicy() const;
         std::optional<bool> disableAutoReview() const;
         BrowserUseRequirementsOrigins origins() const;
@@ -7421,6 +9434,25 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class CollaborationModeListParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class CollaborationModeListResponse final : public Value {
+    public:
+        using Value::Value;
+        CollaborationModeListResponseData data() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class CollaborationModeListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<CollaborationModeMask> items() const;
+    };
+
     class CollaborationModeMask final : public Value {
     public:
         using Value::Value;
@@ -7571,6 +9603,7 @@ namespace v2 {
         std::optional<bool> disableTimeout() const;
         CommandExecParamsEnv env() const;
         std::optional<std::int64_t> outputBytesCap() const;
+        std::optional<std::string> permissionProfile() const;
         std::optional<std::string> processId() const;
         CommandExecParamsSandboxPolicy sandboxPolicy() const;
         CommandExecParamsSize size() const;
@@ -7851,6 +9884,7 @@ namespace v2 {
         ConfigAnalytics analytics() const;
         ConfigApprovalPolicy approvalPolicy() const;
         ConfigApprovalsReviewer approvalsReviewer() const;
+        ConfigApps apps() const;
         ConfigBrowserUse browserUse() const;
         std::optional<std::string> compactPrompt() const;
         ConfigComputerUse computerUse() const;
@@ -7889,6 +9923,12 @@ namespace v2 {
     };
 
     class ConfigApprovalsReviewer final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ConfigApps final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -8223,10 +10263,12 @@ namespace v2 {
         std::optional<bool> allowManagedHooksOnly() const;
         std::optional<bool> allowRemoteControl() const;
         ConfigRequirementsAllowedApprovalPolicies allowedApprovalPolicies() const;
+        ConfigRequirementsAllowedApprovalsReviewers allowedApprovalsReviewers() const;
         ConfigRequirementsAllowedPermissionProfiles allowedPermissionProfiles() const;
         ConfigRequirementsAllowedSandboxModes allowedSandboxModes() const;
         ConfigRequirementsAllowedWebSearchModes allowedWebSearchModes() const;
         ConfigRequirementsAllowedWindowsSandboxImplementations allowedWindowsSandboxImplementations() const;
+        ConfigRequirementsApplication application() const;
         ConfigRequirementsAutoReview autoReview() const;
         ConfigRequirementsBrowserUse browserUse() const;
         std::optional<std::string> chatgptBaseUrl() const;
@@ -8237,10 +10279,12 @@ namespace v2 {
         ConfigRequirementsEnforceResidency enforceResidency() const;
         ConfigRequirementsFeatureRequirements featureRequirements() const;
         ConfigRequirementsFeedback feedback() const;
+        ConfigRequirementsHooks hooks() const;
         ConfigRequirementsInAppBrowser inAppBrowser() const;
         std::optional<std::string> logDir() const;
         std::optional<std::string> modelCatalogJson() const;
         ConfigRequirementsModels models() const;
+        ConfigRequirementsNetwork network() const;
         std::optional<std::string> sqliteHome() const;
         std::optional<bool> windowsSandboxPrivateDesktop() const;
         std::vector<std::string> keys() const;
@@ -8250,6 +10294,12 @@ namespace v2 {
     public:
         using Value::Value;
         std::vector<AskForApproval> items() const;
+    };
+
+    class ConfigRequirementsAllowedApprovalsReviewers final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ApprovalsReviewer> items() const;
     };
 
     class ConfigRequirementsAllowedPermissionProfiles final : public Value {
@@ -8274,6 +10324,12 @@ namespace v2 {
     public:
         using Value::Value;
         std::vector<WindowsSandboxSetupMode> items() const;
+    };
+
+    class ConfigRequirementsApplication final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
     };
 
     class ConfigRequirementsAutoReview final : public Value {
@@ -8318,6 +10374,12 @@ namespace v2 {
         static constexpr std::size_t variantCount = 2;
     };
 
+    class ConfigRequirementsHooks final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class ConfigRequirementsInAppBrowser final : public Value {
     public:
         using Value::Value;
@@ -8325,6 +10387,12 @@ namespace v2 {
     };
 
     class ConfigRequirementsModels final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ConfigRequirementsNetwork final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -8390,6 +10458,13 @@ namespace v2 {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class ConfigurationReasoning final : public Value {
+    public:
+        using Value::Value;
+        ReasoningEffort effort() const;
+        std::vector<std::string> keys() const;
     };
 
     class ConfiguredHookHandler final : public Value {
@@ -8671,6 +10746,14 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class CyberAccessProgram final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class DeprecationNoticeNotification final : public Value {
     public:
         using Value::Value;
@@ -8823,12 +10906,115 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class EnvironmentAddParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> connectTimeoutMs() const;
+        std::optional<std::string> environmentId() const;
+        std::optional<std::string> execServerUrl() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentAddResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class EnvironmentConnectionNotification final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> environmentId() const;
         std::optional<std::string> threadId() const;
         std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentInfoParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> environmentId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentInfoResponse final : public Value {
+    public:
+        using Value::Value;
+        EnvironmentInfoResponseCwd cwd() const;
+        EnvironmentShellInfo shell() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentInfoResponseCwd final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class EnvironmentShellInfo final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> name() const;
+        std::optional<std::string> path() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentStatusKind final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 4;
+    };
+
+    class EnvironmentStatusKindOneOf1 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentStatusKindOneOf2 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentStatusKindOneOf3 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentStatusKindOneOf4 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class EnvironmentStatusParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> environmentId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentStatusResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> error() const;
+        EnvironmentStatusResponseStatus status() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class EnvironmentStatusResponseStatus final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
     };
 
     class ErrorNotification final : public Value {
@@ -9834,10 +12020,21 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class GetAccountRateLimitsParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> excludeResetCreditDetails() const;
+        std::optional<bool> supportsLunaReserve() const;
+        std::vector<std::string> keys() const;
+    };
+
     class GetAccountRateLimitsResponse final : public Value {
     public:
         using Value::Value;
+        std::optional<std::string> accountId() const;
+        std::optional<bool> ordinaryUsageAllowed() const;
         GetAccountRateLimitsResponseRateLimitResetCredits rateLimitResetCredits() const;
+        nlohmann::json rateLimitUpsell() const;
         GetAccountRateLimitsResponseRateLimits rateLimits() const;
         GetAccountRateLimitsResponseRateLimitsByLimitId rateLimitsByLimitId() const;
         std::vector<std::string> keys() const;
@@ -9951,14 +12148,14 @@ namespace v2 {
     class GuardianApprovalReviewAction final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 6;
+        static constexpr std::size_t variantCount = 7;
     };
 
     class CommandGuardianApprovalReviewAction final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> command() const;
-        AbsolutePathBuf cwd() const;
+        LegacyAppPathString cwd() const;
         GuardianCommandSource source() const;
         CommandGuardianApprovalReviewActionType type() const;
         std::vector<std::string> keys() const;
@@ -9997,10 +12194,29 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class WriteStdinGuardianApprovalReviewAction final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> approvalId() const;
+        LegacyAppPathString cwd() const;
+        std::optional<std::string> processId() const;
+        std::optional<std::string> stdin() const;
+        WriteStdinGuardianApprovalReviewActionType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class WriteStdinGuardianApprovalReviewActionType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ApplyPatchGuardianApprovalReviewAction final : public Value {
     public:
         using Value::Value;
-        AbsolutePathBuf cwd() const;
+        LegacyAppPathString cwd() const;
         ApplyPatchGuardianApprovalReviewActionFiles files() const;
         ApplyPatchGuardianApprovalReviewActionType type() const;
         std::vector<std::string> keys() const;
@@ -10009,7 +12225,7 @@ namespace v2 {
     class ApplyPatchGuardianApprovalReviewActionFiles final : public Value {
     public:
         using Value::Value;
-        std::vector<AbsolutePathBuf> items() const;
+        std::vector<LegacyAppPathString> items() const;
     };
 
     class ApplyPatchGuardianApprovalReviewActionType final : public Value {
@@ -10617,7 +12833,7 @@ namespace v2 {
     class LoginAccountParams final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 5;
+        static constexpr std::size_t variantCount = 6;
     };
 
     class ApiKeyv2LoginAccountParams final : public Value {
@@ -10703,6 +12919,25 @@ namespace v2 {
     };
 
     class AmazonBedrockv2LoginAccountParamsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class AmazonBedrockAccessKeysv2LoginAccountParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> accessKeyId() const;
+        std::optional<std::string> region() const;
+        std::optional<std::string> secretAccessKey() const;
+        std::optional<std::string> sessionToken() const;
+        AmazonBedrockAccessKeysv2LoginAccountParamsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class AmazonBedrockAccessKeysv2LoginAccountParamsType final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -10813,6 +13048,7 @@ namespace v2 {
     class ManagedHooksRequirements final : public Value {
     public:
         using Value::Value;
+        ManagedHooksRequirementsInterrupt interrupt() const;
         ManagedHooksRequirementsPermissionRequest permissionRequest() const;
         ManagedHooksRequirementsPostCompact postCompact() const;
         ManagedHooksRequirementsPostToolUse postToolUse() const;
@@ -10827,6 +13063,12 @@ namespace v2 {
         std::optional<std::string> managedDir() const;
         std::optional<std::string> windowsManagedDir() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ManagedHooksRequirementsInterrupt final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ConfiguredHookMatcherGroup> items() const;
     };
 
     class ManagedHooksRequirementsPermissionRequest final : public Value {
@@ -11054,6 +13296,37 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class McpServerEventStreamStartParams final : public Value {
+    public:
+        using Value::Value;
+        nlohmann::json meta() const;
+        nlohmann::json arguments() const;
+        std::optional<std::string> name() const;
+        std::optional<std::string> server() const;
+        std::optional<std::string> subscriptionId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerEventStreamStartResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerEventStreamStopParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> subscriptionId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class McpServerEventStreamStopResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class McpServerInfo final : public Value {
     public:
         using Value::Value;
@@ -11160,6 +13433,7 @@ namespace v2 {
         McpServerStatusRuntimeStatus runtimeStatus() const;
         McpServerStatusServerInfo serverInfo() const;
         McpServerStatusTools tools() const;
+        std::optional<std::string> toolsError() const;
         std::vector<std::string> keys() const;
     };
 
@@ -11326,6 +13600,12 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class MemoryResetResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class MergeStrategy final : public Value {
     public:
         using Value::Value;
@@ -11416,6 +13696,42 @@ namespace v2 {
     public:
         using Value::Value;
         std::vector<SubagentMigration> items() const;
+    };
+
+    class MisalignmentErrorDetails final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> detailedExplanation() const;
+        std::optional<std::string> errorType() const;
+        MisalignmentErrorDetailsSteer steer() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class MisalignmentErrorDetailsSteer final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class MisalignmentSteer final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> message() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class MockExperimentalMethodParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class MockExperimentalMethodResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> echoed() const;
+        std::vector<std::string> keys() const;
     };
 
     class ModeKind final : public Value {
@@ -11770,7 +14086,25 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class NullableGetAccountRateLimitsParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class NullableGetAccountTokenUsageParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class NullableRemoteControlDisableParams final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class NullableRemoteControlEnableParams final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -12273,6 +14607,88 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class PluginReconcileChangedPlugin final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> hasApps() const;
+        std::optional<bool> hasHooks() const;
+        std::optional<bool> hasMcps() const;
+        std::optional<bool> hasSkills() const;
+        std::optional<std::string> id() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginReconcileParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> reason() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginReconcileResponse final : public Value {
+    public:
+        using Value::Value;
+        PluginReconcileResponseChangedPlugins changedPlugins() const;
+        PluginReconcileResponseFailedMaterializationRemotePluginIds failedMaterializationRemotePluginIds() const;
+        PluginReconcileResponseFailedRemotePluginIds failedRemotePluginIds() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginReconcileResponseChangedPlugins final : public Value {
+    public:
+        using Value::Value;
+        std::vector<PluginReconcileChangedPlugin> items() const;
+    };
+
+    class PluginReconcileResponseFailedMaterializationRemotePluginIds final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class PluginReconcileResponseFailedRemotePluginIds final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class PluginSearchParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        PluginSearchParamsCwds cwds() const;
+        std::optional<std::int64_t> limit() const;
+        PluginSearchParamsScope scope() const;
+        std::optional<std::string> searchTerm() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginSearchParamsCwds final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
+    };
+
+    class PluginSearchParamsScope final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class PluginSearchResponse final : public Value {
+    public:
+        using Value::Value;
+        PluginSearchResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class PluginSearchResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<PluginSearchResult> items() const;
+    };
+
     class PluginSearchResult final : public Value {
     public:
         using Value::Value;
@@ -12703,6 +15119,19 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ProcessKillParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> processHandle() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessKillResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class ProcessOutputDeltaNotification final : public Value {
     public:
         using Value::Value;
@@ -12741,11 +15170,92 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ProcessResizePtyParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> processHandle() const;
+        ProcessResizePtyParamsSize size() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessResizePtyParamsSize final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ProcessResizePtyResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessSpawnParams final : public Value {
+    public:
+        using Value::Value;
+        ProcessSpawnParamsCommand command() const;
+        ProcessSpawnParamsCwd cwd() const;
+        ProcessSpawnParamsEnv env() const;
+        std::optional<std::int64_t> outputBytesCap() const;
+        std::optional<std::string> processHandle() const;
+        ProcessSpawnParamsSize size() const;
+        std::optional<bool> streamStdin() const;
+        std::optional<bool> streamStdoutStderr() const;
+        std::optional<std::int64_t> timeoutMs() const;
+        std::optional<bool> tty() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessSpawnParamsCommand final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class ProcessSpawnParamsCwd final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ProcessSpawnParamsEnv final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessSpawnParamsSize final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ProcessSpawnResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class ProcessTerminalSize final : public Value {
     public:
         using Value::Value;
         std::optional<std::int64_t> cols() const;
         std::optional<std::int64_t> rows() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessWriteStdinParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> closeStdin() const;
+        std::optional<std::string> deltaBase64() const;
+        std::optional<std::string> processHandle() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProcessWriteStdinResponse final : public Value {
+    public:
+        using Value::Value;
         std::vector<std::string> keys() const;
     };
 
@@ -12757,6 +15267,7 @@ namespace v2 {
         ProjectMetadata metadata() const;
         std::optional<std::string> name() const;
         std::optional<std::int64_t> position() const;
+        std::optional<std::int64_t> recencyAt() const;
         ProjectRoots roots() const;
         std::optional<std::int64_t> updatedAt() const;
         std::vector<std::string> keys() const;
@@ -12790,10 +15301,189 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ProjectCreateParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> idempotencyKey() const;
+        ProjectCreateParamsMetadata metadata() const;
+        std::optional<std::string> name() const;
+        ProjectCreateParamsRoots roots() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectCreateParamsMetadata final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectCreateParamsRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ProjectRoot> items() const;
+    };
+
+    class ProjectCreateResponse final : public Value {
+    public:
+        using Value::Value;
+        Project project() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectDeleteParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> projectId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectDeleteResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectImportParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> idempotencyKey() const;
+        ProjectImportParamsMetadata metadata() const;
+        std::optional<std::string> name() const;
+        ProjectImportParamsRoots roots() const;
+        ProjectImportParamsThreads threads() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectImportParamsMetadata final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectImportParamsRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ProjectRoot> items() const;
+    };
+
+    class ProjectImportParamsThreads final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class ProjectImportResponse final : public Value {
+    public:
+        using Value::Value;
+        Project project() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        ProjectListParamsSortDirection sortDirection() const;
+        ProjectListParamsSortKey sortKey() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectListParamsSortDirection final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ProjectListParamsSortKey final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ProjectListResponse final : public Value {
+    public:
+        using Value::Value;
+        ProjectListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<Project> items() const;
+    };
+
+    class ProjectMoveParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> beforeProjectId() const;
+        std::optional<std::string> projectId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectMoveResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectReadParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> projectId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectReadResponse final : public Value {
+    public:
+        using Value::Value;
+        Project project() const;
+        std::vector<std::string> keys() const;
+    };
+
     class ProjectRoot final : public Value {
     public:
         using Value::Value;
         AbsolutePathBuf path() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectSortKey final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ProjectUpdateParams final : public Value {
+    public:
+        using Value::Value;
+        ProjectUpdateParamsMetadata metadata() const;
+        std::optional<std::string> name() const;
+        std::optional<std::string> projectId() const;
+        ProjectUpdateParamsRoots roots() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectUpdateParamsMetadata final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ProjectUpdateParamsRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ProjectRoot> items() const;
+    };
+
+    class ProjectUpdateResponse final : public Value {
+    public:
+        using Value::Value;
+        Project project() const;
         std::vector<std::string> keys() const;
     };
 
@@ -12870,6 +15560,7 @@ namespace v2 {
         RateLimitSnapshotIndividualLimit individualLimit() const;
         std::optional<std::string> limitId() const;
         std::optional<std::string> limitName() const;
+        std::optional<std::string> normalModelSlug() const;
         RateLimitSnapshotPlanType planType() const;
         RateLimitSnapshotPrimary primary() const;
         RateLimitSnapshotRateLimitReachedType rateLimitReachedType() const;
@@ -12930,10 +15621,17 @@ namespace v2 {
         std::optional<std::string> threadId() const;
         std::optional<std::string> turnId() const;
         RawResponseCompletedNotificationUsage usage() const;
+        RawResponseCompletedNotificationUsageMetadata usageMetadata() const;
         std::vector<std::string> keys() const;
     };
 
     class RawResponseCompletedNotificationUsage final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class RawResponseCompletedNotificationUsageMetadata final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -13122,6 +15820,72 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class RemoteControlClient final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> appVersion() const;
+        std::optional<std::string> clientId() const;
+        std::optional<std::string> deviceModel() const;
+        std::optional<std::string> deviceType() const;
+        std::optional<std::string> displayName() const;
+        std::optional<std::int64_t> lastSeenAt() const;
+        std::optional<std::string> osVersion() const;
+        std::optional<std::string> platform() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlClientsListOrder final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RemoteControlClientsListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::string> environmentId() const;
+        std::optional<std::int64_t> limit() const;
+        RemoteControlClientsListParamsOrder order() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlClientsListParamsOrder final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class RemoteControlClientsListResponse final : public Value {
+    public:
+        using Value::Value;
+        RemoteControlClientsListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlClientsListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<RemoteControlClient> items() const;
+    };
+
+    class RemoteControlClientsRevokeParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> clientId() const;
+        std::optional<std::string> environmentId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlClientsRevokeResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class RemoteControlConnectionStatus final : public Value {
     public:
         using Value::Value;
@@ -13137,6 +15901,16 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class RemoteControlDisableResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> environmentId() const;
+        std::optional<std::string> installationId() const;
+        std::optional<std::string> serverName() const;
+        RemoteControlConnectionStatus status() const;
+        std::vector<std::string> keys() const;
+    };
+
     class RemoteControlEnableParams final : public Value {
     public:
         using Value::Value;
@@ -13144,7 +15918,59 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class RemoteControlEnableResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> environmentId() const;
+        std::optional<std::string> installationId() const;
+        std::optional<std::string> serverName() const;
+        RemoteControlConnectionStatus status() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlPairingStartParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> manualCode() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlPairingStartResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> environmentId() const;
+        std::optional<std::int64_t> expiresAt() const;
+        std::optional<std::string> manualPairingCode() const;
+        std::optional<std::string> pairingCode() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlPairingStatusParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> manualPairingCode() const;
+        std::optional<std::string> pairingCode() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlPairingStatusResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> claimed() const;
+        std::vector<std::string> keys() const;
+    };
+
     class RemoteControlStatusChangedNotification final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> environmentId() const;
+        std::optional<std::string> installationId() const;
+        std::optional<std::string> serverName() const;
+        RemoteControlConnectionStatus status() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RemoteControlStatusReadResponse final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> environmentId() const;
@@ -13250,7 +16076,7 @@ namespace v2 {
     class ResponseItem final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 16;
+        static constexpr std::size_t variantCount = 17;
     };
 
     class MessageResponseItem final : public Value {
@@ -13643,6 +16469,22 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ConfigurationUpdateResponseItem final : public Value {
+    public:
+        using Value::Value;
+        ConfigurationReasoning reasoning() const;
+        ConfigurationUpdateResponseItemType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ConfigurationUpdateResponseItemType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class CompactionTriggerResponseItem final : public Value {
     public:
         using Value::Value;
@@ -13695,6 +16537,14 @@ namespace v2 {
         std::optional<std::string> value() const;
         bool isKnown() const;
         static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ResponseUsageMetadata final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> amount() const;
+        nlohmann::json metadata() const;
+        std::vector<std::string> keys() const;
     };
 
     class ResponsesApiWebSearchAction final : public Value {
@@ -14121,6 +16971,12 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ServerDiagnosticsParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class ServerDiagnosticsProcess final : public Value {
     public:
         using Value::Value;
@@ -14128,6 +16984,20 @@ namespace v2 {
         std::optional<std::int64_t> physicalFootprintBytes() const;
         std::optional<std::int64_t> residentMemoryBytes() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ServerDiagnosticsResponse final : public Value {
+    public:
+        using Value::Value;
+        ServerDiagnosticsResponseGauges gauges() const;
+        ServerDiagnosticsProcess process() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ServerDiagnosticsResponseGauges final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ServerDiagnosticsGauge> items() const;
     };
 
     class ServerRequestResolvedNotification final : public Value {
@@ -14246,6 +17116,7 @@ namespace v2 {
         SkillMetadataInterface interface() const;
         std::optional<std::string> name() const;
         AbsolutePathBuf path() const;
+        std::optional<std::string> pluginId() const;
         SkillScope scope() const;
         std::optional<std::string> shortDescription() const;
         std::vector<std::string> keys() const;
@@ -14542,19 +17413,27 @@ namespace v2 {
         using Value::Value;
         std::optional<std::string> agentNickname() const;
         std::optional<std::string> agentRole() const;
+        std::optional<bool> canAcceptDirectInput() const;
         std::optional<std::string> cliVersion() const;
         std::optional<std::int64_t> createdAt() const;
         ThreadCwd cwd() const;
+        std::optional<bool> daybreakEnabled() const;
+        ThreadEnvironments environments() const;
         std::optional<bool> ephemeral() const;
+        ThreadExtra2 extra() const;
         std::optional<std::string> forkedFromId() const;
         ThreadGitInfo gitInfo() const;
+        ThreadHistoryMode2 historyMode() const;
         std::optional<std::string> id() const;
+        std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
         std::optional<std::string> name() const;
+        std::optional<std::string> originator() const;
         std::optional<std::string> parentThreadId() const;
         std::optional<std::string> path() const;
         std::optional<std::string> preview() const;
         std::optional<std::string> projectId() const;
+        ThreadReasoningEffort reasoningEffort() const;
         std::optional<std::int64_t> recencyAt() const;
         ThreadSection2 section() const;
         std::optional<std::int64_t> sectionEnteredAt() const;
@@ -14573,7 +17452,31 @@ namespace v2 {
         static constexpr std::size_t variantCount = 1;
     };
 
+    class ThreadEnvironments final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadEnvironment> items() const;
+    };
+
+    class ThreadExtra2 final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class ThreadGitInfo final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadHistoryMode2 final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ThreadReasoningEffort final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -14651,6 +17554,70 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadBackgroundTerminal final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> command() const;
+        std::optional<double> cpuPercent() const;
+        LegacyAppPathString cwd() const;
+        std::optional<std::string> itemId() const;
+        std::optional<std::int64_t> osPid() const;
+        std::optional<std::string> processId() const;
+        std::optional<std::int64_t> rssKb() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsCleanParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsCleanResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsListResponse final : public Value {
+    public:
+        using Value::Value;
+        ThreadBackgroundTerminalsListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadBackgroundTerminal> items() const;
+    };
+
+    class ThreadBackgroundTerminalsTerminateParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> processId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadBackgroundTerminalsTerminateResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> terminated() const;
+        std::vector<std::string> keys() const;
+    };
+
     class ThreadClosedNotification final : public Value {
     public:
         using Value::Value;
@@ -14668,6 +17635,21 @@ namespace v2 {
     class ThreadCompactStartResponse final : public Value {
     public:
         using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadDecrementElicitationParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadDecrementElicitationResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> count() const;
+        std::optional<bool> paused() const;
         std::vector<std::string> keys() const;
     };
 
@@ -14691,6 +17673,21 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadEnvironment final : public Value {
+    public:
+        using Value::Value;
+        LegacyAppPathString cwd() const;
+        std::optional<std::string> environmentId() const;
+        ThreadEnvironmentRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadEnvironmentRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<LegacyAppPathString> items() const;
+    };
+
     class ThreadExtra final : public Value {
     public:
         using Value::Value;
@@ -14703,13 +17700,19 @@ namespace v2 {
         ThreadForkParamsApprovalPolicy approvalPolicy() const;
         ThreadForkParamsApprovalsReviewer approvalsReviewer() const;
         std::optional<std::string> baseInstructions() const;
+        std::optional<std::string> beforeTurnId() const;
         ThreadForkParamsConfig config() const;
         std::optional<std::string> cwd() const;
+        std::optional<bool> deferGoalContinuation() const;
         std::optional<std::string> developerInstructions() const;
         std::optional<bool> ephemeral() const;
+        std::optional<bool> excludeTurns() const;
         std::optional<std::string> lastTurnId() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        std::optional<std::string> path() const;
+        std::optional<std::string> permissions() const;
+        ThreadForkParamsRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         ThreadForkParamsSandbox sandbox() const;
         std::optional<std::string> serviceTier() const;
         std::optional<std::string> threadId() const;
@@ -14735,6 +17738,12 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadForkParamsRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
+    };
+
     class ThreadForkParamsSandbox final : public Value {
     public:
         using Value::Value;
@@ -14750,17 +17759,26 @@ namespace v2 {
     class ThreadForkResponse final : public Value {
     public:
         using Value::Value;
+        ThreadForkResponseActivePermissionProfile activePermissionProfile() const;
         AskForApproval approvalPolicy() const;
         ThreadForkResponseApprovalsReviewer approvalsReviewer() const;
         AbsolutePathBuf cwd() const;
         ThreadForkResponseInstructionSources instructionSources() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        ThreadForkResponseMultiAgentMode multiAgentMode() const;
         ThreadForkResponseReasoningEffort reasoningEffort() const;
+        ThreadForkResponseRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         ThreadForkResponseSandbox sandbox() const;
         std::optional<std::string> serviceTier() const;
         Thread thread() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ThreadForkResponseActivePermissionProfile final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
     };
 
     class ThreadForkResponseApprovalsReviewer final : public Value {
@@ -14775,10 +17793,22 @@ namespace v2 {
         std::vector<LegacyAppPathString> items() const;
     };
 
+    class ThreadForkResponseMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
     class ThreadForkResponseReasoningEffort final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadForkResponseRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
     };
 
     class ThreadForkResponseSandbox final : public Value {
@@ -14896,6 +17926,21 @@ namespace v2 {
         std::optional<std::string> value() const;
     };
 
+    class ThreadIncrementElicitationParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadIncrementElicitationResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> count() const;
+        std::optional<bool> paused() const;
+        std::vector<std::string> keys() const;
+    };
+
     class ThreadInjectItemsParams final : public Value {
     public:
         using Value::Value;
@@ -14919,7 +17964,7 @@ namespace v2 {
     class ThreadItem final : public Value {
     public:
         using Value::Value;
-        static constexpr std::size_t variantCount = 18;
+        static constexpr std::size_t variantCount = 19;
     };
 
     class UserMessageThreadItem final : public Value {
@@ -14976,6 +18021,7 @@ namespace v2 {
         std::optional<std::string> id() const;
         AgentMessageThreadItemMemoryCitation memoryCitation() const;
         AgentMessageThreadItemPhase phase() const;
+        AgentMessageThreadItemQuestions questions() const;
         std::optional<std::string> text() const;
         AgentMessageThreadItemType type() const;
         std::vector<std::string> keys() const;
@@ -14999,7 +18045,32 @@ namespace v2 {
         static constexpr std::size_t variantCount = 2;
     };
 
+    class AgentMessageThreadItemQuestions final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AsyncUserInputQuestion> items() const;
+    };
+
     class AgentMessageThreadItemType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class FunctionCallOutputThreadItem final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> id() const;
+        std::optional<std::string> name() const;
+        std::optional<std::string> namespace_() const;
+        FunctionCallOutputBody output() const;
+        FunctionCallOutputThreadItemType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FunctionCallOutputThreadItemType final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> value() const;
@@ -15427,6 +18498,38 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadItemsListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        ThreadItemsListParamsSortDirection sortDirection() const;
+        std::optional<std::string> threadId() const;
+        std::optional<std::string> turnId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadItemsListParamsSortDirection final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadItemsListResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> backwardsCursor() const;
+        ThreadItemsListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadItemsListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadItemEntry> items() const;
+    };
+
     class ThreadListCwdFilter final : public Value {
     public:
         using Value::Value;
@@ -15442,11 +18545,15 @@ namespace v2 {
     class ThreadListParams final : public Value {
     public:
         using Value::Value;
+        std::optional<std::string> ancestorThreadId() const;
         std::optional<bool> archived() const;
         std::optional<std::string> cursor() const;
         ThreadListParamsCwd cwd() const;
         std::optional<std::int64_t> limit() const;
         ThreadListParamsModelProviders modelProviders() const;
+        ThreadListParamsOriginators originators() const;
+        std::optional<std::string> parentThreadId() const;
+        std::optional<std::string> projectId() const;
         std::optional<std::string> searchTerm() const;
         std::optional<std::string> sectionId() const;
         ThreadListParamsSortDirection sortDirection() const;
@@ -15463,6 +18570,12 @@ namespace v2 {
     };
 
     class ThreadListParamsModelProviders final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class ThreadListParamsOriginators final : public Value {
     public:
         using Value::Value;
         std::vector<std::string> items() const;
@@ -15531,6 +18644,20 @@ namespace v2 {
         static const std::vector<nlohmann::json>& knownValues();
     };
 
+    class ThreadMemoryModeSetParams final : public Value {
+    public:
+        using Value::Value;
+        ThreadMemoryMode mode() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadMemoryModeSetResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class ThreadMetadataGitInfoUpdateParams final : public Value {
     public:
         using Value::Value;
@@ -15543,7 +18670,9 @@ namespace v2 {
     class ThreadMetadataUpdateParams final : public Value {
     public:
         using Value::Value;
+        std::optional<bool> daybreakEnabled() const;
         ThreadMetadataUpdateParamsGitInfo gitInfo() const;
+        std::optional<std::string> projectId() const;
         std::optional<std::string> threadId() const;
         std::vector<std::string> keys() const;
     };
@@ -15577,10 +18706,127 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadQueueAddParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> clientUserMessageId() const;
+        ThreadQueueAddParamsInput input() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueAddParamsInput final : public Value {
+    public:
+        using Value::Value;
+        std::vector<UserInput> items() const;
+    };
+
+    class ThreadQueueAddResponse final : public Value {
+    public:
+        using Value::Value;
+        QueuedSubmission queuedSubmission() const;
+        std::vector<std::string> keys() const;
+    };
+
     class ThreadQueueChangedNotification final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueDeleteParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> queuedSubmissionId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueDeleteResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> deleted() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueListResponse final : public Value {
+    public:
+        using Value::Value;
+        ThreadQueueListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<QueuedSubmission> items() const;
+    };
+
+    class ThreadQueueReorderParams final : public Value {
+    public:
+        using Value::Value;
+        ThreadQueueReorderParamsQueuedSubmissionIds queuedSubmissionIds() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueReorderParamsQueuedSubmissionIds final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> items() const;
+    };
+
+    class ThreadQueueReorderResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueStartParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> queuedSubmissionId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueStartResponse final : public Value {
+    public:
+        using Value::Value;
+        Turn turn() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueUpdateParams final : public Value {
+    public:
+        using Value::Value;
+        ThreadQueueUpdateParamsInput input() const;
+        std::optional<std::string> queuedSubmissionId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadQueueUpdateParamsInput final : public Value {
+    public:
+        using Value::Value;
+        std::vector<UserInput> items() const;
+    };
+
+    class ThreadQueueUpdateResponse final : public Value {
+    public:
+        using Value::Value;
+        QueuedSubmission queuedSubmission() const;
         std::vector<std::string> keys() const;
     };
 
@@ -15599,6 +18845,55 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadRealtimeAppendAudioParams final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeAudioChunk audio() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendAudioResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendSpeechParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> text() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendSpeechResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendTextParams final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeAppendTextParamsRole role() const;
+        std::optional<std::string> text() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeAppendTextParamsRole final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ThreadRealtimeAppendTextResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class ThreadRealtimeAudioChunk final : public Value {
     public:
         using Value::Value;
@@ -15608,6 +18903,58 @@ namespace v2 {
         std::optional<std::int64_t> sampleRate() const;
         std::optional<std::int64_t> samplesPerChannel() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeBemItemPresentation final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 3;
+    };
+
+    class WholeItemThreadRealtimeBemItemPresentation final : public Value {
+    public:
+        using Value::Value;
+        WholeItemThreadRealtimeBemItemPresentationType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class WholeItemThreadRealtimeBemItemPresentationType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class InlineMarkdownThreadRealtimeBemItemPresentation final : public Value {
+    public:
+        using Value::Value;
+        InlineMarkdownThreadRealtimeBemItemPresentationType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class InlineMarkdownThreadRealtimeBemItemPresentationType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class InlineVisualizationThreadRealtimeBemItemPresentation final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> index() const;
+        InlineVisualizationThreadRealtimeBemItemPresentationType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class InlineVisualizationThreadRealtimeBemItemPresentationType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
     };
 
     class ThreadRealtimeClosedNotification final : public Value {
@@ -15634,11 +18981,123 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadRealtimeItem final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> id() const;
+        std::optional<std::string> realtimeSessionId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RealtimeSessionStartedThreadRealtimeItem final : public Value {
+    public:
+        using Value::Value;
+        RealtimeSessionStartedThreadRealtimeItemType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RealtimeSessionStartedThreadRealtimeItemType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class TranscriptSegmentThreadRealtimeItem final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeTranscriptRole role() const;
+        std::optional<std::string> text() const;
+        TranscriptSegmentThreadRealtimeItemType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TranscriptSegmentThreadRealtimeItemType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class BemItemPromotedThreadRealtimeItem final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> itemId() const;
+        ThreadRealtimeBemItemPresentation presentation() const;
+        std::optional<std::string> turnId() const;
+        BemItemPromotedThreadRealtimeItemType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class BemItemPromotedThreadRealtimeItemType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RealtimeSessionClosedThreadRealtimeItem final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeSessionOutcome outcome() const;
+        RealtimeSessionClosedThreadRealtimeItemType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RealtimeSessionClosedThreadRealtimeItemType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class ThreadRealtimeItemAddedNotification final : public Value {
     public:
         using Value::Value;
         nlohmann::json item() const;
         std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeItemCompletedNotification final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeItem item() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeItemStartedNotification final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeItem item() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeItemTranscriptDeltaNotification final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> delta() const;
+        std::optional<std::string> itemId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeListVoicesParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeListVoicesResponse final : public Value {
+    public:
+        using Value::Value;
+        RealtimeVoicesList voices() const;
         std::vector<std::string> keys() const;
     };
 
@@ -15655,6 +19114,87 @@ namespace v2 {
         using Value::Value;
         std::optional<std::string> sdp() const;
         std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeSessionOutcome final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadRealtimeStartParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> clientManagedHandoffs() const;
+        ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes codexResponseHandoffChannelPrefixes() const;
+        ThreadRealtimeStartParamsCodexResponseHandoffMode codexResponseHandoffMode() const;
+        std::optional<std::string> codexResponseItemPrefix() const;
+        std::optional<bool> codexResponsesAsItems() const;
+        std::optional<bool> delegationAckFiller() const;
+        std::optional<bool> flushTranscriptTailOnSessionEnd() const;
+        std::optional<bool> includeStartupContext() const;
+        ThreadRealtimeStartParamsInitialItems initialItems() const;
+        std::optional<std::string> model() const;
+        ThreadRealtimeStartParamsOutputModality outputModality() const;
+        std::optional<std::string> prompt() const;
+        std::optional<std::string> realtimeEndInstructions() const;
+        std::optional<std::string> realtimeSessionId() const;
+        std::optional<std::string> realtimeStartInstructions() const;
+        std::optional<std::string> threadId() const;
+        ThreadRealtimeStartParamsTransport transport() const;
+        ThreadRealtimeStartParamsVersion version() const;
+        ThreadRealtimeStartParamsVoice voice() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeStartParamsCodexResponseHandoffMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadRealtimeStartParamsInitialItems final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadRealtimeInitialItem> items() const;
+    };
+
+    class ThreadRealtimeStartParamsOutputModality final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ThreadRealtimeStartParamsTransport final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadRealtimeStartParamsVersion final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadRealtimeStartParamsVoice final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadRealtimeStartResponse final : public Value {
+    public:
+        using Value::Value;
         std::vector<std::string> keys() const;
     };
 
@@ -15720,6 +19260,19 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadRealtimeStopParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeStopResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class ThreadRealtimeTranscriptDeltaNotification final : public Value {
     public:
         using Value::Value;
@@ -15736,6 +19289,14 @@ namespace v2 {
         std::optional<std::string> text() const;
         std::optional<std::string> threadId() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ThreadRealtimeTranscriptRole final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
     };
 
     class ThreadResumeInitialTurnsPageParams final : public Value {
@@ -15768,9 +19329,15 @@ namespace v2 {
         ThreadResumeParamsConfig config() const;
         std::optional<std::string> cwd() const;
         std::optional<std::string> developerInstructions() const;
+        std::optional<bool> excludeTurns() const;
+        ThreadResumeParamsHistory history() const;
+        ThreadResumeParamsInitialTurnsPage initialTurnsPage() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        std::optional<std::string> path() const;
+        std::optional<std::string> permissions() const;
         ThreadResumeParamsPersonality personality() const;
+        ThreadResumeParamsRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         ThreadResumeParamsSandbox sandbox() const;
         std::optional<std::string> serviceTier() const;
         std::optional<std::string> threadId() const;
@@ -15795,10 +19362,28 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadResumeParamsHistory final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ResponseItem> items() const;
+    };
+
+    class ThreadResumeParamsInitialTurnsPage final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class ThreadResumeParamsPersonality final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadResumeParamsRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
     };
 
     class ThreadResumeParamsSandbox final : public Value {
@@ -15810,17 +19395,29 @@ namespace v2 {
     class ThreadResumeResponse final : public Value {
     public:
         using Value::Value;
+        ThreadResumeResponseActivePermissionProfile activePermissionProfile() const;
         AskForApproval approvalPolicy() const;
         ThreadResumeResponseApprovalsReviewer approvalsReviewer() const;
         AbsolutePathBuf cwd() const;
+        ThreadResumeResponseInitialTurnsPage initialTurnsPage() const;
         ThreadResumeResponseInstructionSources instructionSources() const;
+        std::optional<std::string> itemsBackwardsCursor() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        ThreadResumeResponseMultiAgentMode multiAgentMode() const;
         ThreadResumeResponseReasoningEffort reasoningEffort() const;
+        ThreadResumeResponseRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         ThreadResumeResponseSandbox sandbox() const;
         std::optional<std::string> serviceTier() const;
         Thread thread() const;
+        std::optional<std::string> turnsBackwardsCursor() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ThreadResumeResponseActivePermissionProfile final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
     };
 
     class ThreadResumeResponseApprovalsReviewer final : public Value {
@@ -15829,10 +19426,22 @@ namespace v2 {
         static constexpr std::size_t variantCount = 1;
     };
 
+    class ThreadResumeResponseInitialTurnsPage final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class ThreadResumeResponseInstructionSources final : public Value {
     public:
         using Value::Value;
         std::vector<LegacyAppPathString> items() const;
+    };
+
+    class ThreadResumeResponseMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
     };
 
     class ThreadResumeResponseReasoningEffort final : public Value {
@@ -15841,7 +19450,36 @@ namespace v2 {
         static constexpr std::size_t variantCount = 2;
     };
 
+    class ThreadResumeResponseRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
+    };
+
     class ThreadResumeResponseSandbox final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ThreadRevertParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> beforeTurnId() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRevertResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> itemsBackwardsCursor() const;
+        ThreadRevertResponseThread thread() const;
+        std::optional<std::string> turnsBackwardsCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadRevertResponseThread final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 1;
@@ -15875,6 +19513,93 @@ namespace v2 {
         static constexpr std::size_t variantCount = 1;
     };
 
+    class ThreadSearchOccurrence final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> itemId() const;
+        std::optional<std::string> snippet() const;
+        ThreadSearchOccurrenceSnippetMatchRange snippetMatchRange() const;
+        std::optional<std::string> turnCursor() const;
+        std::optional<std::string> turnId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchOccurrenceSnippetMatchRange final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
+    class ThreadSearchOccurrencesParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        std::optional<std::string> searchTerm() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchOccurrencesResponse final : public Value {
+    public:
+        using Value::Value;
+        ThreadSearchOccurrencesResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchOccurrencesResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadSearchOccurrence> items() const;
+    };
+
+    class ThreadSearchParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<bool> archived() const;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        std::optional<std::string> searchTerm() const;
+        ThreadSearchParamsSortDirection sortDirection() const;
+        ThreadSearchParamsSortKey sortKey() const;
+        ThreadSearchParamsSourceKinds sourceKinds() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchParamsSortDirection final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSearchParamsSortKey final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSearchParamsSourceKinds final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadSourceKind> items() const;
+    };
+
+    class ThreadSearchResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> backwardsCursor() const;
+        ThreadSearchResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSearchResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadSearchResult> items() const;
+    };
+
     class ThreadSearchResult final : public Value {
     public:
         using Value::Value;
@@ -15889,6 +19614,14 @@ namespace v2 {
         std::optional<std::string> value() const;
         bool isKnown() const;
         static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadSearchTextRange final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> end() const;
+        std::optional<std::int64_t> start() const;
+        std::vector<std::string> keys() const;
     };
 
     class ThreadSection final : public Value {
@@ -16032,6 +19765,7 @@ namespace v2 {
         ThreadSettingsEffort effort() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        ThreadSettingsMultiAgentMode multiAgentMode() const;
         ThreadSettingsPersonality personality() const;
         SandboxPolicy sandboxPolicy() const;
         std::optional<std::string> serviceTier() const;
@@ -16051,6 +19785,12 @@ namespace v2 {
         static constexpr std::size_t variantCount = 2;
     };
 
+    class ThreadSettingsMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
     class ThreadSettingsPersonality final : public Value {
     public:
         using Value::Value;
@@ -16061,6 +19801,79 @@ namespace v2 {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParams final : public Value {
+    public:
+        using Value::Value;
+        ThreadSettingsUpdateParamsApprovalPolicy approvalPolicy() const;
+        ThreadSettingsUpdateParamsApprovalsReviewer approvalsReviewer() const;
+        ThreadSettingsUpdateParamsCollaborationMode collaborationMode() const;
+        std::optional<std::string> cwd() const;
+        ThreadSettingsUpdateParamsEffort effort() const;
+        std::optional<std::string> model() const;
+        ThreadSettingsUpdateParamsMultiAgentMode multiAgentMode() const;
+        std::optional<std::string> permissions() const;
+        ThreadSettingsUpdateParamsPersonality personality() const;
+        ThreadSettingsUpdateParamsSandboxPolicy sandboxPolicy() const;
+        std::optional<std::string> serviceTier() const;
+        ThreadSettingsUpdateParamsSummary summary() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadSettingsUpdateParamsApprovalPolicy final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsApprovalsReviewer final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsCollaborationMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsEffort final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsPersonality final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsSandboxPolicy final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateParamsSummary final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadSettingsUpdateResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
     };
 
     class ThreadSettingsUpdatedNotification final : public Value {
@@ -16076,6 +19889,7 @@ namespace v2 {
         using Value::Value;
         std::optional<std::string> command() const;
         std::optional<std::string> threadId() const;
+        std::optional<std::int64_t> timeoutMs() const;
         std::vector<std::string> keys() const;
     };
 
@@ -16110,17 +19924,28 @@ namespace v2 {
     class ThreadStartParams final : public Value {
     public:
         using Value::Value;
+        std::optional<bool> allowProviderModelFallback() const;
         ThreadStartParamsApprovalPolicy approvalPolicy() const;
         ThreadStartParamsApprovalsReviewer approvalsReviewer() const;
         std::optional<std::string> baseInstructions() const;
         ThreadStartParamsConfig config() const;
         std::optional<std::string> cwd() const;
         std::optional<std::string> developerInstructions() const;
+        ThreadStartParamsDynamicTools dynamicTools() const;
+        ThreadStartParamsEnvironments environments() const;
         std::optional<bool> ephemeral() const;
+        std::optional<bool> experimentalRawEvents() const;
+        ThreadStartParamsHistoryMode historyMode() const;
+        std::optional<std::string> mockExperimentalField() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        ThreadStartParamsMultiAgentMode multiAgentMode() const;
+        std::optional<std::string> permissions() const;
         ThreadStartParamsPersonality personality() const;
+        std::optional<std::string> projectId() const;
+        ThreadStartParamsRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         ThreadStartParamsSandbox sandbox() const;
+        ThreadStartParamsSelectedCapabilityRoots selectedCapabilityRoots() const;
         std::optional<std::string> serviceName() const;
         std::optional<std::string> serviceTier() const;
         ThreadStartParamsSessionStartSource sessionStartSource() const;
@@ -16146,16 +19971,52 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadStartParamsDynamicTools final : public Value {
+    public:
+        using Value::Value;
+        std::vector<DynamicToolSpec> items() const;
+    };
+
+    class ThreadStartParamsEnvironments final : public Value {
+    public:
+        using Value::Value;
+        std::vector<TurnEnvironmentParams> items() const;
+    };
+
+    class ThreadStartParamsHistoryMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadStartParamsMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class ThreadStartParamsPersonality final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
     };
 
+    class ThreadStartParamsRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
+    };
+
     class ThreadStartParamsSandbox final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadStartParamsSelectedCapabilityRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<SelectedCapabilityRoot> items() const;
     };
 
     class ThreadStartParamsSessionStartSource final : public Value {
@@ -16173,17 +20034,26 @@ namespace v2 {
     class ThreadStartResponse final : public Value {
     public:
         using Value::Value;
+        ThreadStartResponseActivePermissionProfile activePermissionProfile() const;
         AskForApproval approvalPolicy() const;
         ThreadStartResponseApprovalsReviewer approvalsReviewer() const;
         AbsolutePathBuf cwd() const;
         ThreadStartResponseInstructionSources instructionSources() const;
         std::optional<std::string> model() const;
         std::optional<std::string> modelProvider() const;
+        ThreadStartResponseMultiAgentMode multiAgentMode() const;
         ThreadStartResponseReasoningEffort reasoningEffort() const;
+        ThreadStartResponseRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         ThreadStartResponseSandbox sandbox() const;
         std::optional<std::string> serviceTier() const;
         Thread thread() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ThreadStartResponseActivePermissionProfile final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
     };
 
     class ThreadStartResponseApprovalsReviewer final : public Value {
@@ -16198,10 +20068,22 @@ namespace v2 {
         std::vector<LegacyAppPathString> items() const;
     };
 
+    class ThreadStartResponseMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 1;
+    };
+
     class ThreadStartResponseReasoningEffort final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadStartResponseRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
     };
 
     class ThreadStartResponseSandbox final : public Value {
@@ -16306,6 +20188,117 @@ namespace v2 {
         std::vector<std::string> keys() const;
     };
 
+    class ThreadTimelineEntry final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 4;
+    };
+
+    class ItemThreadTimelineEntry final : public Value {
+    public:
+        using Value::Value;
+        ThreadItem item() const;
+        std::optional<std::int64_t> position() const;
+        std::optional<std::string> turnId() const;
+        ItemThreadTimelineEntryType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ItemThreadTimelineEntryType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class RealtimeThreadTimelineEntry final : public Value {
+    public:
+        using Value::Value;
+        ThreadRealtimeItem item() const;
+        std::optional<std::int64_t> position() const;
+        RealtimeThreadTimelineEntryType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class RealtimeThreadTimelineEntryType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class TurnStartedThreadTimelineEntry final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> position() const;
+        std::optional<std::int64_t> startedAt() const;
+        std::optional<std::string> turnId() const;
+        TurnStartedThreadTimelineEntryType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnStartedThreadTimelineEntryType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class TurnCompletedThreadTimelineEntry final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> completedAt() const;
+        std::optional<std::int64_t> durationMs() const;
+        TurnCompletedThreadTimelineEntryError error() const;
+        std::optional<std::int64_t> position() const;
+        std::optional<std::int64_t> startedAt() const;
+        TurnStatus status() const;
+        std::optional<std::string> turnId() const;
+        TurnCompletedThreadTimelineEntryType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnCompletedThreadTimelineEntryError final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnCompletedThreadTimelineEntryType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class ThreadTimelineListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        std::optional<std::int64_t> limit() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadTimelineListResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> activeRealtimeSessionAtPageStart() const;
+        ThreadTimelineListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadTimelineListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<ThreadTimelineEntry> items() const;
+    };
+
     class ThreadTokenUsage final : public Value {
     public:
         using Value::Value;
@@ -16322,6 +20315,44 @@ namespace v2 {
         ThreadTokenUsage tokenUsage() const;
         std::optional<std::string> turnId() const;
         std::vector<std::string> keys() const;
+    };
+
+    class ThreadTurnsListParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> cursor() const;
+        ThreadTurnsListParamsItemsView itemsView() const;
+        std::optional<std::int64_t> limit() const;
+        ThreadTurnsListParamsSortDirection sortDirection() const;
+        std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadTurnsListParamsItemsView final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadTurnsListParamsSortDirection final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class ThreadTurnsListResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> backwardsCursor() const;
+        ThreadTurnsListResponseData data() const;
+        std::optional<std::string> nextCursor() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class ThreadTurnsListResponseData final : public Value {
+    public:
+        using Value::Value;
+        std::vector<Turn> items() const;
     };
 
     class ThreadUnarchiveParams final : public Value {
@@ -16513,10 +20544,17 @@ namespace v2 {
         std::optional<std::string> additionalDetails() const;
         TurnErrorCodexErrorInfo codexErrorInfo() const;
         std::optional<std::string> message() const;
+        TurnErrorMisalignment misalignment() const;
         std::vector<std::string> keys() const;
     };
 
     class TurnErrorCodexErrorInfo final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnErrorMisalignment final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -16607,22 +20645,99 @@ namespace v2 {
         std::vector<TurnPlanStep> items() const;
     };
 
+    class TurnSettingsUpdateParams final : public Value {
+    public:
+        using Value::Value;
+        TurnSettingsUpdateParamsApprovalsReviewer approvalsReviewer() const;
+        TurnSettingsUpdateParamsEffort effort() const;
+        std::optional<std::string> model() const;
+        std::optional<std::string> serviceTier() const;
+        TurnSettingsUpdateParamsSummary summary() const;
+        std::optional<std::string> threadId() const;
+        std::optional<std::string> turnId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnSettingsUpdateParamsApprovalsReviewer final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnSettingsUpdateParamsEffort final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnSettingsUpdateParamsSummary final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnSettingsUpdateResponse final : public Value {
+    public:
+        using Value::Value;
+        TurnSettingsUpdateStatus status() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnSettingsUpdateStatus final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnSettingsUpdateStatusOneOf1 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class TurnSettingsUpdateStatusOneOf2 final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
     class TurnStartParams final : public Value {
     public:
         using Value::Value;
+        TurnStartParamsAdditionalContext additionalContext() const;
         TurnStartParamsApprovalPolicy approvalPolicy() const;
         TurnStartParamsApprovalsReviewer approvalsReviewer() const;
         std::optional<std::string> clientUserMessageId() const;
+        TurnStartParamsCollaborationMode collaborationMode() const;
         std::optional<std::string> cwd() const;
+        TurnStartParamsCyberAccessProgram cyberAccessProgram() const;
         TurnStartParamsEffort effort() const;
+        TurnStartParamsEnvironments environments() const;
         TurnStartParamsInput input() const;
         std::optional<std::string> model() const;
+        TurnStartParamsMultiAgentMode multiAgentMode() const;
         nlohmann::json outputSchema() const;
+        std::optional<std::string> permissions() const;
         TurnStartParamsPersonality personality() const;
+        TurnStartParamsResponsesapiClientMetadata responsesapiClientMetadata() const;
+        TurnStartParamsRuntimeWorkspaceRoots runtimeWorkspaceRoots() const;
         TurnStartParamsSandboxPolicy sandboxPolicy() const;
         std::optional<std::string> serviceTier() const;
+        std::optional<std::string> serviceTierForTurn() const;
         TurnStartParamsSummary summary() const;
         std::optional<std::string> threadId() const;
+        TurnStartParamsToolOutput toolOutput() const;
+        std::optional<std::string> turnTrigger() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnStartParamsAdditionalContext final : public Value {
+    public:
+        using Value::Value;
         std::vector<std::string> keys() const;
     };
 
@@ -16638,10 +20753,28 @@ namespace v2 {
         static constexpr std::size_t variantCount = 2;
     };
 
+    class TurnStartParamsCollaborationMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnStartParamsCyberAccessProgram final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class TurnStartParamsEffort final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnStartParamsEnvironments final : public Value {
+    public:
+        using Value::Value;
+        std::vector<TurnEnvironmentParams> items() const;
     };
 
     class TurnStartParamsInput final : public Value {
@@ -16650,10 +20783,28 @@ namespace v2 {
         std::vector<UserInput> items() const;
     };
 
+    class TurnStartParamsMultiAgentMode final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
     class TurnStartParamsPersonality final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnStartParamsResponsesapiClientMetadata final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnStartParamsRuntimeWorkspaceRoots final : public Value {
+    public:
+        using Value::Value;
+        std::vector<AbsolutePathBuf> items() const;
     };
 
     class TurnStartParamsSandboxPolicy final : public Value {
@@ -16663,6 +20814,12 @@ namespace v2 {
     };
 
     class TurnStartParamsSummary final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class TurnStartParamsToolOutput final : public Value {
     public:
         using Value::Value;
         static constexpr std::size_t variantCount = 2;
@@ -16694,10 +20851,18 @@ namespace v2 {
     class TurnSteerParams final : public Value {
     public:
         using Value::Value;
+        TurnSteerParamsAdditionalContext additionalContext() const;
         std::optional<std::string> clientUserMessageId() const;
         std::optional<std::string> expectedTurnId() const;
         TurnSteerParamsInput input() const;
+        TurnSteerParamsResponsesapiClientMetadata responsesapiClientMetadata() const;
         std::optional<std::string> threadId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnSteerParamsAdditionalContext final : public Value {
+    public:
+        using Value::Value;
         std::vector<std::string> keys() const;
     };
 
@@ -16707,10 +20872,25 @@ namespace v2 {
         std::vector<UserInput> items() const;
     };
 
+    class TurnSteerParamsResponsesapiClientMetadata final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
     class TurnSteerResponse final : public Value {
     public:
         using Value::Value;
         std::optional<std::string> turnId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class TurnToolOutput final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> name() const;
+        std::optional<std::string> namespace_() const;
+        FunctionCallOutputBody output() const;
         std::vector<std::string> keys() const;
     };
 
@@ -16868,6 +21048,187 @@ namespace v2 {
         std::optional<std::string> value() const;
         bool isKnown() const;
         static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationCancellationReason final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationDeleteParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationDeleteResponse final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationEnrollParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationEnrollResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> credentialId() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationErrorDetails final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 4;
+    };
+
+    class InvalidRequestUserVerificationErrorDetails final : public Value {
+    public:
+        using Value::Value;
+        UserVerificationInvalidRequestReason reason() const;
+        InvalidRequestUserVerificationErrorDetailsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class InvalidRequestUserVerificationErrorDetailsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UnavailableUserVerificationErrorDetails final : public Value {
+    public:
+        using Value::Value;
+        UserVerificationUnavailableReason reason() const;
+        UnavailableUserVerificationErrorDetailsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UnavailableUserVerificationErrorDetailsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class CancelledUserVerificationErrorDetails final : public Value {
+    public:
+        using Value::Value;
+        UserVerificationCancellationReason reason() const;
+        CancelledUserVerificationErrorDetailsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class CancelledUserVerificationErrorDetailsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class FailedUserVerificationErrorDetails final : public Value {
+    public:
+        using Value::Value;
+        UserVerificationFailureReason reason() const;
+        FailedUserVerificationErrorDetailsType type() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class FailedUserVerificationErrorDetailsType final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationFailureReason final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationInvalidRequestReason final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationProof final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> credentialId() const;
+        std::optional<std::string> signature() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationRpcError final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::int64_t> code() const;
+        UserVerificationErrorDetails data() const;
+        std::optional<std::string> message() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationStatusParams final : public Value {
+    public:
+        using Value::Value;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationStatusResponse final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> credentialId() const;
+        std::optional<std::string> unavailableMessage() const;
+        UserVerificationStatusResponseUnavailableReason unavailableReason() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationStatusResponseUnavailableReason final : public Value {
+    public:
+        using Value::Value;
+        static constexpr std::size_t variantCount = 2;
+    };
+
+    class UserVerificationUnavailableReason final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> value() const;
+        bool isKnown() const;
+        static const std::vector<nlohmann::json>& knownValues();
+    };
+
+    class UserVerificationVerifyParams final : public Value {
+    public:
+        using Value::Value;
+        std::optional<std::string> challenge() const;
+        std::optional<std::string> description() const;
+        std::optional<std::string> title() const;
+        std::vector<std::string> keys() const;
+    };
+
+    class UserVerificationVerifyResponse final : public Value {
+    public:
+        using Value::Value;
+        UserVerificationProof proof() const;
+        std::vector<std::string> keys() const;
     };
 
     class Verbosity final : public Value {
@@ -17155,6 +21516,41 @@ namespace root {
     inline std::optional<std::string> InitializeRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& InitializeRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("initialize")}; return values; }
     inline bool InitializeRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ServerDiagnosticsRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ServerDiagnosticsRequestMethod ServerDiagnosticsRequest::method() const { return ServerDiagnosticsRequestMethod(memberRaw("method")); }
+    inline v2::ServerDiagnosticsParams ServerDiagnosticsRequest::params() const { return v2::ServerDiagnosticsParams(memberRaw("params")); }
+    inline std::vector<std::string> ServerDiagnosticsRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ServerDiagnosticsRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ServerDiagnosticsRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("server/diagnostics")}; return values; }
+    inline bool ServerDiagnosticsRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId UserVerificationStatusRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline UserVerificationStatusRequestMethod UserVerificationStatusRequest::method() const { return UserVerificationStatusRequestMethod(memberRaw("method")); }
+    inline v2::UserVerificationStatusParams UserVerificationStatusRequest::params() const { return v2::UserVerificationStatusParams(memberRaw("params")); }
+    inline std::vector<std::string> UserVerificationStatusRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationStatusRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationStatusRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("userVerification/status")}; return values; }
+    inline bool UserVerificationStatusRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId UserVerificationEnrollRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline UserVerificationEnrollRequestMethod UserVerificationEnrollRequest::method() const { return UserVerificationEnrollRequestMethod(memberRaw("method")); }
+    inline v2::UserVerificationEnrollParams UserVerificationEnrollRequest::params() const { return v2::UserVerificationEnrollParams(memberRaw("params")); }
+    inline std::vector<std::string> UserVerificationEnrollRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationEnrollRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationEnrollRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("userVerification/enroll")}; return values; }
+    inline bool UserVerificationEnrollRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId UserVerificationDeleteRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline UserVerificationDeleteRequestMethod UserVerificationDeleteRequest::method() const { return UserVerificationDeleteRequestMethod(memberRaw("method")); }
+    inline v2::UserVerificationDeleteParams UserVerificationDeleteRequest::params() const { return v2::UserVerificationDeleteParams(memberRaw("params")); }
+    inline std::vector<std::string> UserVerificationDeleteRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationDeleteRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationDeleteRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("userVerification/delete")}; return values; }
+    inline bool UserVerificationDeleteRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId UserVerificationVerifyRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline UserVerificationVerifyRequestMethod UserVerificationVerifyRequest::method() const { return UserVerificationVerifyRequestMethod(memberRaw("method")); }
+    inline v2::UserVerificationVerifyParams UserVerificationVerifyRequest::params() const { return v2::UserVerificationVerifyParams(memberRaw("params")); }
+    inline std::vector<std::string> UserVerificationVerifyRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationVerifyRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationVerifyRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("userVerification/verify")}; return values; }
+    inline bool UserVerificationVerifyRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadStartRequestMethod ThreadStartRequest::method() const { return ThreadStartRequestMethod(memberRaw("method")); }
     inline v2::ThreadStartParams ThreadStartRequest::params() const { return v2::ThreadStartParams(memberRaw("params")); }
@@ -17197,6 +21593,20 @@ namespace root {
     inline std::optional<std::string> ThreadUnsubscribeRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadUnsubscribeRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/unsubscribe")}; return values; }
     inline bool ThreadUnsubscribeRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadIncrementElicitationRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadIncrementElicitationRequestMethod ThreadIncrementElicitationRequest::method() const { return ThreadIncrementElicitationRequestMethod(memberRaw("method")); }
+    inline v2::ThreadIncrementElicitationParams ThreadIncrementElicitationRequest::params() const { return v2::ThreadIncrementElicitationParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadIncrementElicitationRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadIncrementElicitationRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadIncrementElicitationRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/increment_elicitation")}; return values; }
+    inline bool ThreadIncrementElicitationRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadDecrementElicitationRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadDecrementElicitationRequestMethod ThreadDecrementElicitationRequest::method() const { return ThreadDecrementElicitationRequestMethod(memberRaw("method")); }
+    inline v2::ThreadDecrementElicitationParams ThreadDecrementElicitationRequest::params() const { return v2::ThreadDecrementElicitationParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadDecrementElicitationRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadDecrementElicitationRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadDecrementElicitationRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/decrement_elicitation")}; return values; }
+    inline bool ThreadDecrementElicitationRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadNameSetRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadNameSetRequestMethod ThreadNameSetRequest::method() const { return ThreadNameSetRequestMethod(memberRaw("method")); }
     inline v2::ThreadSetNameParams ThreadNameSetRequest::params() const { return v2::ThreadSetNameParams(memberRaw("params")); }
@@ -17225,6 +21635,48 @@ namespace root {
     inline std::optional<std::string> ThreadGoalClearRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadGoalClearRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/goal/clear")}; return values; }
     inline bool ThreadGoalClearRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadQueueAddRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadQueueAddRequestMethod ThreadQueueAddRequest::method() const { return ThreadQueueAddRequestMethod(memberRaw("method")); }
+    inline v2::ThreadQueueAddParams ThreadQueueAddRequest::params() const { return v2::ThreadQueueAddParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadQueueAddRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueAddRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadQueueAddRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/queue/add")}; return values; }
+    inline bool ThreadQueueAddRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadQueueListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadQueueListRequestMethod ThreadQueueListRequest::method() const { return ThreadQueueListRequestMethod(memberRaw("method")); }
+    inline v2::ThreadQueueListParams ThreadQueueListRequest::params() const { return v2::ThreadQueueListParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadQueueListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadQueueListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/queue/list")}; return values; }
+    inline bool ThreadQueueListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadQueueUpdateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadQueueUpdateRequestMethod ThreadQueueUpdateRequest::method() const { return ThreadQueueUpdateRequestMethod(memberRaw("method")); }
+    inline v2::ThreadQueueUpdateParams ThreadQueueUpdateRequest::params() const { return v2::ThreadQueueUpdateParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadQueueUpdateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueUpdateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadQueueUpdateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/queue/update")}; return values; }
+    inline bool ThreadQueueUpdateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadQueueDeleteRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadQueueDeleteRequestMethod ThreadQueueDeleteRequest::method() const { return ThreadQueueDeleteRequestMethod(memberRaw("method")); }
+    inline v2::ThreadQueueDeleteParams ThreadQueueDeleteRequest::params() const { return v2::ThreadQueueDeleteParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadQueueDeleteRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueDeleteRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadQueueDeleteRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/queue/delete")}; return values; }
+    inline bool ThreadQueueDeleteRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadQueueReorderRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadQueueReorderRequestMethod ThreadQueueReorderRequest::method() const { return ThreadQueueReorderRequestMethod(memberRaw("method")); }
+    inline v2::ThreadQueueReorderParams ThreadQueueReorderRequest::params() const { return v2::ThreadQueueReorderParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadQueueReorderRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueReorderRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadQueueReorderRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/queue/reorder")}; return values; }
+    inline bool ThreadQueueReorderRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadQueueStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadQueueStartRequestMethod ThreadQueueStartRequest::method() const { return ThreadQueueStartRequestMethod(memberRaw("method")); }
+    inline v2::ThreadQueueStartParams ThreadQueueStartRequest::params() const { return v2::ThreadQueueStartParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadQueueStartRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueStartRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadQueueStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/queue/start")}; return values; }
+    inline bool ThreadQueueStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadMetadataUpdateRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadMetadataUpdateRequestMethod ThreadMetadataUpdateRequest::method() const { return ThreadMetadataUpdateRequestMethod(memberRaw("method")); }
     inline v2::ThreadMetadataUpdateParams ThreadMetadataUpdateRequest::params() const { return v2::ThreadMetadataUpdateParams(memberRaw("params")); }
@@ -17239,6 +21691,27 @@ namespace root {
     inline std::optional<std::string> ThreadSectionMoveRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadSectionMoveRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/section/move")}; return values; }
     inline bool ThreadSectionMoveRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadSettingsUpdateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadSettingsUpdateRequestMethod ThreadSettingsUpdateRequest::method() const { return ThreadSettingsUpdateRequestMethod(memberRaw("method")); }
+    inline v2::ThreadSettingsUpdateParams ThreadSettingsUpdateRequest::params() const { return v2::ThreadSettingsUpdateParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadSettingsUpdateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadSettingsUpdateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadSettingsUpdateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/settings/update")}; return values; }
+    inline bool ThreadSettingsUpdateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadMemoryModeSetRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadMemoryModeSetRequestMethod ThreadMemoryModeSetRequest::method() const { return ThreadMemoryModeSetRequestMethod(memberRaw("method")); }
+    inline v2::ThreadMemoryModeSetParams ThreadMemoryModeSetRequest::params() const { return v2::ThreadMemoryModeSetParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadMemoryModeSetRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadMemoryModeSetRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadMemoryModeSetRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/memoryMode/set")}; return values; }
+    inline bool ThreadMemoryModeSetRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId MemoryResetRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline MemoryResetRequestMethod MemoryResetRequest::method() const { return MemoryResetRequestMethod(memberRaw("method")); }
+    inline nlohmann::json MemoryResetRequest::params() const { return memberRaw("params"); }
+    inline std::vector<std::string> MemoryResetRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> MemoryResetRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& MemoryResetRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("memory/reset")}; return values; }
+    inline bool MemoryResetRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadUnarchiveRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadUnarchiveRequestMethod ThreadUnarchiveRequest::method() const { return ThreadUnarchiveRequestMethod(memberRaw("method")); }
     inline v2::ThreadUnarchiveParams ThreadUnarchiveRequest::params() const { return v2::ThreadUnarchiveParams(memberRaw("params")); }
@@ -17267,6 +21740,27 @@ namespace root {
     inline std::optional<std::string> ThreadApproveGuardianDeniedActionRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadApproveGuardianDeniedActionRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/approveGuardianDeniedAction")}; return values; }
     inline bool ThreadApproveGuardianDeniedActionRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadBackgroundTerminalsCleanRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadBackgroundTerminalsCleanRequestMethod ThreadBackgroundTerminalsCleanRequest::method() const { return ThreadBackgroundTerminalsCleanRequestMethod(memberRaw("method")); }
+    inline v2::ThreadBackgroundTerminalsCleanParams ThreadBackgroundTerminalsCleanRequest::params() const { return v2::ThreadBackgroundTerminalsCleanParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsCleanRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsCleanRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadBackgroundTerminalsCleanRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/backgroundTerminals/clean")}; return values; }
+    inline bool ThreadBackgroundTerminalsCleanRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadBackgroundTerminalsListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadBackgroundTerminalsListRequestMethod ThreadBackgroundTerminalsListRequest::method() const { return ThreadBackgroundTerminalsListRequestMethod(memberRaw("method")); }
+    inline v2::ThreadBackgroundTerminalsListParams ThreadBackgroundTerminalsListRequest::params() const { return v2::ThreadBackgroundTerminalsListParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadBackgroundTerminalsListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/backgroundTerminals/list")}; return values; }
+    inline bool ThreadBackgroundTerminalsListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadBackgroundTerminalsTerminateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadBackgroundTerminalsTerminateRequestMethod ThreadBackgroundTerminalsTerminateRequest::method() const { return ThreadBackgroundTerminalsTerminateRequestMethod(memberRaw("method")); }
+    inline v2::ThreadBackgroundTerminalsTerminateParams ThreadBackgroundTerminalsTerminateRequest::params() const { return v2::ThreadBackgroundTerminalsTerminateParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsTerminateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsTerminateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadBackgroundTerminalsTerminateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/backgroundTerminals/terminate")}; return values; }
+    inline bool ThreadBackgroundTerminalsTerminateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadRollbackRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadRollbackRequestMethod ThreadRollbackRequest::method() const { return ThreadRollbackRequestMethod(memberRaw("method")); }
     inline v2::ThreadRollbackParams ThreadRollbackRequest::params() const { return v2::ThreadRollbackParams(memberRaw("params")); }
@@ -17274,6 +21768,13 @@ namespace root {
     inline std::optional<std::string> ThreadRollbackRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadRollbackRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/rollback")}; return values; }
     inline bool ThreadRollbackRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRevertRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRevertRequestMethod ThreadRevertRequest::method() const { return ThreadRevertRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRevertParams ThreadRevertRequest::params() const { return v2::ThreadRevertParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRevertRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRevertRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRevertRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/revert")}; return values; }
+    inline bool ThreadRevertRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadListRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadListRequestMethod ThreadListRequest::method() const { return ThreadListRequestMethod(memberRaw("method")); }
     inline v2::ThreadListParams ThreadListRequest::params() const { return v2::ThreadListParams(memberRaw("params")); }
@@ -17281,6 +21782,55 @@ namespace root {
     inline std::optional<std::string> ThreadListRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/list")}; return values; }
     inline bool ThreadListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectListRequestMethod ProjectListRequest::method() const { return ProjectListRequestMethod(memberRaw("method")); }
+    inline v2::ProjectListParams ProjectListRequest::params() const { return v2::ProjectListParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/list")}; return values; }
+    inline bool ProjectListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectReadRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectReadRequestMethod ProjectReadRequest::method() const { return ProjectReadRequestMethod(memberRaw("method")); }
+    inline v2::ProjectReadParams ProjectReadRequest::params() const { return v2::ProjectReadParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectReadRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectReadRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectReadRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/read")}; return values; }
+    inline bool ProjectReadRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectCreateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectCreateRequestMethod ProjectCreateRequest::method() const { return ProjectCreateRequestMethod(memberRaw("method")); }
+    inline v2::ProjectCreateParams ProjectCreateRequest::params() const { return v2::ProjectCreateParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectCreateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectCreateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectCreateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/create")}; return values; }
+    inline bool ProjectCreateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectImportRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectImportRequestMethod ProjectImportRequest::method() const { return ProjectImportRequestMethod(memberRaw("method")); }
+    inline v2::ProjectImportParams ProjectImportRequest::params() const { return v2::ProjectImportParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectImportRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectImportRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectImportRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/import")}; return values; }
+    inline bool ProjectImportRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectUpdateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectUpdateRequestMethod ProjectUpdateRequest::method() const { return ProjectUpdateRequestMethod(memberRaw("method")); }
+    inline v2::ProjectUpdateParams ProjectUpdateRequest::params() const { return v2::ProjectUpdateParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectUpdateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectUpdateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectUpdateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/update")}; return values; }
+    inline bool ProjectUpdateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectMoveRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectMoveRequestMethod ProjectMoveRequest::method() const { return ProjectMoveRequestMethod(memberRaw("method")); }
+    inline v2::ProjectMoveParams ProjectMoveRequest::params() const { return v2::ProjectMoveParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectMoveRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectMoveRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectMoveRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/move")}; return values; }
+    inline bool ProjectMoveRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProjectDeleteRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProjectDeleteRequestMethod ProjectDeleteRequest::method() const { return ProjectDeleteRequestMethod(memberRaw("method")); }
+    inline v2::ProjectDeleteParams ProjectDeleteRequest::params() const { return v2::ProjectDeleteParams(memberRaw("params")); }
+    inline std::vector<std::string> ProjectDeleteRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectDeleteRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectDeleteRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("project/delete")}; return values; }
+    inline bool ProjectDeleteRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadSectionListRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadSectionListRequestMethod ThreadSectionListRequest::method() const { return ThreadSectionListRequestMethod(memberRaw("method")); }
     inline v2::ThreadSectionListParams ThreadSectionListRequest::params() const { return v2::ThreadSectionListParams(memberRaw("params")); }
@@ -17309,6 +21859,20 @@ namespace root {
     inline std::optional<std::string> ThreadSectionDeleteRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadSectionDeleteRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("threadSection/delete")}; return values; }
     inline bool ThreadSectionDeleteRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadSearchRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadSearchRequestMethod ThreadSearchRequest::method() const { return ThreadSearchRequestMethod(memberRaw("method")); }
+    inline v2::ThreadSearchParams ThreadSearchRequest::params() const { return v2::ThreadSearchParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadSearchRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadSearchRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadSearchRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/search")}; return values; }
+    inline bool ThreadSearchRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadSearchOccurrencesRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadSearchOccurrencesRequestMethod ThreadSearchOccurrencesRequest::method() const { return ThreadSearchOccurrencesRequestMethod(memberRaw("method")); }
+    inline v2::ThreadSearchOccurrencesParams ThreadSearchOccurrencesRequest::params() const { return v2::ThreadSearchOccurrencesParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadSearchOccurrencesRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadSearchOccurrencesRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadSearchOccurrencesRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/searchOccurrences")}; return values; }
+    inline bool ThreadSearchOccurrencesRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadLoadedListRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadLoadedListRequestMethod ThreadLoadedListRequest::method() const { return ThreadLoadedListRequestMethod(memberRaw("method")); }
     inline v2::ThreadLoadedListParams ThreadLoadedListRequest::params() const { return v2::ThreadLoadedListParams(memberRaw("params")); }
@@ -17323,6 +21887,20 @@ namespace root {
     inline std::optional<std::string> ThreadReadRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadReadRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/read")}; return values; }
     inline bool ThreadReadRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadTurnsListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadTurnsListRequestMethod ThreadTurnsListRequest::method() const { return ThreadTurnsListRequestMethod(memberRaw("method")); }
+    inline v2::ThreadTurnsListParams ThreadTurnsListRequest::params() const { return v2::ThreadTurnsListParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadTurnsListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadTurnsListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadTurnsListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/turns/list")}; return values; }
+    inline bool ThreadTurnsListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadItemsListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadItemsListRequestMethod ThreadItemsListRequest::method() const { return ThreadItemsListRequestMethod(memberRaw("method")); }
+    inline v2::ThreadItemsListParams ThreadItemsListRequest::params() const { return v2::ThreadItemsListParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadItemsListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadItemsListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadItemsListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/items/list")}; return values; }
+    inline bool ThreadItemsListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ThreadInjectItemsRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ThreadInjectItemsRequestMethod ThreadInjectItemsRequest::method() const { return ThreadInjectItemsRequestMethod(memberRaw("method")); }
     inline v2::ThreadInjectItemsParams ThreadInjectItemsRequest::params() const { return v2::ThreadInjectItemsParams(memberRaw("params")); }
@@ -17379,6 +21957,13 @@ namespace root {
     inline std::optional<std::string> PluginListRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& PluginListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("plugin/list")}; return values; }
     inline bool PluginListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId PluginSearchRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline PluginSearchRequestMethod PluginSearchRequest::method() const { return PluginSearchRequestMethod(memberRaw("method")); }
+    inline v2::PluginSearchParams PluginSearchRequest::params() const { return v2::PluginSearchParams(memberRaw("params")); }
+    inline std::vector<std::string> PluginSearchRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> PluginSearchRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& PluginSearchRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("plugin/search")}; return values; }
+    inline bool PluginSearchRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId PluginInstalledRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline PluginInstalledRequestMethod PluginInstalledRequest::method() const { return PluginInstalledRequestMethod(memberRaw("method")); }
     inline v2::PluginInstalledParams PluginInstalledRequest::params() const { return v2::PluginInstalledParams(memberRaw("params")); }
@@ -17386,6 +21971,13 @@ namespace root {
     inline std::optional<std::string> PluginInstalledRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& PluginInstalledRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("plugin/installed")}; return values; }
     inline bool PluginInstalledRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId PluginReconcileRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline PluginReconcileRequestMethod PluginReconcileRequest::method() const { return PluginReconcileRequestMethod(memberRaw("method")); }
+    inline v2::PluginReconcileParams PluginReconcileRequest::params() const { return v2::PluginReconcileParams(memberRaw("params")); }
+    inline std::vector<std::string> PluginReconcileRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> PluginReconcileRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& PluginReconcileRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("plugin/reconcile")}; return values; }
+    inline bool PluginReconcileRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId PluginReadRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline PluginReadRequestMethod PluginReadRequest::method() const { return PluginReadRequestMethod(memberRaw("method")); }
     inline v2::PluginReadParams PluginReadRequest::params() const { return v2::PluginReadParams(memberRaw("params")); }
@@ -17547,6 +22139,13 @@ namespace root {
     inline std::optional<std::string> TurnStartRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& TurnStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turn/start")}; return values; }
     inline bool TurnStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId TurnSettingsUpdateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline TurnSettingsUpdateRequestMethod TurnSettingsUpdateRequest::method() const { return TurnSettingsUpdateRequestMethod(memberRaw("method")); }
+    inline v2::TurnSettingsUpdateParams TurnSettingsUpdateRequest::params() const { return v2::TurnSettingsUpdateParams(memberRaw("params")); }
+    inline std::vector<std::string> TurnSettingsUpdateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> TurnSettingsUpdateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& TurnSettingsUpdateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turn/settings/update")}; return values; }
+    inline bool TurnSettingsUpdateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId TurnSteerRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline TurnSteerRequestMethod TurnSteerRequest::method() const { return TurnSteerRequestMethod(memberRaw("method")); }
     inline v2::TurnSteerParams TurnSteerRequest::params() const { return v2::TurnSteerParams(memberRaw("params")); }
@@ -17561,6 +22160,55 @@ namespace root {
     inline std::optional<std::string> TurnInterruptRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& TurnInterruptRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turn/interrupt")}; return values; }
     inline bool TurnInterruptRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRealtimeStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRealtimeStartRequestMethod ThreadRealtimeStartRequest::method() const { return ThreadRealtimeStartRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeStartParams ThreadRealtimeStartRequest::params() const { return v2::ThreadRealtimeStartParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeStartRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeStartRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/start")}; return values; }
+    inline bool ThreadRealtimeStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRealtimeAppendAudioRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRealtimeAppendAudioRequestMethod ThreadRealtimeAppendAudioRequest::method() const { return ThreadRealtimeAppendAudioRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeAppendAudioParams ThreadRealtimeAppendAudioRequest::params() const { return v2::ThreadRealtimeAppendAudioParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeAppendAudioRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeAppendAudioRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeAppendAudioRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/appendAudio")}; return values; }
+    inline bool ThreadRealtimeAppendAudioRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRealtimeAppendTextRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRealtimeAppendTextRequestMethod ThreadRealtimeAppendTextRequest::method() const { return ThreadRealtimeAppendTextRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeAppendTextParams ThreadRealtimeAppendTextRequest::params() const { return v2::ThreadRealtimeAppendTextParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeAppendTextRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeAppendTextRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeAppendTextRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/appendText")}; return values; }
+    inline bool ThreadRealtimeAppendTextRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRealtimeAppendSpeechRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRealtimeAppendSpeechRequestMethod ThreadRealtimeAppendSpeechRequest::method() const { return ThreadRealtimeAppendSpeechRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeAppendSpeechParams ThreadRealtimeAppendSpeechRequest::params() const { return v2::ThreadRealtimeAppendSpeechParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeAppendSpeechRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeAppendSpeechRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeAppendSpeechRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/appendSpeech")}; return values; }
+    inline bool ThreadRealtimeAppendSpeechRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRealtimeStopRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRealtimeStopRequestMethod ThreadRealtimeStopRequest::method() const { return ThreadRealtimeStopRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeStopParams ThreadRealtimeStopRequest::params() const { return v2::ThreadRealtimeStopParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeStopRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeStopRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeStopRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/stop")}; return values; }
+    inline bool ThreadRealtimeStopRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadTimelineListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadTimelineListRequestMethod ThreadTimelineListRequest::method() const { return ThreadTimelineListRequestMethod(memberRaw("method")); }
+    inline v2::ThreadTimelineListParams ThreadTimelineListRequest::params() const { return v2::ThreadTimelineListParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadTimelineListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadTimelineListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadTimelineListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/timeline/list")}; return values; }
+    inline bool ThreadTimelineListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ThreadRealtimeListVoicesRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ThreadRealtimeListVoicesRequestMethod ThreadRealtimeListVoicesRequest::method() const { return ThreadRealtimeListVoicesRequestMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeListVoicesParams ThreadRealtimeListVoicesRequest::params() const { return v2::ThreadRealtimeListVoicesParams(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeListVoicesRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeListVoicesRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeListVoicesRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/listVoices")}; return values; }
+    inline bool ThreadRealtimeListVoicesRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ReviewStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ReviewStartRequestMethod ReviewStartRequest::method() const { return ReviewStartRequestMethod(memberRaw("method")); }
     inline v2::ReviewStartParams ReviewStartRequest::params() const { return v2::ReviewStartParams(memberRaw("params")); }
@@ -17603,6 +22251,90 @@ namespace root {
     inline std::optional<std::string> ExperimentalFeatureEnablementSetRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ExperimentalFeatureEnablementSetRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("experimentalFeature/enablement/set")}; return values; }
     inline bool ExperimentalFeatureEnablementSetRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlEnableRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlEnableRequestMethod RemoteControlEnableRequest::method() const { return RemoteControlEnableRequestMethod(memberRaw("method")); }
+    inline RemoteControlEnableRequestParams RemoteControlEnableRequest::params() const { return RemoteControlEnableRequestParams(memberRaw("params")); }
+    inline std::vector<std::string> RemoteControlEnableRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlEnableRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlEnableRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/enable")}; return values; }
+    inline bool RemoteControlEnableRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlDisableRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlDisableRequestMethod RemoteControlDisableRequest::method() const { return RemoteControlDisableRequestMethod(memberRaw("method")); }
+    inline RemoteControlDisableRequestParams RemoteControlDisableRequest::params() const { return RemoteControlDisableRequestParams(memberRaw("params")); }
+    inline std::vector<std::string> RemoteControlDisableRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlDisableRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlDisableRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/disable")}; return values; }
+    inline bool RemoteControlDisableRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlStatusReadRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlStatusReadRequestMethod RemoteControlStatusReadRequest::method() const { return RemoteControlStatusReadRequestMethod(memberRaw("method")); }
+    inline nlohmann::json RemoteControlStatusReadRequest::params() const { return memberRaw("params"); }
+    inline std::vector<std::string> RemoteControlStatusReadRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlStatusReadRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlStatusReadRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/status/read")}; return values; }
+    inline bool RemoteControlStatusReadRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlPairingStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlPairingStartRequestMethod RemoteControlPairingStartRequest::method() const { return RemoteControlPairingStartRequestMethod(memberRaw("method")); }
+    inline v2::RemoteControlPairingStartParams RemoteControlPairingStartRequest::params() const { return v2::RemoteControlPairingStartParams(memberRaw("params")); }
+    inline std::vector<std::string> RemoteControlPairingStartRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlPairingStartRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlPairingStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/pairing/start")}; return values; }
+    inline bool RemoteControlPairingStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlPairingStatusRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlPairingStatusRequestMethod RemoteControlPairingStatusRequest::method() const { return RemoteControlPairingStatusRequestMethod(memberRaw("method")); }
+    inline v2::RemoteControlPairingStatusParams RemoteControlPairingStatusRequest::params() const { return v2::RemoteControlPairingStatusParams(memberRaw("params")); }
+    inline std::vector<std::string> RemoteControlPairingStatusRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlPairingStatusRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlPairingStatusRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/pairing/status")}; return values; }
+    inline bool RemoteControlPairingStatusRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlClientListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlClientListRequestMethod RemoteControlClientListRequest::method() const { return RemoteControlClientListRequestMethod(memberRaw("method")); }
+    inline v2::RemoteControlClientsListParams RemoteControlClientListRequest::params() const { return v2::RemoteControlClientsListParams(memberRaw("params")); }
+    inline std::vector<std::string> RemoteControlClientListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlClientListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlClientListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/client/list")}; return values; }
+    inline bool RemoteControlClientListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId RemoteControlClientRevokeRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline RemoteControlClientRevokeRequestMethod RemoteControlClientRevokeRequest::method() const { return RemoteControlClientRevokeRequestMethod(memberRaw("method")); }
+    inline v2::RemoteControlClientsRevokeParams RemoteControlClientRevokeRequest::params() const { return v2::RemoteControlClientsRevokeParams(memberRaw("params")); }
+    inline std::vector<std::string> RemoteControlClientRevokeRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlClientRevokeRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlClientRevokeRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("remoteControl/client/revoke")}; return values; }
+    inline bool RemoteControlClientRevokeRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId CollaborationModeListRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline CollaborationModeListRequestMethod CollaborationModeListRequest::method() const { return CollaborationModeListRequestMethod(memberRaw("method")); }
+    inline v2::CollaborationModeListParams CollaborationModeListRequest::params() const { return v2::CollaborationModeListParams(memberRaw("params")); }
+    inline std::vector<std::string> CollaborationModeListRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> CollaborationModeListRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& CollaborationModeListRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("collaborationMode/list")}; return values; }
+    inline bool CollaborationModeListRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId MockExperimentalMethodRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline MockExperimentalMethodRequestMethod MockExperimentalMethodRequest::method() const { return MockExperimentalMethodRequestMethod(memberRaw("method")); }
+    inline v2::MockExperimentalMethodParams MockExperimentalMethodRequest::params() const { return v2::MockExperimentalMethodParams(memberRaw("params")); }
+    inline std::vector<std::string> MockExperimentalMethodRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> MockExperimentalMethodRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& MockExperimentalMethodRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("mock/experimentalMethod")}; return values; }
+    inline bool MockExperimentalMethodRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId EnvironmentAddRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline EnvironmentAddRequestMethod EnvironmentAddRequest::method() const { return EnvironmentAddRequestMethod(memberRaw("method")); }
+    inline v2::EnvironmentAddParams EnvironmentAddRequest::params() const { return v2::EnvironmentAddParams(memberRaw("params")); }
+    inline std::vector<std::string> EnvironmentAddRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentAddRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentAddRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("environment/add")}; return values; }
+    inline bool EnvironmentAddRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId EnvironmentInfoRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline EnvironmentInfoRequestMethod EnvironmentInfoRequest::method() const { return EnvironmentInfoRequestMethod(memberRaw("method")); }
+    inline v2::EnvironmentInfoParams EnvironmentInfoRequest::params() const { return v2::EnvironmentInfoParams(memberRaw("params")); }
+    inline std::vector<std::string> EnvironmentInfoRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentInfoRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentInfoRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("environment/info")}; return values; }
+    inline bool EnvironmentInfoRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId EnvironmentStatusRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline EnvironmentStatusRequestMethod EnvironmentStatusRequest::method() const { return EnvironmentStatusRequestMethod(memberRaw("method")); }
+    inline v2::EnvironmentStatusParams EnvironmentStatusRequest::params() const { return v2::EnvironmentStatusParams(memberRaw("params")); }
+    inline std::vector<std::string> EnvironmentStatusRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentStatusRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentStatusRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("environment/status")}; return values; }
+    inline bool EnvironmentStatusRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId McpServerOauthLoginRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline McpServerOauthLoginRequestMethod McpServerOauthLoginRequest::method() const { return McpServerOauthLoginRequestMethod(memberRaw("method")); }
     inline v2::McpServerOauthLoginParams McpServerOauthLoginRequest::params() const { return v2::McpServerOauthLoginParams(memberRaw("params")); }
@@ -17631,6 +22363,20 @@ namespace root {
     inline std::optional<std::string> McpServerResourceReadRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& McpServerResourceReadRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("mcpServer/resource/read")}; return values; }
     inline bool McpServerResourceReadRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId McpServerEventStreamStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline McpServerEventStreamStartRequestMethod McpServerEventStreamStartRequest::method() const { return McpServerEventStreamStartRequestMethod(memberRaw("method")); }
+    inline v2::McpServerEventStreamStartParams McpServerEventStreamStartRequest::params() const { return v2::McpServerEventStreamStartParams(memberRaw("params")); }
+    inline std::vector<std::string> McpServerEventStreamStartRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> McpServerEventStreamStartRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& McpServerEventStreamStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("mcpServer/event/stream/start")}; return values; }
+    inline bool McpServerEventStreamStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId McpServerEventStreamStopRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline McpServerEventStreamStopRequestMethod McpServerEventStreamStopRequest::method() const { return McpServerEventStreamStopRequestMethod(memberRaw("method")); }
+    inline v2::McpServerEventStreamStopParams McpServerEventStreamStopRequest::params() const { return v2::McpServerEventStreamStopParams(memberRaw("params")); }
+    inline std::vector<std::string> McpServerEventStreamStopRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> McpServerEventStreamStopRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& McpServerEventStreamStopRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("mcpServer/event/stream/stop")}; return values; }
+    inline bool McpServerEventStreamStopRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId McpServerToolCallRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline McpServerToolCallRequestMethod McpServerToolCallRequest::method() const { return McpServerToolCallRequestMethod(memberRaw("method")); }
     inline v2::McpServerToolCallParams McpServerToolCallRequest::params() const { return v2::McpServerToolCallParams(memberRaw("params")); }
@@ -17659,6 +22405,20 @@ namespace root {
     inline std::optional<std::string> AccountLoginStartRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AccountLoginStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("account/login/start")}; return values; }
     inline bool AccountLoginStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId AccountBedrockDiscoverRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline AccountBedrockDiscoverRequestMethod AccountBedrockDiscoverRequest::method() const { return AccountBedrockDiscoverRequestMethod(memberRaw("method")); }
+    inline v2::BedrockDiscoverParams AccountBedrockDiscoverRequest::params() const { return v2::BedrockDiscoverParams(memberRaw("params")); }
+    inline std::vector<std::string> AccountBedrockDiscoverRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> AccountBedrockDiscoverRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& AccountBedrockDiscoverRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("account/bedrock/discover")}; return values; }
+    inline bool AccountBedrockDiscoverRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId AccountBedrockSetupRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline AccountBedrockSetupRequestMethod AccountBedrockSetupRequest::method() const { return AccountBedrockSetupRequestMethod(memberRaw("method")); }
+    inline v2::BedrockSetupParams AccountBedrockSetupRequest::params() const { return v2::BedrockSetupParams(memberRaw("params")); }
+    inline std::vector<std::string> AccountBedrockSetupRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> AccountBedrockSetupRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& AccountBedrockSetupRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("account/bedrock/setup")}; return values; }
+    inline bool AccountBedrockSetupRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId AccountLoginCancelRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline AccountLoginCancelRequestMethod AccountLoginCancelRequest::method() const { return AccountLoginCancelRequestMethod(memberRaw("method")); }
     inline v2::CancelLoginAccountParams AccountLoginCancelRequest::params() const { return v2::CancelLoginAccountParams(memberRaw("params")); }
@@ -17675,7 +22435,7 @@ namespace root {
     inline bool AccountLogoutRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId AccountRateLimitsReadRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline AccountRateLimitsReadRequestMethod AccountRateLimitsReadRequest::method() const { return AccountRateLimitsReadRequestMethod(memberRaw("method")); }
-    inline nlohmann::json AccountRateLimitsReadRequest::params() const { return memberRaw("params"); }
+    inline AccountRateLimitsReadRequestParams AccountRateLimitsReadRequest::params() const { return AccountRateLimitsReadRequestParams(memberRaw("params")); }
     inline std::vector<std::string> AccountRateLimitsReadRequest::keys() const { return objectKeys(); }
     inline std::optional<std::string> AccountRateLimitsReadRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AccountRateLimitsReadRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("account/rateLimits/read")}; return values; }
@@ -17743,6 +22503,34 @@ namespace root {
     inline std::optional<std::string> CommandExecResizeRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& CommandExecResizeRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("command/exec/resize")}; return values; }
     inline bool CommandExecResizeRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProcessSpawnRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProcessSpawnRequestMethod ProcessSpawnRequest::method() const { return ProcessSpawnRequestMethod(memberRaw("method")); }
+    inline v2::ProcessSpawnParams ProcessSpawnRequest::params() const { return v2::ProcessSpawnParams(memberRaw("params")); }
+    inline std::vector<std::string> ProcessSpawnRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProcessSpawnRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProcessSpawnRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("process/spawn")}; return values; }
+    inline bool ProcessSpawnRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProcessWriteStdinRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProcessWriteStdinRequestMethod ProcessWriteStdinRequest::method() const { return ProcessWriteStdinRequestMethod(memberRaw("method")); }
+    inline v2::ProcessWriteStdinParams ProcessWriteStdinRequest::params() const { return v2::ProcessWriteStdinParams(memberRaw("params")); }
+    inline std::vector<std::string> ProcessWriteStdinRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProcessWriteStdinRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProcessWriteStdinRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("process/writeStdin")}; return values; }
+    inline bool ProcessWriteStdinRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProcessKillRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProcessKillRequestMethod ProcessKillRequest::method() const { return ProcessKillRequestMethod(memberRaw("method")); }
+    inline v2::ProcessKillParams ProcessKillRequest::params() const { return v2::ProcessKillParams(memberRaw("params")); }
+    inline std::vector<std::string> ProcessKillRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProcessKillRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProcessKillRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("process/kill")}; return values; }
+    inline bool ProcessKillRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId ProcessResizePtyRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline ProcessResizePtyRequestMethod ProcessResizePtyRequest::method() const { return ProcessResizePtyRequestMethod(memberRaw("method")); }
+    inline v2::ProcessResizePtyParams ProcessResizePtyRequest::params() const { return v2::ProcessResizePtyParams(memberRaw("params")); }
+    inline std::vector<std::string> ProcessResizePtyRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProcessResizePtyRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProcessResizePtyRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("process/resizePty")}; return values; }
+    inline bool ProcessResizePtyRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ConfigReadRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ConfigReadRequestMethod ConfigReadRequest::method() const { return ConfigReadRequestMethod(memberRaw("method")); }
     inline v2::ConfigReadParams ConfigReadRequest::params() const { return v2::ConfigReadParams(memberRaw("params")); }
@@ -17813,6 +22601,27 @@ namespace root {
     inline std::optional<std::string> FuzzyFileSearchRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& FuzzyFileSearchRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("fuzzyFileSearch")}; return values; }
     inline bool FuzzyFileSearchRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId FuzzyFileSearchSessionStartRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline FuzzyFileSearchSessionStartRequestMethod FuzzyFileSearchSessionStartRequest::method() const { return FuzzyFileSearchSessionStartRequestMethod(memberRaw("method")); }
+    inline FuzzyFileSearchSessionStartParams FuzzyFileSearchSessionStartRequest::params() const { return FuzzyFileSearchSessionStartParams(memberRaw("params")); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStartRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FuzzyFileSearchSessionStartRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& FuzzyFileSearchSessionStartRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("fuzzyFileSearch/sessionStart")}; return values; }
+    inline bool FuzzyFileSearchSessionStartRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId FuzzyFileSearchSessionUpdateRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline FuzzyFileSearchSessionUpdateRequestMethod FuzzyFileSearchSessionUpdateRequest::method() const { return FuzzyFileSearchSessionUpdateRequestMethod(memberRaw("method")); }
+    inline FuzzyFileSearchSessionUpdateParams FuzzyFileSearchSessionUpdateRequest::params() const { return FuzzyFileSearchSessionUpdateParams(memberRaw("params")); }
+    inline std::vector<std::string> FuzzyFileSearchSessionUpdateRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FuzzyFileSearchSessionUpdateRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& FuzzyFileSearchSessionUpdateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("fuzzyFileSearch/sessionUpdate")}; return values; }
+    inline bool FuzzyFileSearchSessionUpdateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId FuzzyFileSearchSessionStopRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline FuzzyFileSearchSessionStopRequestMethod FuzzyFileSearchSessionStopRequest::method() const { return FuzzyFileSearchSessionStopRequestMethod(memberRaw("method")); }
+    inline FuzzyFileSearchSessionStopParams FuzzyFileSearchSessionStopRequest::params() const { return FuzzyFileSearchSessionStopParams(memberRaw("params")); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStopRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FuzzyFileSearchSessionStopRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& FuzzyFileSearchSessionStopRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("fuzzyFileSearch/sessionStop")}; return values; }
+    inline bool FuzzyFileSearchSessionStopRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> CommandExecutionApprovalDecisionOneOf1::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& CommandExecutionApprovalDecisionOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("accept")}; return values; }
     inline bool CommandExecutionApprovalDecisionOneOf1::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -17834,12 +22643,18 @@ namespace root {
     inline std::optional<std::string> CommandExecutionApprovalDecisionOneOf6::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& CommandExecutionApprovalDecisionOneOf6::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("cancel")}; return values; }
     inline bool CommandExecutionApprovalDecisionOneOf6::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> CommandExecutionApprovalKind::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& CommandExecutionApprovalKind::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("command"), nlohmann::json("writeStdin")}; return values; }
+    inline bool CommandExecutionApprovalKind::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline CommandExecutionRequestApprovalParamsAdditionalPermissions CommandExecutionRequestApprovalParams::additionalPermissions() const { return CommandExecutionRequestApprovalParamsAdditionalPermissions(memberRaw("additionalPermissions")); }
     inline std::optional<std::string> CommandExecutionRequestApprovalParams::approvalId() const { return stringMember("approvalId"); }
+    inline CommandExecutionRequestApprovalParamsAvailableDecisions CommandExecutionRequestApprovalParams::availableDecisions() const { return CommandExecutionRequestApprovalParamsAvailableDecisions(memberRaw("availableDecisions")); }
     inline std::optional<std::string> CommandExecutionRequestApprovalParams::command() const { return stringMember("command"); }
     inline CommandExecutionRequestApprovalParamsCommandActions CommandExecutionRequestApprovalParams::commandActions() const { return CommandExecutionRequestApprovalParamsCommandActions(memberRaw("commandActions")); }
     inline CommandExecutionRequestApprovalParamsCwd CommandExecutionRequestApprovalParams::cwd() const { return CommandExecutionRequestApprovalParamsCwd(memberRaw("cwd")); }
     inline std::optional<std::string> CommandExecutionRequestApprovalParams::environmentId() const { return stringMember("environmentId"); }
     inline std::optional<std::string> CommandExecutionRequestApprovalParams::itemId() const { return stringMember("itemId"); }
+    inline CommandExecutionRequestApprovalParamsKind CommandExecutionRequestApprovalParams::kind() const { return CommandExecutionRequestApprovalParamsKind(memberRaw("kind")); }
     inline CommandExecutionRequestApprovalParamsNetworkApprovalContext CommandExecutionRequestApprovalParams::networkApprovalContext() const { return CommandExecutionRequestApprovalParamsNetworkApprovalContext(memberRaw("networkApprovalContext")); }
     inline CommandExecutionRequestApprovalParamsProposedExecpolicyAmendment CommandExecutionRequestApprovalParams::proposedExecpolicyAmendment() const { return CommandExecutionRequestApprovalParamsProposedExecpolicyAmendment(memberRaw("proposedExecpolicyAmendment")); }
     inline CommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendments CommandExecutionRequestApprovalParams::proposedNetworkPolicyAmendments() const { return CommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendments(memberRaw("proposedNetworkPolicyAmendments")); }
@@ -17848,11 +22663,16 @@ namespace root {
     inline std::optional<std::string> CommandExecutionRequestApprovalParams::threadId() const { return stringMember("threadId"); }
     inline std::optional<std::string> CommandExecutionRequestApprovalParams::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> CommandExecutionRequestApprovalParams::keys() const { return objectKeys(); }
+    inline std::vector<CommandExecutionApprovalDecision> CommandExecutionRequestApprovalParamsAvailableDecisions::items() const { return arrayItems<CommandExecutionApprovalDecision>(); }
     inline std::vector<v2::CommandAction> CommandExecutionRequestApprovalParamsCommandActions::items() const { return arrayItems<v2::CommandAction>(); }
     inline std::vector<std::string> CommandExecutionRequestApprovalParamsProposedExecpolicyAmendment::items() const { return arrayItems<std::string>(); }
     inline std::vector<NetworkPolicyAmendment> CommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendments::items() const { return arrayItems<NetworkPolicyAmendment>(); }
     inline CommandExecutionApprovalDecision CommandExecutionRequestApprovalResponse::decision() const { return CommandExecutionApprovalDecision(memberRaw("decision")); }
     inline std::vector<std::string> CommandExecutionRequestApprovalResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> CurrentTimeReadParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> CurrentTimeReadParams::keys() const { return objectKeys(); }
+    inline std::optional<std::int64_t> CurrentTimeReadResponse::currentTimeAt() const { return integerMember("currentTimeAt"); }
+    inline std::vector<std::string> CurrentTimeReadResponse::keys() const { return objectKeys(); }
     inline nlohmann::json DynamicToolCallParams::arguments() const { return memberRaw("arguments"); }
     inline std::optional<std::string> DynamicToolCallParams::callId() const { return stringMember("callId"); }
     inline std::optional<std::string> DynamicToolCallParams::namespace_() const { return stringMember("namespace"); }
@@ -17937,6 +22757,18 @@ namespace root {
     inline std::vector<std::int64_t> FuzzyFileSearchResultIndices::items() const { return arrayItems<std::int64_t>(); }
     inline std::optional<std::string> FuzzyFileSearchSessionCompletedNotification::sessionId() const { return stringMember("sessionId"); }
     inline std::vector<std::string> FuzzyFileSearchSessionCompletedNotification::keys() const { return objectKeys(); }
+    inline FuzzyFileSearchSessionStartParamsRoots FuzzyFileSearchSessionStartParams::roots() const { return FuzzyFileSearchSessionStartParamsRoots(memberRaw("roots")); }
+    inline std::optional<std::string> FuzzyFileSearchSessionStartParams::sessionId() const { return stringMember("sessionId"); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStartParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStartParamsRoots::items() const { return arrayItems<std::string>(); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStartResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FuzzyFileSearchSessionStopParams::sessionId() const { return stringMember("sessionId"); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStopParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> FuzzyFileSearchSessionStopResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FuzzyFileSearchSessionUpdateParams::query() const { return stringMember("query"); }
+    inline std::optional<std::string> FuzzyFileSearchSessionUpdateParams::sessionId() const { return stringMember("sessionId"); }
+    inline std::vector<std::string> FuzzyFileSearchSessionUpdateParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> FuzzyFileSearchSessionUpdateResponse::keys() const { return objectKeys(); }
     inline FuzzyFileSearchSessionUpdatedNotificationFiles FuzzyFileSearchSessionUpdatedNotification::files() const { return FuzzyFileSearchSessionUpdatedNotificationFiles(memberRaw("files")); }
     inline std::optional<std::string> FuzzyFileSearchSessionUpdatedNotification::query() const { return stringMember("query"); }
     inline std::optional<std::string> FuzzyFileSearchSessionUpdatedNotification::sessionId() const { return stringMember("sessionId"); }
@@ -18082,31 +22914,47 @@ namespace root {
     inline std::optional<std::string> McpServerElicitationRequestParams::threadId() const { return stringMember("threadId"); }
     inline std::optional<std::string> McpServerElicitationRequestParams::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> McpServerElicitationRequestParams::keys() const { return objectKeys(); }
-    inline nlohmann::json McpServerElicitationRequestParamsOneOf1::meta() const { return memberRaw("_meta"); }
-    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf1::message() const { return stringMember("message"); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf1::challenge() const { return stringMember("challenge"); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf1::description() const { return stringMember("description"); }
     inline McpServerElicitationRequestParamsOneOf1Mode McpServerElicitationRequestParamsOneOf1::mode() const { return McpServerElicitationRequestParamsOneOf1Mode(memberRaw("mode")); }
-    inline McpElicitationSchema McpServerElicitationRequestParamsOneOf1::requestedSchema() const { return McpElicitationSchema(memberRaw("requestedSchema")); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf1::title() const { return stringMember("title"); }
     inline std::vector<std::string> McpServerElicitationRequestParamsOneOf1::keys() const { return objectKeys(); }
     inline std::optional<std::string> McpServerElicitationRequestParamsOneOf1Mode::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf1Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("form")}; return values; }
+    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf1Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("openai/userVerification")}; return values; }
     inline bool McpServerElicitationRequestParamsOneOf1Mode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline nlohmann::json McpServerElicitationRequestParamsOneOf2::meta() const { return memberRaw("_meta"); }
     inline std::optional<std::string> McpServerElicitationRequestParamsOneOf2::message() const { return stringMember("message"); }
     inline McpServerElicitationRequestParamsOneOf2Mode McpServerElicitationRequestParamsOneOf2::mode() const { return McpServerElicitationRequestParamsOneOf2Mode(memberRaw("mode")); }
-    inline nlohmann::json McpServerElicitationRequestParamsOneOf2::requestedSchema() const { return memberRaw("requestedSchema"); }
+    inline McpElicitationSchema McpServerElicitationRequestParamsOneOf2::requestedSchema() const { return McpElicitationSchema(memberRaw("requestedSchema")); }
     inline std::vector<std::string> McpServerElicitationRequestParamsOneOf2::keys() const { return objectKeys(); }
     inline std::optional<std::string> McpServerElicitationRequestParamsOneOf2Mode::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf2Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("openai/form")}; return values; }
+    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf2Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("form")}; return values; }
     inline bool McpServerElicitationRequestParamsOneOf2Mode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline nlohmann::json McpServerElicitationRequestParamsOneOf3::meta() const { return memberRaw("_meta"); }
-    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf3::elicitationId() const { return stringMember("elicitationId"); }
     inline std::optional<std::string> McpServerElicitationRequestParamsOneOf3::message() const { return stringMember("message"); }
     inline McpServerElicitationRequestParamsOneOf3Mode McpServerElicitationRequestParamsOneOf3::mode() const { return McpServerElicitationRequestParamsOneOf3Mode(memberRaw("mode")); }
-    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf3::url() const { return stringMember("url"); }
+    inline nlohmann::json McpServerElicitationRequestParamsOneOf3::requestedSchema() const { return memberRaw("requestedSchema"); }
     inline std::vector<std::string> McpServerElicitationRequestParamsOneOf3::keys() const { return objectKeys(); }
     inline std::optional<std::string> McpServerElicitationRequestParamsOneOf3Mode::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf3Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("url")}; return values; }
+    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf3Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("openai/form")}; return values; }
     inline bool McpServerElicitationRequestParamsOneOf3Mode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline nlohmann::json McpServerElicitationRequestParamsOneOf4::meta() const { return memberRaw("_meta"); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf4::message() const { return stringMember("message"); }
+    inline McpServerElicitationRequestParamsOneOf4Mode McpServerElicitationRequestParamsOneOf4::mode() const { return McpServerElicitationRequestParamsOneOf4Mode(memberRaw("mode")); }
+    inline nlohmann::json McpServerElicitationRequestParamsOneOf4::requestedSchema() const { return memberRaw("requestedSchema"); }
+    inline std::vector<std::string> McpServerElicitationRequestParamsOneOf4::keys() const { return objectKeys(); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf4Mode::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf4Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("openaiForm")}; return values; }
+    inline bool McpServerElicitationRequestParamsOneOf4Mode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline nlohmann::json McpServerElicitationRequestParamsOneOf5::meta() const { return memberRaw("_meta"); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf5::elicitationId() const { return stringMember("elicitationId"); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf5::message() const { return stringMember("message"); }
+    inline McpServerElicitationRequestParamsOneOf5Mode McpServerElicitationRequestParamsOneOf5::mode() const { return McpServerElicitationRequestParamsOneOf5Mode(memberRaw("mode")); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf5::url() const { return stringMember("url"); }
+    inline std::vector<std::string> McpServerElicitationRequestParamsOneOf5::keys() const { return objectKeys(); }
+    inline std::optional<std::string> McpServerElicitationRequestParamsOneOf5Mode::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& McpServerElicitationRequestParamsOneOf5Mode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("url")}; return values; }
+    inline bool McpServerElicitationRequestParamsOneOf5Mode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline nlohmann::json McpServerElicitationRequestResponse::meta() const { return memberRaw("_meta"); }
     inline McpServerElicitationAction McpServerElicitationRequestResponse::action() const { return McpServerElicitationAction(memberRaw("action")); }
     inline nlohmann::json McpServerElicitationRequestResponse::content() const { return memberRaw("content"); }
@@ -18152,7 +23000,7 @@ namespace root {
     inline std::optional<std::string> PermissionGrantScope::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& PermissionGrantScope::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turn"), nlohmann::json("session")}; return values; }
     inline bool PermissionGrantScope::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
-    inline v2::AbsolutePathBuf PermissionsRequestApprovalParams::cwd() const { return v2::AbsolutePathBuf(memberRaw("cwd")); }
+    inline v2::LegacyAppPathString PermissionsRequestApprovalParams::cwd() const { return v2::LegacyAppPathString(memberRaw("cwd")); }
     inline std::optional<std::string> PermissionsRequestApprovalParams::environmentId() const { return stringMember("environmentId"); }
     inline std::optional<std::string> PermissionsRequestApprovalParams::itemId() const { return stringMember("itemId"); }
     inline v2::RequestPermissionProfile PermissionsRequestApprovalParams::permissions() const { return v2::RequestPermissionProfile(memberRaw("permissions")); }
@@ -18537,6 +23385,18 @@ namespace root {
     inline std::optional<std::string> ModelVerificationNotificationMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ModelVerificationNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("model/verification")}; return values; }
     inline bool ModelVerificationNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ModelProviderAuthRecoveryStartedNotificationMethod ModelProviderAuthRecoveryStartedNotification::method() const { return ModelProviderAuthRecoveryStartedNotificationMethod(memberRaw("method")); }
+    inline v2::AuthRecoveryNotification ModelProviderAuthRecoveryStartedNotification::params() const { return v2::AuthRecoveryNotification(memberRaw("params")); }
+    inline std::vector<std::string> ModelProviderAuthRecoveryStartedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ModelProviderAuthRecoveryStartedNotificationMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ModelProviderAuthRecoveryStartedNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("modelProvider/authRecoveryStarted")}; return values; }
+    inline bool ModelProviderAuthRecoveryStartedNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ModelProviderAuthRecoveryCompletedNotificationMethod ModelProviderAuthRecoveryCompletedNotification::method() const { return ModelProviderAuthRecoveryCompletedNotificationMethod(memberRaw("method")); }
+    inline v2::AuthRecoveryNotification ModelProviderAuthRecoveryCompletedNotification::params() const { return v2::AuthRecoveryNotification(memberRaw("params")); }
+    inline std::vector<std::string> ModelProviderAuthRecoveryCompletedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ModelProviderAuthRecoveryCompletedNotificationMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ModelProviderAuthRecoveryCompletedNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("modelProvider/authRecoveryCompleted")}; return values; }
+    inline bool ModelProviderAuthRecoveryCompletedNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline TurnModerationMetadataNotificationMethod TurnModerationMetadataNotification::method() const { return TurnModerationMetadataNotificationMethod(memberRaw("method")); }
     inline v2::TurnModerationMetadataNotification TurnModerationMetadataNotification::params() const { return v2::TurnModerationMetadataNotification(memberRaw("params")); }
     inline std::vector<std::string> TurnModerationMetadataNotification::keys() const { return objectKeys(); }
@@ -18597,6 +23457,24 @@ namespace root {
     inline std::optional<std::string> ThreadRealtimeItemAddedNotificationMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadRealtimeItemAddedNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/itemAdded")}; return values; }
     inline bool ThreadRealtimeItemAddedNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadRealtimeItemStartedNotificationMethod ThreadRealtimeItemStartedNotification::method() const { return ThreadRealtimeItemStartedNotificationMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeItemStartedNotification ThreadRealtimeItemStartedNotification::params() const { return v2::ThreadRealtimeItemStartedNotification(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeItemStartedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeItemStartedNotificationMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeItemStartedNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/item/started")}; return values; }
+    inline bool ThreadRealtimeItemStartedNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadRealtimeItemTranscriptDeltaNotificationMethod ThreadRealtimeItemTranscriptDeltaNotification::method() const { return ThreadRealtimeItemTranscriptDeltaNotificationMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeItemTranscriptDeltaNotification ThreadRealtimeItemTranscriptDeltaNotification::params() const { return v2::ThreadRealtimeItemTranscriptDeltaNotification(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeItemTranscriptDeltaNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeItemTranscriptDeltaNotificationMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeItemTranscriptDeltaNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/item/transcript/delta")}; return values; }
+    inline bool ThreadRealtimeItemTranscriptDeltaNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadRealtimeItemCompletedNotificationMethod ThreadRealtimeItemCompletedNotification::method() const { return ThreadRealtimeItemCompletedNotificationMethod(memberRaw("method")); }
+    inline v2::ThreadRealtimeItemCompletedNotification ThreadRealtimeItemCompletedNotification::params() const { return v2::ThreadRealtimeItemCompletedNotification(memberRaw("params")); }
+    inline std::vector<std::string> ThreadRealtimeItemCompletedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeItemCompletedNotificationMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeItemCompletedNotificationMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("thread/realtime/item/completed")}; return values; }
+    inline bool ThreadRealtimeItemCompletedNotificationMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline ThreadRealtimeTranscriptDeltaNotificationMethod ThreadRealtimeTranscriptDeltaNotification::method() const { return ThreadRealtimeTranscriptDeltaNotificationMethod(memberRaw("method")); }
     inline v2::ThreadRealtimeTranscriptDeltaNotification ThreadRealtimeTranscriptDeltaNotification::params() const { return v2::ThreadRealtimeTranscriptDeltaNotification(memberRaw("params")); }
     inline std::vector<std::string> ThreadRealtimeTranscriptDeltaNotification::keys() const { return objectKeys(); }
@@ -18707,6 +23585,13 @@ namespace root {
     inline std::optional<std::string> AttestationGenerateRequestMethod::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AttestationGenerateRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("attestation/generate")}; return values; }
     inline bool AttestationGenerateRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline v2::RequestId CurrentTimeReadRequest::id() const { return v2::RequestId(memberRaw("id")); }
+    inline CurrentTimeReadRequestMethod CurrentTimeReadRequest::method() const { return CurrentTimeReadRequestMethod(memberRaw("method")); }
+    inline CurrentTimeReadParams CurrentTimeReadRequest::params() const { return CurrentTimeReadParams(memberRaw("params")); }
+    inline std::vector<std::string> CurrentTimeReadRequest::keys() const { return objectKeys(); }
+    inline std::optional<std::string> CurrentTimeReadRequestMethod::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& CurrentTimeReadRequestMethod::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("currentTime/read")}; return values; }
+    inline bool CurrentTimeReadRequestMethod::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline v2::RequestId ApplyPatchApprovalRequest::id() const { return v2::RequestId(memberRaw("id")); }
     inline ApplyPatchApprovalRequestMethod ApplyPatchApprovalRequest::method() const { return ApplyPatchApprovalRequestMethod(memberRaw("method")); }
     inline ApplyPatchApprovalParams ApplyPatchApprovalRequest::params() const { return ApplyPatchApprovalParams(memberRaw("params")); }
@@ -18853,6 +23738,7 @@ namespace v2 {
     inline std::optional<bool> AppConfig::defaultToolsEnabled() const { return boolMember("default_tools_enabled"); }
     inline std::optional<bool> AppConfig::destructiveEnabled() const { return boolMember("destructive_enabled"); }
     inline std::optional<bool> AppConfig::enabled() const { return boolMember("enabled"); }
+    inline AppConfigLinks AppConfig::links() const { return AppConfigLinks(memberRaw("links")); }
     inline std::optional<bool> AppConfig::openWorldEnabled() const { return boolMember("open_world_enabled"); }
     inline AppConfigTools AppConfig::tools() const { return AppConfigTools(memberRaw("tools")); }
     inline std::vector<std::string> AppConfig::keys() const { return objectKeys(); }
@@ -18876,6 +23762,10 @@ namespace v2 {
     inline std::vector<std::string> AppInfoIconDarkAssets::keys() const { return objectKeys(); }
     inline std::vector<std::string> AppInfoLabels::keys() const { return objectKeys(); }
     inline std::vector<std::string> AppInfoPluginDisplayNames::items() const { return arrayItems<std::string>(); }
+    inline AppLinkConfigApprovalsReviewer AppLinkConfig::approvalsReviewer() const { return AppLinkConfigApprovalsReviewer(memberRaw("approvals_reviewer")); }
+    inline AppLinkConfigDefaultToolsApprovalMode AppLinkConfig::defaultToolsApprovalMode() const { return AppLinkConfigDefaultToolsApprovalMode(memberRaw("default_tools_approval_mode")); }
+    inline std::vector<std::string> AppLinkConfig::keys() const { return objectKeys(); }
+    inline std::vector<std::string> AppLinksConfig::keys() const { return objectKeys(); }
     inline AppListUpdatedNotificationData AppListUpdatedNotification::data() const { return AppListUpdatedNotificationData(memberRaw("data")); }
     inline std::vector<std::string> AppListUpdatedNotification::keys() const { return objectKeys(); }
     inline std::vector<AppInfo> AppListUpdatedNotificationData::items() const { return arrayItems<AppInfo>(); }
@@ -18934,6 +23824,12 @@ namespace v2 {
     inline std::optional<std::string> AppToolSummary::title() const { return stringMember("title"); }
     inline std::vector<std::string> AppToolSummary::keys() const { return objectKeys(); }
     inline std::vector<std::string> AppToolsConfig::keys() const { return objectKeys(); }
+    inline ApplicationNetworkRequirementsDomains ApplicationNetworkRequirements::domains() const { return ApplicationNetworkRequirementsDomains(memberRaw("domains")); }
+    inline std::optional<bool> ApplicationNetworkRequirements::enabled() const { return boolMember("enabled"); }
+    inline std::vector<std::string> ApplicationNetworkRequirements::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ApplicationNetworkRequirementsDomains::keys() const { return objectKeys(); }
+    inline ApplicationRequirementsNetwork ApplicationRequirements::network() const { return ApplicationRequirementsNetwork(memberRaw("network")); }
+    inline std::vector<std::string> ApplicationRequirements::keys() const { return objectKeys(); }
     inline std::optional<std::string> ApprovalsReviewer::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ApprovalsReviewer::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("user"), nlohmann::json("auto_review"), nlohmann::json("guardian_subagent")}; return values; }
     inline bool ApprovalsReviewer::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -18981,6 +23877,10 @@ namespace v2 {
     inline std::optional<bool> GranularAskForApprovalGranular::sandboxApproval() const { return boolMember("sandbox_approval"); }
     inline std::optional<bool> GranularAskForApprovalGranular::skillApproval() const { return boolMember("skill_approval"); }
     inline std::vector<std::string> GranularAskForApprovalGranular::keys() const { return objectKeys(); }
+    inline AsyncUserInputQuestionOptions AsyncUserInputQuestion::options() const { return AsyncUserInputQuestionOptions(memberRaw("options")); }
+    inline std::optional<std::string> AsyncUserInputQuestion::title() const { return stringMember("title"); }
+    inline std::vector<std::string> AsyncUserInputQuestion::keys() const { return objectKeys(); }
+    inline std::vector<std::string> AsyncUserInputQuestionOptions::items() const { return arrayItems<std::string>(); }
     inline std::optional<std::string> AuthModeOneOf1::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AuthModeOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("apikey")}; return values; }
     inline bool AuthModeOneOf1::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -19002,6 +23902,14 @@ namespace v2 {
     inline std::optional<std::string> AuthModeOneOf7::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AuthModeOneOf7::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("bedrockApiKey")}; return values; }
     inline bool AuthModeOneOf7::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> AuthModeOneOf8::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& AuthModeOneOf8::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("bedrockAccessKeys")}; return values; }
+    inline bool AuthModeOneOf8::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> AuthRecoveryNotification::message() const { return stringMember("message"); }
+    inline std::optional<std::string> AuthRecoveryNotification::provider() const { return stringMember("provider"); }
+    inline std::optional<std::string> AuthRecoveryNotification::threadId() const { return stringMember("threadId"); }
+    inline std::optional<std::string> AuthRecoveryNotification::turnId() const { return stringMember("turnId"); }
+    inline std::vector<std::string> AuthRecoveryNotification::keys() const { return objectKeys(); }
     inline std::optional<std::string> AutoCompactTokenLimitScopeOneOf1::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AutoCompactTokenLimitScopeOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("total")}; return values; }
     inline bool AutoCompactTokenLimitScopeOneOf1::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -19016,6 +23924,35 @@ namespace v2 {
     inline std::vector<std::string> AutoReviewRequirements::keys() const { return objectKeys(); }
     inline std::vector<std::string> AutoReviewRequirementsIgnoreRules::items() const { return arrayItems<std::string>(); }
     inline std::vector<std::string> AutoReviewRequirementsRequiredOnModels::items() const { return arrayItems<std::string>(); }
+    inline std::optional<std::string> AwsCredentialType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& AwsCredentialType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("accessKeys"), nlohmann::json("bedrockApiKey")}; return values; }
+    inline bool AwsCredentialType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> BedrockAwsProfile::name() const { return stringMember("name"); }
+    inline std::optional<std::string> BedrockAwsProfile::region() const { return stringMember("region"); }
+    inline std::vector<std::string> BedrockAwsProfile::keys() const { return objectKeys(); }
+    inline std::vector<std::string> BedrockDiscoverParams::keys() const { return objectKeys(); }
+    inline BedrockDiscoverResponseEnvironmentCredentials BedrockDiscoverResponse::environmentCredentials() const { return BedrockDiscoverResponseEnvironmentCredentials(memberRaw("environmentCredentials")); }
+    inline BedrockDiscoverResponseProfiles BedrockDiscoverResponse::profiles() const { return BedrockDiscoverResponseProfiles(memberRaw("profiles")); }
+    inline std::vector<std::string> BedrockDiscoverResponse::keys() const { return objectKeys(); }
+    inline std::vector<BedrockEnvironmentCredential> BedrockDiscoverResponseEnvironmentCredentials::items() const { return arrayItems<BedrockEnvironmentCredential>(); }
+    inline std::vector<BedrockAwsProfile> BedrockDiscoverResponseProfiles::items() const { return arrayItems<BedrockAwsProfile>(); }
+    inline std::optional<std::string> BedrockEnvironmentCredential::region() const { return stringMember("region"); }
+    inline AwsCredentialType BedrockEnvironmentCredential::type() const { return AwsCredentialType(memberRaw("type")); }
+    inline std::vector<std::string> BedrockEnvironmentCredential::keys() const { return objectKeys(); }
+    inline std::optional<std::string> Profilev2BedrockSetupParams::profile() const { return stringMember("profile"); }
+    inline std::optional<std::string> Profilev2BedrockSetupParams::region() const { return stringMember("region"); }
+    inline Profilev2BedrockSetupParamsType Profilev2BedrockSetupParams::type() const { return Profilev2BedrockSetupParamsType(memberRaw("type")); }
+    inline std::vector<std::string> Profilev2BedrockSetupParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> Profilev2BedrockSetupParamsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& Profilev2BedrockSetupParamsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("profile")}; return values; }
+    inline bool Profilev2BedrockSetupParamsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> Environmentv2BedrockSetupParams::region() const { return stringMember("region"); }
+    inline Environmentv2BedrockSetupParamsType Environmentv2BedrockSetupParams::type() const { return Environmentv2BedrockSetupParamsType(memberRaw("type")); }
+    inline std::vector<std::string> Environmentv2BedrockSetupParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> Environmentv2BedrockSetupParamsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& Environmentv2BedrockSetupParamsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("environment")}; return values; }
+    inline bool Environmentv2BedrockSetupParamsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::vector<std::string> BedrockSetupResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> BrowserUseAccessApprovalLifetime::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& BrowserUseAccessApprovalLifetime::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turn"), nlohmann::json("thread")}; return values; }
     inline bool BrowserUseAccessApprovalLifetime::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -19039,6 +23976,7 @@ namespace v2 {
     inline std::vector<std::string> BrowserUseOriginPolicyConfig::keys() const { return objectKeys(); }
     inline std::optional<bool> BrowserUseRequirements::allowGlobalPersistentApproval() const { return boolMember("allowGlobalPersistentApproval"); }
     inline std::optional<bool> BrowserUseRequirements::allowHistoryAccess() const { return boolMember("allowHistoryAccess"); }
+    inline std::optional<bool> BrowserUseRequirements::allowWebmcp() const { return boolMember("allowWebmcp"); }
     inline BrowserUseRequirementsDefaultOriginPolicy BrowserUseRequirements::defaultOriginPolicy() const { return BrowserUseRequirementsDefaultOriginPolicy(memberRaw("defaultOriginPolicy")); }
     inline std::optional<bool> BrowserUseRequirements::disableAutoReview() const { return boolMember("disableAutoReview"); }
     inline BrowserUseRequirementsOrigins BrowserUseRequirements::origins() const { return BrowserUseRequirementsOrigins(memberRaw("origins")); }
@@ -19065,7 +24003,7 @@ namespace v2 {
     inline const std::vector<nlohmann::json>& CliAuthCredentialsStoreMode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("file"), nlohmann::json("keyring"), nlohmann::json("auto"), nlohmann::json("ephemeral")}; return values; }
     inline bool CliAuthCredentialsStoreMode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> CodexErrorInfoOneOf1::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& CodexErrorInfoOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("contextWindowExceeded"), nlohmann::json("sessionBudgetExceeded"), nlohmann::json("usageLimitExceeded"), nlohmann::json("serverOverloaded"), nlohmann::json("cyberPolicy"), nlohmann::json("misalignmentPolicyViolation"), nlohmann::json("internalServerError"), nlohmann::json("unauthorized"), nlohmann::json("badRequest"), nlohmann::json("threadRollbackFailed"), nlohmann::json("sandboxError"), nlohmann::json("other")}; return values; }
+    inline const std::vector<nlohmann::json>& CodexErrorInfoOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("contextWindowExceeded"), nlohmann::json("sessionBudgetExceeded"), nlohmann::json("usageLimitExceeded"), nlohmann::json("rateLimitExceeded"), nlohmann::json("serverOverloaded"), nlohmann::json("cyberPolicy"), nlohmann::json("misalignmentPolicyViolation"), nlohmann::json("internalServerError"), nlohmann::json("unauthorized"), nlohmann::json("badRequest"), nlohmann::json("threadRollbackFailed"), nlohmann::json("sandboxError"), nlohmann::json("other")}; return values; }
     inline bool CodexErrorInfoOneOf1::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline HttpConnectionFailedCodexErrorInfoHttpConnectionFailed HttpConnectionFailedCodexErrorInfo::httpConnectionFailed() const { return HttpConnectionFailedCodexErrorInfoHttpConnectionFailed(memberRaw("httpConnectionFailed")); }
     inline std::vector<std::string> HttpConnectionFailedCodexErrorInfo::keys() const { return objectKeys(); }
@@ -19097,14 +24035,18 @@ namespace v2 {
     inline const std::vector<nlohmann::json>& CollabAgentStatus::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("pendingInit"), nlohmann::json("running"), nlohmann::json("interrupted"), nlohmann::json("completed"), nlohmann::json("errored"), nlohmann::json("shutdown"), nlohmann::json("notFound")}; return values; }
     inline bool CollabAgentStatus::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> CollabAgentTool::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& CollabAgentTool::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("spawnAgent"), nlohmann::json("sendInput"), nlohmann::json("resumeAgent"), nlohmann::json("wait"), nlohmann::json("closeAgent")}; return values; }
+    inline const std::vector<nlohmann::json>& CollabAgentTool::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("spawnAgent"), nlohmann::json("sendInput"), nlohmann::json("resumeAgent"), nlohmann::json("wait"), nlohmann::json("closeAgent"), nlohmann::json("sendMessage"), nlohmann::json("followupTask"), nlohmann::json("interruptAgent"), nlohmann::json("listAgents")}; return values; }
     inline bool CollabAgentTool::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> CollabAgentToolCallStatus::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& CollabAgentToolCallStatus::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("inProgress"), nlohmann::json("completed"), nlohmann::json("failed")}; return values; }
+    inline const std::vector<nlohmann::json>& CollabAgentToolCallStatus::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("inProgress"), nlohmann::json("completed"), nlohmann::json("failed"), nlohmann::json("interrupted")}; return values; }
     inline bool CollabAgentToolCallStatus::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline ModeKind CollaborationMode::mode() const { return ModeKind(memberRaw("mode")); }
     inline Settings CollaborationMode::settings() const { return Settings(memberRaw("settings")); }
     inline std::vector<std::string> CollaborationMode::keys() const { return objectKeys(); }
+    inline std::vector<std::string> CollaborationModeListParams::keys() const { return objectKeys(); }
+    inline CollaborationModeListResponseData CollaborationModeListResponse::data() const { return CollaborationModeListResponseData(memberRaw("data")); }
+    inline std::vector<std::string> CollaborationModeListResponse::keys() const { return objectKeys(); }
+    inline std::vector<CollaborationModeMask> CollaborationModeListResponseData::items() const { return arrayItems<CollaborationModeMask>(); }
     inline CollaborationModeMaskMode CollaborationModeMask::mode() const { return CollaborationModeMaskMode(memberRaw("mode")); }
     inline std::optional<std::string> CollaborationModeMask::model() const { return stringMember("model"); }
     inline std::optional<std::string> CollaborationModeMask::name() const { return stringMember("name"); }
@@ -19156,6 +24098,7 @@ namespace v2 {
     inline std::optional<bool> CommandExecParams::disableTimeout() const { return boolMember("disableTimeout"); }
     inline CommandExecParamsEnv CommandExecParams::env() const { return CommandExecParamsEnv(memberRaw("env")); }
     inline std::optional<std::int64_t> CommandExecParams::outputBytesCap() const { return integerMember("outputBytesCap"); }
+    inline std::optional<std::string> CommandExecParams::permissionProfile() const { return stringMember("permissionProfile"); }
     inline std::optional<std::string> CommandExecParams::processId() const { return stringMember("processId"); }
     inline CommandExecParamsSandboxPolicy CommandExecParams::sandboxPolicy() const { return CommandExecParamsSandboxPolicy(memberRaw("sandboxPolicy")); }
     inline CommandExecParamsSize CommandExecParams::size() const { return CommandExecParamsSize(memberRaw("size")); }
@@ -19237,6 +24180,7 @@ namespace v2 {
     inline ConfigAnalytics Config::analytics() const { return ConfigAnalytics(memberRaw("analytics")); }
     inline ConfigApprovalPolicy Config::approvalPolicy() const { return ConfigApprovalPolicy(memberRaw("approval_policy")); }
     inline ConfigApprovalsReviewer Config::approvalsReviewer() const { return ConfigApprovalsReviewer(memberRaw("approvals_reviewer")); }
+    inline ConfigApps Config::apps() const { return ConfigApps(memberRaw("apps")); }
     inline ConfigBrowserUse Config::browserUse() const { return ConfigBrowserUse(memberRaw("browser_use")); }
     inline std::optional<std::string> Config::compactPrompt() const { return stringMember("compact_prompt"); }
     inline ConfigComputerUse Config::computerUse() const { return ConfigComputerUse(memberRaw("computer_use")); }
@@ -19350,10 +24294,12 @@ namespace v2 {
     inline std::optional<bool> ConfigRequirements::allowManagedHooksOnly() const { return boolMember("allowManagedHooksOnly"); }
     inline std::optional<bool> ConfigRequirements::allowRemoteControl() const { return boolMember("allowRemoteControl"); }
     inline ConfigRequirementsAllowedApprovalPolicies ConfigRequirements::allowedApprovalPolicies() const { return ConfigRequirementsAllowedApprovalPolicies(memberRaw("allowedApprovalPolicies")); }
+    inline ConfigRequirementsAllowedApprovalsReviewers ConfigRequirements::allowedApprovalsReviewers() const { return ConfigRequirementsAllowedApprovalsReviewers(memberRaw("allowedApprovalsReviewers")); }
     inline ConfigRequirementsAllowedPermissionProfiles ConfigRequirements::allowedPermissionProfiles() const { return ConfigRequirementsAllowedPermissionProfiles(memberRaw("allowedPermissionProfiles")); }
     inline ConfigRequirementsAllowedSandboxModes ConfigRequirements::allowedSandboxModes() const { return ConfigRequirementsAllowedSandboxModes(memberRaw("allowedSandboxModes")); }
     inline ConfigRequirementsAllowedWebSearchModes ConfigRequirements::allowedWebSearchModes() const { return ConfigRequirementsAllowedWebSearchModes(memberRaw("allowedWebSearchModes")); }
     inline ConfigRequirementsAllowedWindowsSandboxImplementations ConfigRequirements::allowedWindowsSandboxImplementations() const { return ConfigRequirementsAllowedWindowsSandboxImplementations(memberRaw("allowedWindowsSandboxImplementations")); }
+    inline ConfigRequirementsApplication ConfigRequirements::application() const { return ConfigRequirementsApplication(memberRaw("application")); }
     inline ConfigRequirementsAutoReview ConfigRequirements::autoReview() const { return ConfigRequirementsAutoReview(memberRaw("autoReview")); }
     inline ConfigRequirementsBrowserUse ConfigRequirements::browserUse() const { return ConfigRequirementsBrowserUse(memberRaw("browserUse")); }
     inline std::optional<std::string> ConfigRequirements::chatgptBaseUrl() const { return stringMember("chatgptBaseUrl"); }
@@ -19364,14 +24310,17 @@ namespace v2 {
     inline ConfigRequirementsEnforceResidency ConfigRequirements::enforceResidency() const { return ConfigRequirementsEnforceResidency(memberRaw("enforceResidency")); }
     inline ConfigRequirementsFeatureRequirements ConfigRequirements::featureRequirements() const { return ConfigRequirementsFeatureRequirements(memberRaw("featureRequirements")); }
     inline ConfigRequirementsFeedback ConfigRequirements::feedback() const { return ConfigRequirementsFeedback(memberRaw("feedback")); }
+    inline ConfigRequirementsHooks ConfigRequirements::hooks() const { return ConfigRequirementsHooks(memberRaw("hooks")); }
     inline ConfigRequirementsInAppBrowser ConfigRequirements::inAppBrowser() const { return ConfigRequirementsInAppBrowser(memberRaw("inAppBrowser")); }
     inline std::optional<std::string> ConfigRequirements::logDir() const { return stringMember("logDir"); }
     inline std::optional<std::string> ConfigRequirements::modelCatalogJson() const { return stringMember("modelCatalogJson"); }
     inline ConfigRequirementsModels ConfigRequirements::models() const { return ConfigRequirementsModels(memberRaw("models")); }
+    inline ConfigRequirementsNetwork ConfigRequirements::network() const { return ConfigRequirementsNetwork(memberRaw("network")); }
     inline std::optional<std::string> ConfigRequirements::sqliteHome() const { return stringMember("sqliteHome"); }
     inline std::optional<bool> ConfigRequirements::windowsSandboxPrivateDesktop() const { return boolMember("windowsSandboxPrivateDesktop"); }
     inline std::vector<std::string> ConfigRequirements::keys() const { return objectKeys(); }
     inline std::vector<AskForApproval> ConfigRequirementsAllowedApprovalPolicies::items() const { return arrayItems<AskForApproval>(); }
+    inline std::vector<ApprovalsReviewer> ConfigRequirementsAllowedApprovalsReviewers::items() const { return arrayItems<ApprovalsReviewer>(); }
     inline std::vector<std::string> ConfigRequirementsAllowedPermissionProfiles::keys() const { return objectKeys(); }
     inline std::vector<SandboxMode> ConfigRequirementsAllowedSandboxModes::items() const { return arrayItems<SandboxMode>(); }
     inline std::vector<WebSearchMode> ConfigRequirementsAllowedWebSearchModes::items() const { return arrayItems<WebSearchMode>(); }
@@ -19395,6 +24344,8 @@ namespace v2 {
     inline WriteStatus ConfigWriteResponse::status() const { return WriteStatus(memberRaw("status")); }
     inline std::optional<std::string> ConfigWriteResponse::version() const { return stringMember("version"); }
     inline std::vector<std::string> ConfigWriteResponse::keys() const { return objectKeys(); }
+    inline ReasoningEffort ConfigurationReasoning::effort() const { return ReasoningEffort(memberRaw("effort")); }
+    inline std::vector<std::string> ConfigurationReasoning::keys() const { return objectKeys(); }
     inline std::optional<std::int64_t> CommandConfiguredHookHandler::additionalContextLimit() const { return integerMember("additionalContextLimit"); }
     inline std::optional<bool> CommandConfiguredHookHandler::async() const { return boolMember("async"); }
     inline std::optional<std::string> CommandConfiguredHookHandler::command() const { return stringMember("command"); }
@@ -19495,6 +24446,9 @@ namespace v2 {
     inline std::optional<bool> CreditsSnapshot::hasCredits() const { return boolMember("hasCredits"); }
     inline std::optional<bool> CreditsSnapshot::unlimited() const { return boolMember("unlimited"); }
     inline std::vector<std::string> CreditsSnapshot::keys() const { return objectKeys(); }
+    inline std::optional<std::string> CyberAccessProgram::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& CyberAccessProgram::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("standard"), nlohmann::json("daybreakBlue"), nlohmann::json("daybreakRed")}; return values; }
+    inline bool CyberAccessProgram::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> DeprecationNoticeNotification::details() const { return stringMember("details"); }
     inline std::optional<std::string> DeprecationNoticeNotification::summary() const { return stringMember("summary"); }
     inline std::vector<std::string> DeprecationNoticeNotification::keys() const { return objectKeys(); }
@@ -19549,9 +24503,39 @@ namespace v2 {
     inline std::optional<std::string> NamespaceDynamicToolSpecType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& NamespaceDynamicToolSpecType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("namespace")}; return values; }
     inline bool NamespaceDynamicToolSpecType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::int64_t> EnvironmentAddParams::connectTimeoutMs() const { return integerMember("connectTimeoutMs"); }
+    inline std::optional<std::string> EnvironmentAddParams::environmentId() const { return stringMember("environmentId"); }
+    inline std::optional<std::string> EnvironmentAddParams::execServerUrl() const { return stringMember("execServerUrl"); }
+    inline std::vector<std::string> EnvironmentAddParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> EnvironmentAddResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> EnvironmentConnectionNotification::environmentId() const { return stringMember("environmentId"); }
     inline std::optional<std::string> EnvironmentConnectionNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> EnvironmentConnectionNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentInfoParams::environmentId() const { return stringMember("environmentId"); }
+    inline std::vector<std::string> EnvironmentInfoParams::keys() const { return objectKeys(); }
+    inline EnvironmentInfoResponseCwd EnvironmentInfoResponse::cwd() const { return EnvironmentInfoResponseCwd(memberRaw("cwd")); }
+    inline EnvironmentShellInfo EnvironmentInfoResponse::shell() const { return EnvironmentShellInfo(memberRaw("shell")); }
+    inline std::vector<std::string> EnvironmentInfoResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentShellInfo::name() const { return stringMember("name"); }
+    inline std::optional<std::string> EnvironmentShellInfo::path() const { return stringMember("path"); }
+    inline std::vector<std::string> EnvironmentShellInfo::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentStatusKindOneOf1::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentStatusKindOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("ready")}; return values; }
+    inline bool EnvironmentStatusKindOneOf1::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> EnvironmentStatusKindOneOf2::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentStatusKindOneOf2::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("pending")}; return values; }
+    inline bool EnvironmentStatusKindOneOf2::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> EnvironmentStatusKindOneOf3::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentStatusKindOneOf3::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("disconnected")}; return values; }
+    inline bool EnvironmentStatusKindOneOf3::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> EnvironmentStatusKindOneOf4::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& EnvironmentStatusKindOneOf4::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("unknown")}; return values; }
+    inline bool EnvironmentStatusKindOneOf4::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> EnvironmentStatusParams::environmentId() const { return stringMember("environmentId"); }
+    inline std::vector<std::string> EnvironmentStatusParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> EnvironmentStatusResponse::error() const { return stringMember("error"); }
+    inline EnvironmentStatusResponseStatus EnvironmentStatusResponse::status() const { return EnvironmentStatusResponseStatus(memberRaw("status")); }
+    inline std::vector<std::string> EnvironmentStatusResponse::keys() const { return objectKeys(); }
     inline TurnError ErrorNotification::error() const { return TurnError(memberRaw("error")); }
     inline std::optional<std::string> ErrorNotification::threadId() const { return stringMember("threadId"); }
     inline std::optional<std::string> ErrorNotification::turnId() const { return stringMember("turnId"); }
@@ -19864,7 +24848,13 @@ namespace v2 {
     inline bool EncryptedContentFunctionCallOutputContentItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<bool> GetAccountParams::refreshToken() const { return boolMember("refreshToken"); }
     inline std::vector<std::string> GetAccountParams::keys() const { return objectKeys(); }
+    inline std::optional<bool> GetAccountRateLimitsParams::excludeResetCreditDetails() const { return boolMember("excludeResetCreditDetails"); }
+    inline std::optional<bool> GetAccountRateLimitsParams::supportsLunaReserve() const { return boolMember("supportsLunaReserve"); }
+    inline std::vector<std::string> GetAccountRateLimitsParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> GetAccountRateLimitsResponse::accountId() const { return stringMember("accountId"); }
+    inline std::optional<bool> GetAccountRateLimitsResponse::ordinaryUsageAllowed() const { return boolMember("ordinaryUsageAllowed"); }
     inline GetAccountRateLimitsResponseRateLimitResetCredits GetAccountRateLimitsResponse::rateLimitResetCredits() const { return GetAccountRateLimitsResponseRateLimitResetCredits(memberRaw("rateLimitResetCredits")); }
+    inline nlohmann::json GetAccountRateLimitsResponse::rateLimitUpsell() const { return memberRaw("rateLimitUpsell"); }
     inline GetAccountRateLimitsResponseRateLimits GetAccountRateLimitsResponse::rateLimits() const { return GetAccountRateLimitsResponseRateLimits(memberRaw("rateLimits")); }
     inline GetAccountRateLimitsResponseRateLimitsByLimitId GetAccountRateLimitsResponse::rateLimitsByLimitId() const { return GetAccountRateLimitsResponseRateLimitsByLimitId(memberRaw("rateLimitsByLimitId")); }
     inline std::vector<std::string> GetAccountRateLimitsResponse::keys() const { return objectKeys(); }
@@ -19893,7 +24883,7 @@ namespace v2 {
     inline GuardianApprovalReviewUserAuthorization GuardianApprovalReview::userAuthorization() const { return GuardianApprovalReviewUserAuthorization(memberRaw("userAuthorization")); }
     inline std::vector<std::string> GuardianApprovalReview::keys() const { return objectKeys(); }
     inline std::optional<std::string> CommandGuardianApprovalReviewAction::command() const { return stringMember("command"); }
-    inline AbsolutePathBuf CommandGuardianApprovalReviewAction::cwd() const { return AbsolutePathBuf(memberRaw("cwd")); }
+    inline LegacyAppPathString CommandGuardianApprovalReviewAction::cwd() const { return LegacyAppPathString(memberRaw("cwd")); }
     inline GuardianCommandSource CommandGuardianApprovalReviewAction::source() const { return GuardianCommandSource(memberRaw("source")); }
     inline CommandGuardianApprovalReviewActionType CommandGuardianApprovalReviewAction::type() const { return CommandGuardianApprovalReviewActionType(memberRaw("type")); }
     inline std::vector<std::string> CommandGuardianApprovalReviewAction::keys() const { return objectKeys(); }
@@ -19910,11 +24900,20 @@ namespace v2 {
     inline std::optional<std::string> ExecveGuardianApprovalReviewActionType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ExecveGuardianApprovalReviewActionType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("execve")}; return values; }
     inline bool ExecveGuardianApprovalReviewActionType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
-    inline AbsolutePathBuf ApplyPatchGuardianApprovalReviewAction::cwd() const { return AbsolutePathBuf(memberRaw("cwd")); }
+    inline std::optional<std::string> WriteStdinGuardianApprovalReviewAction::approvalId() const { return stringMember("approvalId"); }
+    inline LegacyAppPathString WriteStdinGuardianApprovalReviewAction::cwd() const { return LegacyAppPathString(memberRaw("cwd")); }
+    inline std::optional<std::string> WriteStdinGuardianApprovalReviewAction::processId() const { return stringMember("processId"); }
+    inline std::optional<std::string> WriteStdinGuardianApprovalReviewAction::stdin() const { return stringMember("stdin"); }
+    inline WriteStdinGuardianApprovalReviewActionType WriteStdinGuardianApprovalReviewAction::type() const { return WriteStdinGuardianApprovalReviewActionType(memberRaw("type")); }
+    inline std::vector<std::string> WriteStdinGuardianApprovalReviewAction::keys() const { return objectKeys(); }
+    inline std::optional<std::string> WriteStdinGuardianApprovalReviewActionType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& WriteStdinGuardianApprovalReviewActionType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("writeStdin")}; return values; }
+    inline bool WriteStdinGuardianApprovalReviewActionType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline LegacyAppPathString ApplyPatchGuardianApprovalReviewAction::cwd() const { return LegacyAppPathString(memberRaw("cwd")); }
     inline ApplyPatchGuardianApprovalReviewActionFiles ApplyPatchGuardianApprovalReviewAction::files() const { return ApplyPatchGuardianApprovalReviewActionFiles(memberRaw("files")); }
     inline ApplyPatchGuardianApprovalReviewActionType ApplyPatchGuardianApprovalReviewAction::type() const { return ApplyPatchGuardianApprovalReviewActionType(memberRaw("type")); }
     inline std::vector<std::string> ApplyPatchGuardianApprovalReviewAction::keys() const { return objectKeys(); }
-    inline std::vector<AbsolutePathBuf> ApplyPatchGuardianApprovalReviewActionFiles::items() const { return arrayItems<AbsolutePathBuf>(); }
+    inline std::vector<LegacyAppPathString> ApplyPatchGuardianApprovalReviewActionFiles::items() const { return arrayItems<LegacyAppPathString>(); }
     inline std::optional<std::string> ApplyPatchGuardianApprovalReviewActionType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ApplyPatchGuardianApprovalReviewActionType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("applyPatch")}; return values; }
     inline bool ApplyPatchGuardianApprovalReviewActionType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -19967,7 +24966,7 @@ namespace v2 {
     inline std::optional<std::string> HookErrorInfo::path() const { return stringMember("path"); }
     inline std::vector<std::string> HookErrorInfo::keys() const { return objectKeys(); }
     inline std::optional<std::string> HookEventName::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& HookEventName::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("preToolUse"), nlohmann::json("permissionRequest"), nlohmann::json("postToolUse"), nlohmann::json("preCompact"), nlohmann::json("postCompact"), nlohmann::json("sessionStart"), nlohmann::json("sessionEnd"), nlohmann::json("userPromptSubmit"), nlohmann::json("subagentStart"), nlohmann::json("subagentStop"), nlohmann::json("stop")}; return values; }
+    inline const std::vector<nlohmann::json>& HookEventName::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("preToolUse"), nlohmann::json("permissionRequest"), nlohmann::json("postToolUse"), nlohmann::json("preCompact"), nlohmann::json("postCompact"), nlohmann::json("sessionStart"), nlohmann::json("sessionEnd"), nlohmann::json("userPromptSubmit"), nlohmann::json("subagentStart"), nlohmann::json("subagentStop"), nlohmann::json("stop"), nlohmann::json("interrupt")}; return values; }
     inline bool HookEventName::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> HookExecutionMode::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& HookExecutionMode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("sync"), nlohmann::json("async")}; return values; }
@@ -20186,6 +25185,15 @@ namespace v2 {
     inline std::optional<std::string> AmazonBedrockv2LoginAccountParamsType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AmazonBedrockv2LoginAccountParamsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("amazonBedrock")}; return values; }
     inline bool AmazonBedrockv2LoginAccountParamsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> AmazonBedrockAccessKeysv2LoginAccountParams::accessKeyId() const { return stringMember("accessKeyId"); }
+    inline std::optional<std::string> AmazonBedrockAccessKeysv2LoginAccountParams::region() const { return stringMember("region"); }
+    inline std::optional<std::string> AmazonBedrockAccessKeysv2LoginAccountParams::secretAccessKey() const { return stringMember("secretAccessKey"); }
+    inline std::optional<std::string> AmazonBedrockAccessKeysv2LoginAccountParams::sessionToken() const { return stringMember("sessionToken"); }
+    inline AmazonBedrockAccessKeysv2LoginAccountParamsType AmazonBedrockAccessKeysv2LoginAccountParams::type() const { return AmazonBedrockAccessKeysv2LoginAccountParamsType(memberRaw("type")); }
+    inline std::vector<std::string> AmazonBedrockAccessKeysv2LoginAccountParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> AmazonBedrockAccessKeysv2LoginAccountParamsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& AmazonBedrockAccessKeysv2LoginAccountParamsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("amazonBedrockAccessKeys")}; return values; }
+    inline bool AmazonBedrockAccessKeysv2LoginAccountParamsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline ApiKeyv2LoginAccountResponseType ApiKeyv2LoginAccountResponse::type() const { return ApiKeyv2LoginAccountResponseType(memberRaw("type")); }
     inline std::vector<std::string> ApiKeyv2LoginAccountResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ApiKeyv2LoginAccountResponseType::value() const { return stringValue(); }
@@ -20220,6 +25228,7 @@ namespace v2 {
     inline const std::vector<nlohmann::json>& LoginAppBrand::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("codex"), nlohmann::json("chatgpt")}; return values; }
     inline bool LoginAppBrand::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::vector<std::string> LogoutAccountResponse::keys() const { return objectKeys(); }
+    inline ManagedHooksRequirementsInterrupt ManagedHooksRequirements::interrupt() const { return ManagedHooksRequirementsInterrupt(memberRaw("Interrupt")); }
     inline ManagedHooksRequirementsPermissionRequest ManagedHooksRequirements::permissionRequest() const { return ManagedHooksRequirementsPermissionRequest(memberRaw("PermissionRequest")); }
     inline ManagedHooksRequirementsPostCompact ManagedHooksRequirements::postCompact() const { return ManagedHooksRequirementsPostCompact(memberRaw("PostCompact")); }
     inline ManagedHooksRequirementsPostToolUse ManagedHooksRequirements::postToolUse() const { return ManagedHooksRequirementsPostToolUse(memberRaw("PostToolUse")); }
@@ -20234,6 +25243,7 @@ namespace v2 {
     inline std::optional<std::string> ManagedHooksRequirements::managedDir() const { return stringMember("managedDir"); }
     inline std::optional<std::string> ManagedHooksRequirements::windowsManagedDir() const { return stringMember("windowsManagedDir"); }
     inline std::vector<std::string> ManagedHooksRequirements::keys() const { return objectKeys(); }
+    inline std::vector<ConfiguredHookMatcherGroup> ManagedHooksRequirementsInterrupt::items() const { return arrayItems<ConfiguredHookMatcherGroup>(); }
     inline std::vector<ConfiguredHookMatcherGroup> ManagedHooksRequirementsPermissionRequest::items() const { return arrayItems<ConfiguredHookMatcherGroup>(); }
     inline std::vector<ConfiguredHookMatcherGroup> ManagedHooksRequirementsPostCompact::items() const { return arrayItems<ConfiguredHookMatcherGroup>(); }
     inline std::vector<ConfiguredHookMatcherGroup> ManagedHooksRequirementsPostToolUse::items() const { return arrayItems<ConfiguredHookMatcherGroup>(); }
@@ -20298,6 +25308,17 @@ namespace v2 {
     inline McpServerEventNotification McpServerEventStreamNotification::notification() const { return McpServerEventNotification(memberRaw("notification")); }
     inline std::optional<std::string> McpServerEventStreamNotification::subscriptionId() const { return stringMember("subscriptionId"); }
     inline std::vector<std::string> McpServerEventStreamNotification::keys() const { return objectKeys(); }
+    inline nlohmann::json McpServerEventStreamStartParams::meta() const { return memberRaw("_meta"); }
+    inline nlohmann::json McpServerEventStreamStartParams::arguments() const { return memberRaw("arguments"); }
+    inline std::optional<std::string> McpServerEventStreamStartParams::name() const { return stringMember("name"); }
+    inline std::optional<std::string> McpServerEventStreamStartParams::server() const { return stringMember("server"); }
+    inline std::optional<std::string> McpServerEventStreamStartParams::subscriptionId() const { return stringMember("subscriptionId"); }
+    inline std::optional<std::string> McpServerEventStreamStartParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> McpServerEventStreamStartParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> McpServerEventStreamStartResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> McpServerEventStreamStopParams::subscriptionId() const { return stringMember("subscriptionId"); }
+    inline std::vector<std::string> McpServerEventStreamStopParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> McpServerEventStreamStopResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> McpServerInfo::description() const { return stringMember("description"); }
     inline McpServerInfoIcons McpServerInfo::icons() const { return McpServerInfoIcons(memberRaw("icons")); }
     inline std::optional<std::string> McpServerInfo::name() const { return stringMember("name"); }
@@ -20340,6 +25361,7 @@ namespace v2 {
     inline McpServerStatusRuntimeStatus McpServerStatus::runtimeStatus() const { return McpServerStatusRuntimeStatus(memberRaw("runtimeStatus")); }
     inline McpServerStatusServerInfo McpServerStatus::serverInfo() const { return McpServerStatusServerInfo(memberRaw("serverInfo")); }
     inline McpServerStatusTools McpServerStatus::tools() const { return McpServerStatusTools(memberRaw("tools")); }
+    inline std::optional<std::string> McpServerStatus::toolsError() const { return stringMember("toolsError"); }
     inline std::vector<std::string> McpServerStatus::keys() const { return objectKeys(); }
     inline std::vector<ResourceTemplate> McpServerStatusResourceTemplates::items() const { return arrayItems<ResourceTemplate>(); }
     inline std::vector<Resource> McpServerStatusResources::items() const { return arrayItems<Resource>(); }
@@ -20396,6 +25418,7 @@ namespace v2 {
     inline std::optional<std::string> MemoryCitationEntry::note() const { return stringMember("note"); }
     inline std::optional<std::string> MemoryCitationEntry::path() const { return stringMember("path"); }
     inline std::vector<std::string> MemoryCitationEntry::keys() const { return objectKeys(); }
+    inline std::vector<std::string> MemoryResetResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> MergeStrategy::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& MergeStrategy::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("replace"), nlohmann::json("upsert")}; return values; }
     inline bool MergeStrategy::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -20422,6 +25445,16 @@ namespace v2 {
     inline std::vector<SessionMigration> MigrationDetailsSessions::items() const { return arrayItems<SessionMigration>(); }
     inline std::vector<SkillMigration> MigrationDetailsSkills::items() const { return arrayItems<SkillMigration>(); }
     inline std::vector<SubagentMigration> MigrationDetailsSubagents::items() const { return arrayItems<SubagentMigration>(); }
+    inline std::optional<std::string> MisalignmentErrorDetails::detailedExplanation() const { return stringMember("detailedExplanation"); }
+    inline std::optional<std::string> MisalignmentErrorDetails::errorType() const { return stringMember("errorType"); }
+    inline MisalignmentErrorDetailsSteer MisalignmentErrorDetails::steer() const { return MisalignmentErrorDetailsSteer(memberRaw("steer")); }
+    inline std::vector<std::string> MisalignmentErrorDetails::keys() const { return objectKeys(); }
+    inline std::optional<std::string> MisalignmentSteer::message() const { return stringMember("message"); }
+    inline std::vector<std::string> MisalignmentSteer::keys() const { return objectKeys(); }
+    inline std::optional<std::string> MockExperimentalMethodParams::value() const { return stringMember("value"); }
+    inline std::vector<std::string> MockExperimentalMethodParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> MockExperimentalMethodResponse::echoed() const { return stringMember("echoed"); }
+    inline std::vector<std::string> MockExperimentalMethodResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ModeKind::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ModeKind::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("plan"), nlohmann::json("default")}; return values; }
     inline bool ModeKind::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -20705,6 +25738,32 @@ namespace v2 {
     inline std::vector<std::string> PluginReadParams::keys() const { return objectKeys(); }
     inline PluginDetail PluginReadResponse::plugin() const { return PluginDetail(memberRaw("plugin")); }
     inline std::vector<std::string> PluginReadResponse::keys() const { return objectKeys(); }
+    inline std::optional<bool> PluginReconcileChangedPlugin::hasApps() const { return boolMember("hasApps"); }
+    inline std::optional<bool> PluginReconcileChangedPlugin::hasHooks() const { return boolMember("hasHooks"); }
+    inline std::optional<bool> PluginReconcileChangedPlugin::hasMcps() const { return boolMember("hasMcps"); }
+    inline std::optional<bool> PluginReconcileChangedPlugin::hasSkills() const { return boolMember("hasSkills"); }
+    inline std::optional<std::string> PluginReconcileChangedPlugin::id() const { return stringMember("id"); }
+    inline std::vector<std::string> PluginReconcileChangedPlugin::keys() const { return objectKeys(); }
+    inline std::optional<std::string> PluginReconcileParams::reason() const { return stringMember("reason"); }
+    inline std::vector<std::string> PluginReconcileParams::keys() const { return objectKeys(); }
+    inline PluginReconcileResponseChangedPlugins PluginReconcileResponse::changedPlugins() const { return PluginReconcileResponseChangedPlugins(memberRaw("changedPlugins")); }
+    inline PluginReconcileResponseFailedMaterializationRemotePluginIds PluginReconcileResponse::failedMaterializationRemotePluginIds() const { return PluginReconcileResponseFailedMaterializationRemotePluginIds(memberRaw("failedMaterializationRemotePluginIds")); }
+    inline PluginReconcileResponseFailedRemotePluginIds PluginReconcileResponse::failedRemotePluginIds() const { return PluginReconcileResponseFailedRemotePluginIds(memberRaw("failedRemotePluginIds")); }
+    inline std::vector<std::string> PluginReconcileResponse::keys() const { return objectKeys(); }
+    inline std::vector<PluginReconcileChangedPlugin> PluginReconcileResponseChangedPlugins::items() const { return arrayItems<PluginReconcileChangedPlugin>(); }
+    inline std::vector<std::string> PluginReconcileResponseFailedMaterializationRemotePluginIds::items() const { return arrayItems<std::string>(); }
+    inline std::vector<std::string> PluginReconcileResponseFailedRemotePluginIds::items() const { return arrayItems<std::string>(); }
+    inline std::optional<std::string> PluginSearchParams::cursor() const { return stringMember("cursor"); }
+    inline PluginSearchParamsCwds PluginSearchParams::cwds() const { return PluginSearchParamsCwds(memberRaw("cwds")); }
+    inline std::optional<std::int64_t> PluginSearchParams::limit() const { return integerMember("limit"); }
+    inline PluginSearchParamsScope PluginSearchParams::scope() const { return PluginSearchParamsScope(memberRaw("scope")); }
+    inline std::optional<std::string> PluginSearchParams::searchTerm() const { return stringMember("searchTerm"); }
+    inline std::vector<std::string> PluginSearchParams::keys() const { return objectKeys(); }
+    inline std::vector<AbsolutePathBuf> PluginSearchParamsCwds::items() const { return arrayItems<AbsolutePathBuf>(); }
+    inline PluginSearchResponseData PluginSearchResponse::data() const { return PluginSearchResponseData(memberRaw("data")); }
+    inline std::optional<std::string> PluginSearchResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> PluginSearchResponse::keys() const { return objectKeys(); }
+    inline std::vector<PluginSearchResult> PluginSearchResponseData::items() const { return arrayItems<PluginSearchResult>(); }
     inline std::optional<std::string> PluginSearchResult::marketplaceName() const { return stringMember("marketplaceName"); }
     inline PluginSearchResultMarketplacePath PluginSearchResult::marketplacePath() const { return PluginSearchResultMarketplacePath(memberRaw("marketplacePath")); }
     inline PluginSummary PluginSearchResult::plugin() const { return PluginSummary(memberRaw("plugin")); }
@@ -20855,6 +25914,9 @@ namespace v2 {
     inline std::optional<std::string> ProcessExitedNotification::stdout() const { return stringMember("stdout"); }
     inline std::optional<bool> ProcessExitedNotification::stdoutCapReached() const { return boolMember("stdoutCapReached"); }
     inline std::vector<std::string> ProcessExitedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProcessKillParams::processHandle() const { return stringMember("processHandle"); }
+    inline std::vector<std::string> ProcessKillParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProcessKillResponse::keys() const { return objectKeys(); }
     inline std::optional<bool> ProcessOutputDeltaNotification::capReached() const { return boolMember("capReached"); }
     inline std::optional<std::string> ProcessOutputDeltaNotification::deltaBase64() const { return stringMember("deltaBase64"); }
     inline std::optional<std::string> ProcessOutputDeltaNotification::processHandle() const { return stringMember("processHandle"); }
@@ -20866,14 +25928,38 @@ namespace v2 {
     inline std::optional<std::string> ProcessOutputStreamOneOf2::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ProcessOutputStreamOneOf2::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("stderr")}; return values; }
     inline bool ProcessOutputStreamOneOf2::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> ProcessResizePtyParams::processHandle() const { return stringMember("processHandle"); }
+    inline ProcessResizePtyParamsSize ProcessResizePtyParams::size() const { return ProcessResizePtyParamsSize(memberRaw("size")); }
+    inline std::vector<std::string> ProcessResizePtyParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProcessResizePtyResponse::keys() const { return objectKeys(); }
+    inline ProcessSpawnParamsCommand ProcessSpawnParams::command() const { return ProcessSpawnParamsCommand(memberRaw("command")); }
+    inline ProcessSpawnParamsCwd ProcessSpawnParams::cwd() const { return ProcessSpawnParamsCwd(memberRaw("cwd")); }
+    inline ProcessSpawnParamsEnv ProcessSpawnParams::env() const { return ProcessSpawnParamsEnv(memberRaw("env")); }
+    inline std::optional<std::int64_t> ProcessSpawnParams::outputBytesCap() const { return integerMember("outputBytesCap"); }
+    inline std::optional<std::string> ProcessSpawnParams::processHandle() const { return stringMember("processHandle"); }
+    inline ProcessSpawnParamsSize ProcessSpawnParams::size() const { return ProcessSpawnParamsSize(memberRaw("size")); }
+    inline std::optional<bool> ProcessSpawnParams::streamStdin() const { return boolMember("streamStdin"); }
+    inline std::optional<bool> ProcessSpawnParams::streamStdoutStderr() const { return boolMember("streamStdoutStderr"); }
+    inline std::optional<std::int64_t> ProcessSpawnParams::timeoutMs() const { return integerMember("timeoutMs"); }
+    inline std::optional<bool> ProcessSpawnParams::tty() const { return boolMember("tty"); }
+    inline std::vector<std::string> ProcessSpawnParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProcessSpawnParamsCommand::items() const { return arrayItems<std::string>(); }
+    inline std::vector<std::string> ProcessSpawnParamsEnv::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProcessSpawnResponse::keys() const { return objectKeys(); }
     inline std::optional<std::int64_t> ProcessTerminalSize::cols() const { return integerMember("cols"); }
     inline std::optional<std::int64_t> ProcessTerminalSize::rows() const { return integerMember("rows"); }
     inline std::vector<std::string> ProcessTerminalSize::keys() const { return objectKeys(); }
+    inline std::optional<bool> ProcessWriteStdinParams::closeStdin() const { return boolMember("closeStdin"); }
+    inline std::optional<std::string> ProcessWriteStdinParams::deltaBase64() const { return stringMember("deltaBase64"); }
+    inline std::optional<std::string> ProcessWriteStdinParams::processHandle() const { return stringMember("processHandle"); }
+    inline std::vector<std::string> ProcessWriteStdinParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProcessWriteStdinResponse::keys() const { return objectKeys(); }
     inline std::optional<std::int64_t> Project::createdAt() const { return integerMember("createdAt"); }
     inline std::optional<std::string> Project::id() const { return stringMember("id"); }
     inline ProjectMetadata Project::metadata() const { return ProjectMetadata(memberRaw("metadata")); }
     inline std::optional<std::string> Project::name() const { return stringMember("name"); }
     inline std::optional<std::int64_t> Project::position() const { return integerMember("position"); }
+    inline std::optional<std::int64_t> Project::recencyAt() const { return integerMember("recencyAt"); }
     inline ProjectRoots Project::roots() const { return ProjectRoots(memberRaw("roots")); }
     inline std::optional<std::int64_t> Project::updatedAt() const { return integerMember("updatedAt"); }
     inline std::vector<std::string> Project::keys() const { return objectKeys(); }
@@ -20885,8 +25971,60 @@ namespace v2 {
     inline ProjectChangeType ProjectChangedNotification::changeType() const { return ProjectChangeType(memberRaw("changeType")); }
     inline std::optional<std::string> ProjectChangedNotification::projectId() const { return stringMember("projectId"); }
     inline std::vector<std::string> ProjectChangedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectCreateParams::idempotencyKey() const { return stringMember("idempotencyKey"); }
+    inline ProjectCreateParamsMetadata ProjectCreateParams::metadata() const { return ProjectCreateParamsMetadata(memberRaw("metadata")); }
+    inline std::optional<std::string> ProjectCreateParams::name() const { return stringMember("name"); }
+    inline ProjectCreateParamsRoots ProjectCreateParams::roots() const { return ProjectCreateParamsRoots(memberRaw("roots")); }
+    inline std::vector<std::string> ProjectCreateParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProjectCreateParamsMetadata::keys() const { return objectKeys(); }
+    inline std::vector<ProjectRoot> ProjectCreateParamsRoots::items() const { return arrayItems<ProjectRoot>(); }
+    inline Project ProjectCreateResponse::project() const { return Project(memberRaw("project")); }
+    inline std::vector<std::string> ProjectCreateResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectDeleteParams::projectId() const { return stringMember("projectId"); }
+    inline std::vector<std::string> ProjectDeleteParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProjectDeleteResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectImportParams::idempotencyKey() const { return stringMember("idempotencyKey"); }
+    inline ProjectImportParamsMetadata ProjectImportParams::metadata() const { return ProjectImportParamsMetadata(memberRaw("metadata")); }
+    inline std::optional<std::string> ProjectImportParams::name() const { return stringMember("name"); }
+    inline ProjectImportParamsRoots ProjectImportParams::roots() const { return ProjectImportParamsRoots(memberRaw("roots")); }
+    inline ProjectImportParamsThreads ProjectImportParams::threads() const { return ProjectImportParamsThreads(memberRaw("threads")); }
+    inline std::vector<std::string> ProjectImportParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProjectImportParamsMetadata::keys() const { return objectKeys(); }
+    inline std::vector<ProjectRoot> ProjectImportParamsRoots::items() const { return arrayItems<ProjectRoot>(); }
+    inline std::vector<std::string> ProjectImportParamsThreads::items() const { return arrayItems<std::string>(); }
+    inline Project ProjectImportResponse::project() const { return Project(memberRaw("project")); }
+    inline std::vector<std::string> ProjectImportResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectListParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ProjectListParams::limit() const { return integerMember("limit"); }
+    inline ProjectListParamsSortDirection ProjectListParams::sortDirection() const { return ProjectListParamsSortDirection(memberRaw("sortDirection")); }
+    inline ProjectListParamsSortKey ProjectListParams::sortKey() const { return ProjectListParamsSortKey(memberRaw("sortKey")); }
+    inline std::vector<std::string> ProjectListParams::keys() const { return objectKeys(); }
+    inline ProjectListResponseData ProjectListResponse::data() const { return ProjectListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ProjectListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ProjectListResponse::keys() const { return objectKeys(); }
+    inline std::vector<Project> ProjectListResponseData::items() const { return arrayItems<Project>(); }
+    inline std::optional<std::string> ProjectMoveParams::beforeProjectId() const { return stringMember("beforeProjectId"); }
+    inline std::optional<std::string> ProjectMoveParams::projectId() const { return stringMember("projectId"); }
+    inline std::vector<std::string> ProjectMoveParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProjectMoveResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectReadParams::projectId() const { return stringMember("projectId"); }
+    inline std::vector<std::string> ProjectReadParams::keys() const { return objectKeys(); }
+    inline Project ProjectReadResponse::project() const { return Project(memberRaw("project")); }
+    inline std::vector<std::string> ProjectReadResponse::keys() const { return objectKeys(); }
     inline AbsolutePathBuf ProjectRoot::path() const { return AbsolutePathBuf(memberRaw("path")); }
     inline std::vector<std::string> ProjectRoot::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ProjectSortKey::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ProjectSortKey::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("position"), nlohmann::json("recencyAt")}; return values; }
+    inline bool ProjectSortKey::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ProjectUpdateParamsMetadata ProjectUpdateParams::metadata() const { return ProjectUpdateParamsMetadata(memberRaw("metadata")); }
+    inline std::optional<std::string> ProjectUpdateParams::name() const { return stringMember("name"); }
+    inline std::optional<std::string> ProjectUpdateParams::projectId() const { return stringMember("projectId"); }
+    inline ProjectUpdateParamsRoots ProjectUpdateParams::roots() const { return ProjectUpdateParamsRoots(memberRaw("roots")); }
+    inline std::vector<std::string> ProjectUpdateParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ProjectUpdateParamsMetadata::keys() const { return objectKeys(); }
+    inline std::vector<ProjectRoot> ProjectUpdateParamsRoots::items() const { return arrayItems<ProjectRoot>(); }
+    inline Project ProjectUpdateResponse::project() const { return Project(memberRaw("project")); }
+    inline std::vector<std::string> ProjectUpdateResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> QueuedSubmission::clientUserMessageId() const { return stringMember("clientUserMessageId"); }
     inline std::optional<std::string> QueuedSubmission::id() const { return stringMember("id"); }
     inline QueuedSubmissionInput QueuedSubmission::input() const { return QueuedSubmissionInput(memberRaw("input")); }
@@ -20917,6 +26055,7 @@ namespace v2 {
     inline RateLimitSnapshotIndividualLimit RateLimitSnapshot::individualLimit() const { return RateLimitSnapshotIndividualLimit(memberRaw("individualLimit")); }
     inline std::optional<std::string> RateLimitSnapshot::limitId() const { return stringMember("limitId"); }
     inline std::optional<std::string> RateLimitSnapshot::limitName() const { return stringMember("limitName"); }
+    inline std::optional<std::string> RateLimitSnapshot::normalModelSlug() const { return stringMember("normalModelSlug"); }
     inline RateLimitSnapshotPlanType RateLimitSnapshot::planType() const { return RateLimitSnapshotPlanType(memberRaw("planType")); }
     inline RateLimitSnapshotPrimary RateLimitSnapshot::primary() const { return RateLimitSnapshotPrimary(memberRaw("primary")); }
     inline RateLimitSnapshotRateLimitReachedType RateLimitSnapshot::rateLimitReachedType() const { return RateLimitSnapshotRateLimitReachedType(memberRaw("rateLimitReachedType")); }
@@ -20931,6 +26070,7 @@ namespace v2 {
     inline std::optional<std::string> RawResponseCompletedNotification::threadId() const { return stringMember("threadId"); }
     inline std::optional<std::string> RawResponseCompletedNotification::turnId() const { return stringMember("turnId"); }
     inline RawResponseCompletedNotificationUsage RawResponseCompletedNotification::usage() const { return RawResponseCompletedNotificationUsage(memberRaw("usage")); }
+    inline RawResponseCompletedNotificationUsageMetadata RawResponseCompletedNotification::usageMetadata() const { return RawResponseCompletedNotificationUsageMetadata(memberRaw("usageMetadata")); }
     inline std::vector<std::string> RawResponseCompletedNotification::keys() const { return objectKeys(); }
     inline ResponseItem RawResponseItemCompletedNotification::item() const { return ResponseItem(memberRaw("item")); }
     inline std::optional<std::string> RawResponseItemCompletedNotification::threadId() const { return stringMember("threadId"); }
@@ -20997,18 +26137,70 @@ namespace v2 {
     inline std::optional<std::string> ReasoningTextDeltaNotification::threadId() const { return stringMember("threadId"); }
     inline std::optional<std::string> ReasoningTextDeltaNotification::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> ReasoningTextDeltaNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlClient::appVersion() const { return stringMember("appVersion"); }
+    inline std::optional<std::string> RemoteControlClient::clientId() const { return stringMember("clientId"); }
+    inline std::optional<std::string> RemoteControlClient::deviceModel() const { return stringMember("deviceModel"); }
+    inline std::optional<std::string> RemoteControlClient::deviceType() const { return stringMember("deviceType"); }
+    inline std::optional<std::string> RemoteControlClient::displayName() const { return stringMember("displayName"); }
+    inline std::optional<std::int64_t> RemoteControlClient::lastSeenAt() const { return integerMember("lastSeenAt"); }
+    inline std::optional<std::string> RemoteControlClient::osVersion() const { return stringMember("osVersion"); }
+    inline std::optional<std::string> RemoteControlClient::platform() const { return stringMember("platform"); }
+    inline std::vector<std::string> RemoteControlClient::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlClientsListOrder::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RemoteControlClientsListOrder::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("asc"), nlohmann::json("desc")}; return values; }
+    inline bool RemoteControlClientsListOrder::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> RemoteControlClientsListParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::string> RemoteControlClientsListParams::environmentId() const { return stringMember("environmentId"); }
+    inline std::optional<std::int64_t> RemoteControlClientsListParams::limit() const { return integerMember("limit"); }
+    inline RemoteControlClientsListParamsOrder RemoteControlClientsListParams::order() const { return RemoteControlClientsListParamsOrder(memberRaw("order")); }
+    inline std::vector<std::string> RemoteControlClientsListParams::keys() const { return objectKeys(); }
+    inline RemoteControlClientsListResponseData RemoteControlClientsListResponse::data() const { return RemoteControlClientsListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> RemoteControlClientsListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> RemoteControlClientsListResponse::keys() const { return objectKeys(); }
+    inline std::vector<RemoteControlClient> RemoteControlClientsListResponseData::items() const { return arrayItems<RemoteControlClient>(); }
+    inline std::optional<std::string> RemoteControlClientsRevokeParams::clientId() const { return stringMember("clientId"); }
+    inline std::optional<std::string> RemoteControlClientsRevokeParams::environmentId() const { return stringMember("environmentId"); }
+    inline std::vector<std::string> RemoteControlClientsRevokeParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> RemoteControlClientsRevokeResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> RemoteControlConnectionStatus::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& RemoteControlConnectionStatus::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("disabled"), nlohmann::json("connecting"), nlohmann::json("connected"), nlohmann::json("errored")}; return values; }
     inline bool RemoteControlConnectionStatus::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<bool> RemoteControlDisableParams::ephemeral() const { return boolMember("ephemeral"); }
     inline std::vector<std::string> RemoteControlDisableParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlDisableResponse::environmentId() const { return stringMember("environmentId"); }
+    inline std::optional<std::string> RemoteControlDisableResponse::installationId() const { return stringMember("installationId"); }
+    inline std::optional<std::string> RemoteControlDisableResponse::serverName() const { return stringMember("serverName"); }
+    inline RemoteControlConnectionStatus RemoteControlDisableResponse::status() const { return RemoteControlConnectionStatus(memberRaw("status")); }
+    inline std::vector<std::string> RemoteControlDisableResponse::keys() const { return objectKeys(); }
     inline std::optional<bool> RemoteControlEnableParams::ephemeral() const { return boolMember("ephemeral"); }
     inline std::vector<std::string> RemoteControlEnableParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlEnableResponse::environmentId() const { return stringMember("environmentId"); }
+    inline std::optional<std::string> RemoteControlEnableResponse::installationId() const { return stringMember("installationId"); }
+    inline std::optional<std::string> RemoteControlEnableResponse::serverName() const { return stringMember("serverName"); }
+    inline RemoteControlConnectionStatus RemoteControlEnableResponse::status() const { return RemoteControlConnectionStatus(memberRaw("status")); }
+    inline std::vector<std::string> RemoteControlEnableResponse::keys() const { return objectKeys(); }
+    inline std::optional<bool> RemoteControlPairingStartParams::manualCode() const { return boolMember("manualCode"); }
+    inline std::vector<std::string> RemoteControlPairingStartParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlPairingStartResponse::environmentId() const { return stringMember("environmentId"); }
+    inline std::optional<std::int64_t> RemoteControlPairingStartResponse::expiresAt() const { return integerMember("expiresAt"); }
+    inline std::optional<std::string> RemoteControlPairingStartResponse::manualPairingCode() const { return stringMember("manualPairingCode"); }
+    inline std::optional<std::string> RemoteControlPairingStartResponse::pairingCode() const { return stringMember("pairingCode"); }
+    inline std::vector<std::string> RemoteControlPairingStartResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlPairingStatusParams::manualPairingCode() const { return stringMember("manualPairingCode"); }
+    inline std::optional<std::string> RemoteControlPairingStatusParams::pairingCode() const { return stringMember("pairingCode"); }
+    inline std::vector<std::string> RemoteControlPairingStatusParams::keys() const { return objectKeys(); }
+    inline std::optional<bool> RemoteControlPairingStatusResponse::claimed() const { return boolMember("claimed"); }
+    inline std::vector<std::string> RemoteControlPairingStatusResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> RemoteControlStatusChangedNotification::environmentId() const { return stringMember("environmentId"); }
     inline std::optional<std::string> RemoteControlStatusChangedNotification::installationId() const { return stringMember("installationId"); }
     inline std::optional<std::string> RemoteControlStatusChangedNotification::serverName() const { return stringMember("serverName"); }
     inline RemoteControlConnectionStatus RemoteControlStatusChangedNotification::status() const { return RemoteControlConnectionStatus(memberRaw("status")); }
     inline std::vector<std::string> RemoteControlStatusChangedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RemoteControlStatusReadResponse::environmentId() const { return stringMember("environmentId"); }
+    inline std::optional<std::string> RemoteControlStatusReadResponse::installationId() const { return stringMember("installationId"); }
+    inline std::optional<std::string> RemoteControlStatusReadResponse::serverName() const { return stringMember("serverName"); }
+    inline RemoteControlConnectionStatus RemoteControlStatusReadResponse::status() const { return RemoteControlConnectionStatus(memberRaw("status")); }
+    inline std::vector<std::string> RemoteControlStatusReadResponse::keys() const { return objectKeys(); }
     inline RequestPermissionProfileFileSystem RequestPermissionProfile::fileSystem() const { return RequestPermissionProfileFileSystem(memberRaw("fileSystem")); }
     inline RequestPermissionProfileNetwork RequestPermissionProfile::network() const { return RequestPermissionProfileNetwork(memberRaw("network")); }
     inline std::vector<std::string> RequestPermissionProfile::keys() const { return objectKeys(); }
@@ -21183,6 +26375,12 @@ namespace v2 {
     inline std::optional<std::string> CompactionResponseItemType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& CompactionResponseItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("compaction")}; return values; }
     inline bool CompactionResponseItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ConfigurationReasoning ConfigurationUpdateResponseItem::reasoning() const { return ConfigurationReasoning(memberRaw("reasoning")); }
+    inline ConfigurationUpdateResponseItemType ConfigurationUpdateResponseItem::type() const { return ConfigurationUpdateResponseItemType(memberRaw("type")); }
+    inline std::vector<std::string> ConfigurationUpdateResponseItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ConfigurationUpdateResponseItemType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ConfigurationUpdateResponseItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("configuration_update")}; return values; }
+    inline bool ConfigurationUpdateResponseItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline CompactionTriggerResponseItemType CompactionTriggerResponseItem::type() const { return CompactionTriggerResponseItemType(memberRaw("type")); }
     inline std::vector<std::string> CompactionTriggerResponseItem::keys() const { return objectKeys(); }
     inline std::optional<std::string> CompactionTriggerResponseItemType::value() const { return stringValue(); }
@@ -21201,6 +26399,9 @@ namespace v2 {
     inline std::optional<std::string> OtherResponseItemType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& OtherResponseItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("other")}; return values; }
     inline bool OtherResponseItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> ResponseUsageMetadata::amount() const { return stringMember("amount"); }
+    inline nlohmann::json ResponseUsageMetadata::metadata() const { return memberRaw("metadata"); }
+    inline std::vector<std::string> ResponseUsageMetadata::keys() const { return objectKeys(); }
     inline SearchResponsesApiWebSearchActionQueries SearchResponsesApiWebSearchAction::queries() const { return SearchResponsesApiWebSearchActionQueries(memberRaw("queries")); }
     inline std::optional<std::string> SearchResponsesApiWebSearchAction::query() const { return stringMember("query"); }
     inline SearchResponsesApiWebSearchActionType SearchResponsesApiWebSearchAction::type() const { return SearchResponsesApiWebSearchActionType(memberRaw("type")); }
@@ -21343,10 +26544,15 @@ namespace v2 {
     inline std::optional<std::string> ServerDiagnosticsGauge::name() const { return stringMember("name"); }
     inline std::optional<std::int64_t> ServerDiagnosticsGauge::value() const { return integerMember("value"); }
     inline std::vector<std::string> ServerDiagnosticsGauge::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ServerDiagnosticsParams::keys() const { return objectKeys(); }
     inline std::optional<std::int64_t> ServerDiagnosticsProcess::id() const { return integerMember("id"); }
     inline std::optional<std::int64_t> ServerDiagnosticsProcess::physicalFootprintBytes() const { return integerMember("physicalFootprintBytes"); }
     inline std::optional<std::int64_t> ServerDiagnosticsProcess::residentMemoryBytes() const { return integerMember("residentMemoryBytes"); }
     inline std::vector<std::string> ServerDiagnosticsProcess::keys() const { return objectKeys(); }
+    inline ServerDiagnosticsResponseGauges ServerDiagnosticsResponse::gauges() const { return ServerDiagnosticsResponseGauges(memberRaw("gauges")); }
+    inline ServerDiagnosticsProcess ServerDiagnosticsResponse::process() const { return ServerDiagnosticsProcess(memberRaw("process")); }
+    inline std::vector<std::string> ServerDiagnosticsResponse::keys() const { return objectKeys(); }
+    inline std::vector<ServerDiagnosticsGauge> ServerDiagnosticsResponseGauges::items() const { return arrayItems<ServerDiagnosticsGauge>(); }
     inline RequestId ServerRequestResolvedNotification::requestId() const { return RequestId(memberRaw("requestId")); }
     inline std::optional<std::string> ServerRequestResolvedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ServerRequestResolvedNotification::keys() const { return objectKeys(); }
@@ -21386,6 +26592,7 @@ namespace v2 {
     inline SkillMetadataInterface SkillMetadata::interface() const { return SkillMetadataInterface(memberRaw("interface")); }
     inline std::optional<std::string> SkillMetadata::name() const { return stringMember("name"); }
     inline AbsolutePathBuf SkillMetadata::path() const { return AbsolutePathBuf(memberRaw("path")); }
+    inline std::optional<std::string> SkillMetadata::pluginId() const { return stringMember("pluginId"); }
     inline SkillScope SkillMetadata::scope() const { return SkillScope(memberRaw("scope")); }
     inline std::optional<std::string> SkillMetadata::shortDescription() const { return stringMember("shortDescription"); }
     inline std::vector<std::string> SkillMetadata::keys() const { return objectKeys(); }
@@ -21445,7 +26652,7 @@ namespace v2 {
     inline std::optional<std::string> StrictReviewRequiredNotification::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> StrictReviewRequiredNotification::keys() const { return objectKeys(); }
     inline std::optional<std::string> SubAgentActivityKind::value() const { return stringValue(); }
-    inline const std::vector<nlohmann::json>& SubAgentActivityKind::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("started"), nlohmann::json("interacted"), nlohmann::json("interrupted")}; return values; }
+    inline const std::vector<nlohmann::json>& SubAgentActivityKind::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("started"), nlohmann::json("interacted"), nlohmann::json("interrupted"), nlohmann::json("completed")}; return values; }
     inline bool SubAgentActivityKind::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> SubAgentSourceOneOf1::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& SubAgentSourceOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("review"), nlohmann::json("compact"), nlohmann::json("memory_consolidation")}; return values; }
@@ -21479,19 +26686,27 @@ namespace v2 {
     inline std::vector<std::string> TextRange::keys() const { return objectKeys(); }
     inline std::optional<std::string> Thread::agentNickname() const { return stringMember("agentNickname"); }
     inline std::optional<std::string> Thread::agentRole() const { return stringMember("agentRole"); }
+    inline std::optional<bool> Thread::canAcceptDirectInput() const { return boolMember("canAcceptDirectInput"); }
     inline std::optional<std::string> Thread::cliVersion() const { return stringMember("cliVersion"); }
     inline std::optional<std::int64_t> Thread::createdAt() const { return integerMember("createdAt"); }
     inline ThreadCwd Thread::cwd() const { return ThreadCwd(memberRaw("cwd")); }
+    inline std::optional<bool> Thread::daybreakEnabled() const { return boolMember("daybreakEnabled"); }
+    inline ThreadEnvironments Thread::environments() const { return ThreadEnvironments(memberRaw("environments")); }
     inline std::optional<bool> Thread::ephemeral() const { return boolMember("ephemeral"); }
+    inline ThreadExtra2 Thread::extra() const { return ThreadExtra2(memberRaw("extra")); }
     inline std::optional<std::string> Thread::forkedFromId() const { return stringMember("forkedFromId"); }
     inline ThreadGitInfo Thread::gitInfo() const { return ThreadGitInfo(memberRaw("gitInfo")); }
+    inline ThreadHistoryMode2 Thread::historyMode() const { return ThreadHistoryMode2(memberRaw("historyMode")); }
     inline std::optional<std::string> Thread::id() const { return stringMember("id"); }
+    inline std::optional<std::string> Thread::model() const { return stringMember("model"); }
     inline std::optional<std::string> Thread::modelProvider() const { return stringMember("modelProvider"); }
     inline std::optional<std::string> Thread::name() const { return stringMember("name"); }
+    inline std::optional<std::string> Thread::originator() const { return stringMember("originator"); }
     inline std::optional<std::string> Thread::parentThreadId() const { return stringMember("parentThreadId"); }
     inline std::optional<std::string> Thread::path() const { return stringMember("path"); }
     inline std::optional<std::string> Thread::preview() const { return stringMember("preview"); }
     inline std::optional<std::string> Thread::projectId() const { return stringMember("projectId"); }
+    inline ThreadReasoningEffort Thread::reasoningEffort() const { return ThreadReasoningEffort(memberRaw("reasoningEffort")); }
     inline std::optional<std::int64_t> Thread::recencyAt() const { return integerMember("recencyAt"); }
     inline ThreadSection2 Thread::section() const { return ThreadSection2(memberRaw("section")); }
     inline std::optional<std::int64_t> Thread::sectionEnteredAt() const { return integerMember("sectionEnteredAt"); }
@@ -21502,6 +26717,7 @@ namespace v2 {
     inline ThreadTurns Thread::turns() const { return ThreadTurns(memberRaw("turns")); }
     inline std::optional<std::int64_t> Thread::updatedAt() const { return integerMember("updatedAt"); }
     inline std::vector<std::string> Thread::keys() const { return objectKeys(); }
+    inline std::vector<ThreadEnvironment> ThreadEnvironments::items() const { return arrayItems<ThreadEnvironment>(); }
     inline std::vector<Turn> ThreadTurns::items() const { return arrayItems<Turn>(); }
     inline std::optional<std::string> ThreadActiveFlag::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadActiveFlag::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("waitingOnApproval"), nlohmann::json("waitingOnUserInput")}; return values; }
@@ -21515,45 +26731,90 @@ namespace v2 {
     inline std::vector<std::string> ThreadArchiveResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadArchivedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadArchivedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadBackgroundTerminal::command() const { return stringMember("command"); }
+    inline std::optional<double> ThreadBackgroundTerminal::cpuPercent() const { return numberMember("cpuPercent"); }
+    inline LegacyAppPathString ThreadBackgroundTerminal::cwd() const { return LegacyAppPathString(memberRaw("cwd")); }
+    inline std::optional<std::string> ThreadBackgroundTerminal::itemId() const { return stringMember("itemId"); }
+    inline std::optional<std::int64_t> ThreadBackgroundTerminal::osPid() const { return integerMember("osPid"); }
+    inline std::optional<std::string> ThreadBackgroundTerminal::processId() const { return stringMember("processId"); }
+    inline std::optional<std::int64_t> ThreadBackgroundTerminal::rssKb() const { return integerMember("rssKb"); }
+    inline std::vector<std::string> ThreadBackgroundTerminal::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsCleanParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsCleanParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsCleanResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsListParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ThreadBackgroundTerminalsListParams::limit() const { return integerMember("limit"); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsListParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsListParams::keys() const { return objectKeys(); }
+    inline ThreadBackgroundTerminalsListResponseData ThreadBackgroundTerminalsListResponse::data() const { return ThreadBackgroundTerminalsListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsListResponse::keys() const { return objectKeys(); }
+    inline std::vector<ThreadBackgroundTerminal> ThreadBackgroundTerminalsListResponseData::items() const { return arrayItems<ThreadBackgroundTerminal>(); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsTerminateParams::processId() const { return stringMember("processId"); }
+    inline std::optional<std::string> ThreadBackgroundTerminalsTerminateParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsTerminateParams::keys() const { return objectKeys(); }
+    inline std::optional<bool> ThreadBackgroundTerminalsTerminateResponse::terminated() const { return boolMember("terminated"); }
+    inline std::vector<std::string> ThreadBackgroundTerminalsTerminateResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadClosedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadClosedNotification::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadCompactStartParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadCompactStartParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadCompactStartResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadDecrementElicitationParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadDecrementElicitationParams::keys() const { return objectKeys(); }
+    inline std::optional<std::int64_t> ThreadDecrementElicitationResponse::count() const { return integerMember("count"); }
+    inline std::optional<bool> ThreadDecrementElicitationResponse::paused() const { return boolMember("paused"); }
+    inline std::vector<std::string> ThreadDecrementElicitationResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadDeleteParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadDeleteParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadDeleteResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadDeletedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadDeletedNotification::keys() const { return objectKeys(); }
+    inline LegacyAppPathString ThreadEnvironment::cwd() const { return LegacyAppPathString(memberRaw("cwd")); }
+    inline std::optional<std::string> ThreadEnvironment::environmentId() const { return stringMember("environmentId"); }
+    inline ThreadEnvironmentRuntimeWorkspaceRoots ThreadEnvironment::runtimeWorkspaceRoots() const { return ThreadEnvironmentRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
+    inline std::vector<std::string> ThreadEnvironment::keys() const { return objectKeys(); }
+    inline std::vector<LegacyAppPathString> ThreadEnvironmentRuntimeWorkspaceRoots::items() const { return arrayItems<LegacyAppPathString>(); }
     inline std::vector<std::string> ThreadExtra::keys() const { return objectKeys(); }
     inline ThreadForkParamsApprovalPolicy ThreadForkParams::approvalPolicy() const { return ThreadForkParamsApprovalPolicy(memberRaw("approvalPolicy")); }
     inline ThreadForkParamsApprovalsReviewer ThreadForkParams::approvalsReviewer() const { return ThreadForkParamsApprovalsReviewer(memberRaw("approvalsReviewer")); }
     inline std::optional<std::string> ThreadForkParams::baseInstructions() const { return stringMember("baseInstructions"); }
+    inline std::optional<std::string> ThreadForkParams::beforeTurnId() const { return stringMember("beforeTurnId"); }
     inline ThreadForkParamsConfig ThreadForkParams::config() const { return ThreadForkParamsConfig(memberRaw("config")); }
     inline std::optional<std::string> ThreadForkParams::cwd() const { return stringMember("cwd"); }
+    inline std::optional<bool> ThreadForkParams::deferGoalContinuation() const { return boolMember("deferGoalContinuation"); }
     inline std::optional<std::string> ThreadForkParams::developerInstructions() const { return stringMember("developerInstructions"); }
     inline std::optional<bool> ThreadForkParams::ephemeral() const { return boolMember("ephemeral"); }
+    inline std::optional<bool> ThreadForkParams::excludeTurns() const { return boolMember("excludeTurns"); }
     inline std::optional<std::string> ThreadForkParams::lastTurnId() const { return stringMember("lastTurnId"); }
     inline std::optional<std::string> ThreadForkParams::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadForkParams::modelProvider() const { return stringMember("modelProvider"); }
+    inline std::optional<std::string> ThreadForkParams::path() const { return stringMember("path"); }
+    inline std::optional<std::string> ThreadForkParams::permissions() const { return stringMember("permissions"); }
+    inline ThreadForkParamsRuntimeWorkspaceRoots ThreadForkParams::runtimeWorkspaceRoots() const { return ThreadForkParamsRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline ThreadForkParamsSandbox ThreadForkParams::sandbox() const { return ThreadForkParamsSandbox(memberRaw("sandbox")); }
     inline std::optional<std::string> ThreadForkParams::serviceTier() const { return stringMember("serviceTier"); }
     inline std::optional<std::string> ThreadForkParams::threadId() const { return stringMember("threadId"); }
     inline ThreadForkParamsThreadSource ThreadForkParams::threadSource() const { return ThreadForkParamsThreadSource(memberRaw("threadSource")); }
     inline std::vector<std::string> ThreadForkParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadForkParamsConfig::keys() const { return objectKeys(); }
+    inline std::vector<AbsolutePathBuf> ThreadForkParamsRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
+    inline ThreadForkResponseActivePermissionProfile ThreadForkResponse::activePermissionProfile() const { return ThreadForkResponseActivePermissionProfile(memberRaw("activePermissionProfile")); }
     inline AskForApproval ThreadForkResponse::approvalPolicy() const { return AskForApproval(memberRaw("approvalPolicy")); }
     inline ThreadForkResponseApprovalsReviewer ThreadForkResponse::approvalsReviewer() const { return ThreadForkResponseApprovalsReviewer(memberRaw("approvalsReviewer")); }
     inline AbsolutePathBuf ThreadForkResponse::cwd() const { return AbsolutePathBuf(memberRaw("cwd")); }
     inline ThreadForkResponseInstructionSources ThreadForkResponse::instructionSources() const { return ThreadForkResponseInstructionSources(memberRaw("instructionSources")); }
     inline std::optional<std::string> ThreadForkResponse::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadForkResponse::modelProvider() const { return stringMember("modelProvider"); }
+    inline ThreadForkResponseMultiAgentMode ThreadForkResponse::multiAgentMode() const { return ThreadForkResponseMultiAgentMode(memberRaw("multiAgentMode")); }
     inline ThreadForkResponseReasoningEffort ThreadForkResponse::reasoningEffort() const { return ThreadForkResponseReasoningEffort(memberRaw("reasoningEffort")); }
+    inline ThreadForkResponseRuntimeWorkspaceRoots ThreadForkResponse::runtimeWorkspaceRoots() const { return ThreadForkResponseRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline ThreadForkResponseSandbox ThreadForkResponse::sandbox() const { return ThreadForkResponseSandbox(memberRaw("sandbox")); }
     inline std::optional<std::string> ThreadForkResponse::serviceTier() const { return stringMember("serviceTier"); }
     inline Thread ThreadForkResponse::thread() const { return Thread(memberRaw("thread")); }
     inline std::vector<std::string> ThreadForkResponse::keys() const { return objectKeys(); }
     inline std::vector<LegacyAppPathString> ThreadForkResponseInstructionSources::items() const { return arrayItems<LegacyAppPathString>(); }
+    inline std::vector<AbsolutePathBuf> ThreadForkResponseRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
     inline std::optional<std::int64_t> ThreadGoal::createdAt() const { return integerMember("createdAt"); }
     inline std::optional<std::string> ThreadGoal::objective() const { return stringMember("objective"); }
     inline ThreadGoalStatus ThreadGoal::status() const { return ThreadGoalStatus(memberRaw("status")); }
@@ -21591,6 +26852,11 @@ namespace v2 {
     inline const std::vector<nlohmann::json>& ThreadHistoryMode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("legacy"), nlohmann::json("paginated")}; return values; }
     inline bool ThreadHistoryMode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> ThreadId::value() const { return stringValue(); }
+    inline std::optional<std::string> ThreadIncrementElicitationParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadIncrementElicitationParams::keys() const { return objectKeys(); }
+    inline std::optional<std::int64_t> ThreadIncrementElicitationResponse::count() const { return integerMember("count"); }
+    inline std::optional<bool> ThreadIncrementElicitationResponse::paused() const { return boolMember("paused"); }
+    inline std::vector<std::string> ThreadIncrementElicitationResponse::keys() const { return objectKeys(); }
     inline ThreadInjectItemsParamsItems ThreadInjectItemsParams::items() const { return ThreadInjectItemsParamsItems(memberRaw("items")); }
     inline std::optional<std::string> ThreadInjectItemsParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadInjectItemsParams::keys() const { return objectKeys(); }
@@ -21617,12 +26883,23 @@ namespace v2 {
     inline std::optional<std::string> AgentMessageThreadItem::id() const { return stringMember("id"); }
     inline AgentMessageThreadItemMemoryCitation AgentMessageThreadItem::memoryCitation() const { return AgentMessageThreadItemMemoryCitation(memberRaw("memoryCitation")); }
     inline AgentMessageThreadItemPhase AgentMessageThreadItem::phase() const { return AgentMessageThreadItemPhase(memberRaw("phase")); }
+    inline AgentMessageThreadItemQuestions AgentMessageThreadItem::questions() const { return AgentMessageThreadItemQuestions(memberRaw("questions")); }
     inline std::optional<std::string> AgentMessageThreadItem::text() const { return stringMember("text"); }
     inline AgentMessageThreadItemType AgentMessageThreadItem::type() const { return AgentMessageThreadItemType(memberRaw("type")); }
     inline std::vector<std::string> AgentMessageThreadItem::keys() const { return objectKeys(); }
+    inline std::vector<AsyncUserInputQuestion> AgentMessageThreadItemQuestions::items() const { return arrayItems<AsyncUserInputQuestion>(); }
     inline std::optional<std::string> AgentMessageThreadItemType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& AgentMessageThreadItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("agentMessage")}; return values; }
     inline bool AgentMessageThreadItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> FunctionCallOutputThreadItem::id() const { return stringMember("id"); }
+    inline std::optional<std::string> FunctionCallOutputThreadItem::name() const { return stringMember("name"); }
+    inline std::optional<std::string> FunctionCallOutputThreadItem::namespace_() const { return stringMember("namespace"); }
+    inline FunctionCallOutputBody FunctionCallOutputThreadItem::output() const { return FunctionCallOutputBody(memberRaw("output")); }
+    inline FunctionCallOutputThreadItemType FunctionCallOutputThreadItem::type() const { return FunctionCallOutputThreadItemType(memberRaw("type")); }
+    inline std::vector<std::string> FunctionCallOutputThreadItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FunctionCallOutputThreadItemType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& FunctionCallOutputThreadItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("functionCallOutput")}; return values; }
+    inline bool FunctionCallOutputThreadItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> PlanThreadItem::id() const { return stringMember("id"); }
     inline std::optional<std::string> PlanThreadItem::text() const { return stringMember("text"); }
     inline PlanThreadItemType PlanThreadItem::type() const { return PlanThreadItemType(memberRaw("type")); }
@@ -21782,12 +27059,27 @@ namespace v2 {
     inline ThreadItem ThreadItemEntry::item() const { return ThreadItem(memberRaw("item")); }
     inline std::optional<std::string> ThreadItemEntry::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> ThreadItemEntry::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadItemsListParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ThreadItemsListParams::limit() const { return integerMember("limit"); }
+    inline ThreadItemsListParamsSortDirection ThreadItemsListParams::sortDirection() const { return ThreadItemsListParamsSortDirection(memberRaw("sortDirection")); }
+    inline std::optional<std::string> ThreadItemsListParams::threadId() const { return stringMember("threadId"); }
+    inline std::optional<std::string> ThreadItemsListParams::turnId() const { return stringMember("turnId"); }
+    inline std::vector<std::string> ThreadItemsListParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadItemsListResponse::backwardsCursor() const { return stringMember("backwardsCursor"); }
+    inline ThreadItemsListResponseData ThreadItemsListResponse::data() const { return ThreadItemsListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadItemsListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadItemsListResponse::keys() const { return objectKeys(); }
+    inline std::vector<ThreadItemEntry> ThreadItemsListResponseData::items() const { return arrayItems<ThreadItemEntry>(); }
     inline std::vector<std::string> ThreadListCwdFilterAnyOf2::items() const { return arrayItems<std::string>(); }
+    inline std::optional<std::string> ThreadListParams::ancestorThreadId() const { return stringMember("ancestorThreadId"); }
     inline std::optional<bool> ThreadListParams::archived() const { return boolMember("archived"); }
     inline std::optional<std::string> ThreadListParams::cursor() const { return stringMember("cursor"); }
     inline ThreadListParamsCwd ThreadListParams::cwd() const { return ThreadListParamsCwd(memberRaw("cwd")); }
     inline std::optional<std::int64_t> ThreadListParams::limit() const { return integerMember("limit"); }
     inline ThreadListParamsModelProviders ThreadListParams::modelProviders() const { return ThreadListParamsModelProviders(memberRaw("modelProviders")); }
+    inline ThreadListParamsOriginators ThreadListParams::originators() const { return ThreadListParamsOriginators(memberRaw("originators")); }
+    inline std::optional<std::string> ThreadListParams::parentThreadId() const { return stringMember("parentThreadId"); }
+    inline std::optional<std::string> ThreadListParams::projectId() const { return stringMember("projectId"); }
     inline std::optional<std::string> ThreadListParams::searchTerm() const { return stringMember("searchTerm"); }
     inline std::optional<std::string> ThreadListParams::sectionId() const { return stringMember("sectionId"); }
     inline ThreadListParamsSortDirection ThreadListParams::sortDirection() const { return ThreadListParamsSortDirection(memberRaw("sortDirection")); }
@@ -21796,6 +27088,7 @@ namespace v2 {
     inline std::optional<bool> ThreadListParams::useStateDbOnly() const { return boolMember("useStateDbOnly"); }
     inline std::vector<std::string> ThreadListParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadListParamsModelProviders::items() const { return arrayItems<std::string>(); }
+    inline std::vector<std::string> ThreadListParamsOriginators::items() const { return arrayItems<std::string>(); }
     inline std::vector<ThreadSourceKind> ThreadListParamsSourceKinds::items() const { return arrayItems<ThreadSourceKind>(); }
     inline std::optional<std::string> ThreadListResponse::backwardsCursor() const { return stringMember("backwardsCursor"); }
     inline ThreadListResponseData ThreadListResponse::data() const { return ThreadListResponseData(memberRaw("data")); }
@@ -21812,11 +27105,17 @@ namespace v2 {
     inline std::optional<std::string> ThreadMemoryMode::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadMemoryMode::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("enabled"), nlohmann::json("disabled")}; return values; }
     inline bool ThreadMemoryMode::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadMemoryMode ThreadMemoryModeSetParams::mode() const { return ThreadMemoryMode(memberRaw("mode")); }
+    inline std::optional<std::string> ThreadMemoryModeSetParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadMemoryModeSetParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadMemoryModeSetResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadMetadataGitInfoUpdateParams::branch() const { return stringMember("branch"); }
     inline std::optional<std::string> ThreadMetadataGitInfoUpdateParams::originUrl() const { return stringMember("originUrl"); }
     inline std::optional<std::string> ThreadMetadataGitInfoUpdateParams::sha() const { return stringMember("sha"); }
     inline std::vector<std::string> ThreadMetadataGitInfoUpdateParams::keys() const { return objectKeys(); }
+    inline std::optional<bool> ThreadMetadataUpdateParams::daybreakEnabled() const { return boolMember("daybreakEnabled"); }
     inline ThreadMetadataUpdateParamsGitInfo ThreadMetadataUpdateParams::gitInfo() const { return ThreadMetadataUpdateParamsGitInfo(memberRaw("gitInfo")); }
+    inline std::optional<std::string> ThreadMetadataUpdateParams::projectId() const { return stringMember("projectId"); }
     inline std::optional<std::string> ThreadMetadataUpdateParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadMetadataUpdateParams::keys() const { return objectKeys(); }
     inline Thread ThreadMetadataUpdateResponse::thread() const { return Thread(memberRaw("thread")); }
@@ -21827,19 +27126,85 @@ namespace v2 {
     inline std::optional<std::string> ThreadProjectUpdatedNotification::projectId() const { return stringMember("projectId"); }
     inline std::optional<std::string> ThreadProjectUpdatedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadProjectUpdatedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueAddParams::clientUserMessageId() const { return stringMember("clientUserMessageId"); }
+    inline ThreadQueueAddParamsInput ThreadQueueAddParams::input() const { return ThreadQueueAddParamsInput(memberRaw("input")); }
+    inline std::optional<std::string> ThreadQueueAddParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadQueueAddParams::keys() const { return objectKeys(); }
+    inline std::vector<UserInput> ThreadQueueAddParamsInput::items() const { return arrayItems<UserInput>(); }
+    inline QueuedSubmission ThreadQueueAddResponse::queuedSubmission() const { return QueuedSubmission(memberRaw("queuedSubmission")); }
+    inline std::vector<std::string> ThreadQueueAddResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadQueueChangedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadQueueChangedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueDeleteParams::queuedSubmissionId() const { return stringMember("queuedSubmissionId"); }
+    inline std::optional<std::string> ThreadQueueDeleteParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadQueueDeleteParams::keys() const { return objectKeys(); }
+    inline std::optional<bool> ThreadQueueDeleteResponse::deleted() const { return boolMember("deleted"); }
+    inline std::vector<std::string> ThreadQueueDeleteResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueListParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ThreadQueueListParams::limit() const { return integerMember("limit"); }
+    inline std::optional<std::string> ThreadQueueListParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadQueueListParams::keys() const { return objectKeys(); }
+    inline ThreadQueueListResponseData ThreadQueueListResponse::data() const { return ThreadQueueListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadQueueListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadQueueListResponse::keys() const { return objectKeys(); }
+    inline std::vector<QueuedSubmission> ThreadQueueListResponseData::items() const { return arrayItems<QueuedSubmission>(); }
+    inline ThreadQueueReorderParamsQueuedSubmissionIds ThreadQueueReorderParams::queuedSubmissionIds() const { return ThreadQueueReorderParamsQueuedSubmissionIds(memberRaw("queuedSubmissionIds")); }
+    inline std::optional<std::string> ThreadQueueReorderParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadQueueReorderParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadQueueReorderParamsQueuedSubmissionIds::items() const { return arrayItems<std::string>(); }
+    inline std::vector<std::string> ThreadQueueReorderResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadQueueStartParams::queuedSubmissionId() const { return stringMember("queuedSubmissionId"); }
+    inline std::optional<std::string> ThreadQueueStartParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadQueueStartParams::keys() const { return objectKeys(); }
+    inline Turn ThreadQueueStartResponse::turn() const { return Turn(memberRaw("turn")); }
+    inline std::vector<std::string> ThreadQueueStartResponse::keys() const { return objectKeys(); }
+    inline ThreadQueueUpdateParamsInput ThreadQueueUpdateParams::input() const { return ThreadQueueUpdateParamsInput(memberRaw("input")); }
+    inline std::optional<std::string> ThreadQueueUpdateParams::queuedSubmissionId() const { return stringMember("queuedSubmissionId"); }
+    inline std::optional<std::string> ThreadQueueUpdateParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadQueueUpdateParams::keys() const { return objectKeys(); }
+    inline std::vector<UserInput> ThreadQueueUpdateParamsInput::items() const { return arrayItems<UserInput>(); }
+    inline QueuedSubmission ThreadQueueUpdateResponse::queuedSubmission() const { return QueuedSubmission(memberRaw("queuedSubmission")); }
+    inline std::vector<std::string> ThreadQueueUpdateResponse::keys() const { return objectKeys(); }
     inline std::optional<bool> ThreadReadParams::includeTurns() const { return boolMember("includeTurns"); }
     inline std::optional<std::string> ThreadReadParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadReadParams::keys() const { return objectKeys(); }
     inline Thread ThreadReadResponse::thread() const { return Thread(memberRaw("thread")); }
     inline std::vector<std::string> ThreadReadResponse::keys() const { return objectKeys(); }
+    inline ThreadRealtimeAudioChunk ThreadRealtimeAppendAudioParams::audio() const { return ThreadRealtimeAudioChunk(memberRaw("audio")); }
+    inline std::optional<std::string> ThreadRealtimeAppendAudioParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeAppendAudioParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadRealtimeAppendAudioResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeAppendSpeechParams::text() const { return stringMember("text"); }
+    inline std::optional<std::string> ThreadRealtimeAppendSpeechParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeAppendSpeechParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadRealtimeAppendSpeechResponse::keys() const { return objectKeys(); }
+    inline ThreadRealtimeAppendTextParamsRole ThreadRealtimeAppendTextParams::role() const { return ThreadRealtimeAppendTextParamsRole(memberRaw("role")); }
+    inline std::optional<std::string> ThreadRealtimeAppendTextParams::text() const { return stringMember("text"); }
+    inline std::optional<std::string> ThreadRealtimeAppendTextParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeAppendTextParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadRealtimeAppendTextResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadRealtimeAudioChunk::data() const { return stringMember("data"); }
     inline std::optional<std::string> ThreadRealtimeAudioChunk::itemId() const { return stringMember("itemId"); }
     inline std::optional<std::int64_t> ThreadRealtimeAudioChunk::numChannels() const { return integerMember("numChannels"); }
     inline std::optional<std::int64_t> ThreadRealtimeAudioChunk::sampleRate() const { return integerMember("sampleRate"); }
     inline std::optional<std::int64_t> ThreadRealtimeAudioChunk::samplesPerChannel() const { return integerMember("samplesPerChannel"); }
     inline std::vector<std::string> ThreadRealtimeAudioChunk::keys() const { return objectKeys(); }
+    inline WholeItemThreadRealtimeBemItemPresentationType WholeItemThreadRealtimeBemItemPresentation::type() const { return WholeItemThreadRealtimeBemItemPresentationType(memberRaw("type")); }
+    inline std::vector<std::string> WholeItemThreadRealtimeBemItemPresentation::keys() const { return objectKeys(); }
+    inline std::optional<std::string> WholeItemThreadRealtimeBemItemPresentationType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& WholeItemThreadRealtimeBemItemPresentationType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("wholeItem")}; return values; }
+    inline bool WholeItemThreadRealtimeBemItemPresentationType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline InlineMarkdownThreadRealtimeBemItemPresentationType InlineMarkdownThreadRealtimeBemItemPresentation::type() const { return InlineMarkdownThreadRealtimeBemItemPresentationType(memberRaw("type")); }
+    inline std::vector<std::string> InlineMarkdownThreadRealtimeBemItemPresentation::keys() const { return objectKeys(); }
+    inline std::optional<std::string> InlineMarkdownThreadRealtimeBemItemPresentationType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& InlineMarkdownThreadRealtimeBemItemPresentationType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("inlineMarkdown")}; return values; }
+    inline bool InlineMarkdownThreadRealtimeBemItemPresentationType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::int64_t> InlineVisualizationThreadRealtimeBemItemPresentation::index() const { return integerMember("index"); }
+    inline InlineVisualizationThreadRealtimeBemItemPresentationType InlineVisualizationThreadRealtimeBemItemPresentation::type() const { return InlineVisualizationThreadRealtimeBemItemPresentationType(memberRaw("type")); }
+    inline std::vector<std::string> InlineVisualizationThreadRealtimeBemItemPresentation::keys() const { return objectKeys(); }
+    inline std::optional<std::string> InlineVisualizationThreadRealtimeBemItemPresentationType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& InlineVisualizationThreadRealtimeBemItemPresentationType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("inlineVisualization")}; return values; }
+    inline bool InlineVisualizationThreadRealtimeBemItemPresentationType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline std::optional<std::string> ThreadRealtimeClosedNotification::reason() const { return stringMember("reason"); }
     inline std::optional<std::string> ThreadRealtimeClosedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadRealtimeClosedNotification::keys() const { return objectKeys(); }
@@ -21849,15 +27214,83 @@ namespace v2 {
     inline ConversationTextRole ThreadRealtimeInitialItem::role() const { return ConversationTextRole(memberRaw("role")); }
     inline std::optional<std::string> ThreadRealtimeInitialItem::text() const { return stringMember("text"); }
     inline std::vector<std::string> ThreadRealtimeInitialItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeItem::id() const { return stringMember("id"); }
+    inline std::optional<std::string> ThreadRealtimeItem::realtimeSessionId() const { return stringMember("realtimeSessionId"); }
+    inline std::vector<std::string> ThreadRealtimeItem::keys() const { return objectKeys(); }
+    inline RealtimeSessionStartedThreadRealtimeItemType RealtimeSessionStartedThreadRealtimeItem::type() const { return RealtimeSessionStartedThreadRealtimeItemType(memberRaw("type")); }
+    inline std::vector<std::string> RealtimeSessionStartedThreadRealtimeItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RealtimeSessionStartedThreadRealtimeItemType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RealtimeSessionStartedThreadRealtimeItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("realtimeSessionStarted")}; return values; }
+    inline bool RealtimeSessionStartedThreadRealtimeItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadRealtimeTranscriptRole TranscriptSegmentThreadRealtimeItem::role() const { return ThreadRealtimeTranscriptRole(memberRaw("role")); }
+    inline std::optional<std::string> TranscriptSegmentThreadRealtimeItem::text() const { return stringMember("text"); }
+    inline TranscriptSegmentThreadRealtimeItemType TranscriptSegmentThreadRealtimeItem::type() const { return TranscriptSegmentThreadRealtimeItemType(memberRaw("type")); }
+    inline std::vector<std::string> TranscriptSegmentThreadRealtimeItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> TranscriptSegmentThreadRealtimeItemType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& TranscriptSegmentThreadRealtimeItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("transcriptSegment")}; return values; }
+    inline bool TranscriptSegmentThreadRealtimeItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> BemItemPromotedThreadRealtimeItem::itemId() const { return stringMember("item_id"); }
+    inline ThreadRealtimeBemItemPresentation BemItemPromotedThreadRealtimeItem::presentation() const { return ThreadRealtimeBemItemPresentation(memberRaw("presentation")); }
+    inline std::optional<std::string> BemItemPromotedThreadRealtimeItem::turnId() const { return stringMember("turn_id"); }
+    inline BemItemPromotedThreadRealtimeItemType BemItemPromotedThreadRealtimeItem::type() const { return BemItemPromotedThreadRealtimeItemType(memberRaw("type")); }
+    inline std::vector<std::string> BemItemPromotedThreadRealtimeItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> BemItemPromotedThreadRealtimeItemType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& BemItemPromotedThreadRealtimeItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("bemItemPromoted")}; return values; }
+    inline bool BemItemPromotedThreadRealtimeItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadRealtimeSessionOutcome RealtimeSessionClosedThreadRealtimeItem::outcome() const { return ThreadRealtimeSessionOutcome(memberRaw("outcome")); }
+    inline RealtimeSessionClosedThreadRealtimeItemType RealtimeSessionClosedThreadRealtimeItem::type() const { return RealtimeSessionClosedThreadRealtimeItemType(memberRaw("type")); }
+    inline std::vector<std::string> RealtimeSessionClosedThreadRealtimeItem::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RealtimeSessionClosedThreadRealtimeItemType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RealtimeSessionClosedThreadRealtimeItemType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("realtimeSessionClosed")}; return values; }
+    inline bool RealtimeSessionClosedThreadRealtimeItemType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline nlohmann::json ThreadRealtimeItemAddedNotification::item() const { return memberRaw("item"); }
     inline std::optional<std::string> ThreadRealtimeItemAddedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadRealtimeItemAddedNotification::keys() const { return objectKeys(); }
+    inline ThreadRealtimeItem ThreadRealtimeItemCompletedNotification::item() const { return ThreadRealtimeItem(memberRaw("item")); }
+    inline std::optional<std::string> ThreadRealtimeItemCompletedNotification::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeItemCompletedNotification::keys() const { return objectKeys(); }
+    inline ThreadRealtimeItem ThreadRealtimeItemStartedNotification::item() const { return ThreadRealtimeItem(memberRaw("item")); }
+    inline std::optional<std::string> ThreadRealtimeItemStartedNotification::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeItemStartedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeItemTranscriptDeltaNotification::delta() const { return stringMember("delta"); }
+    inline std::optional<std::string> ThreadRealtimeItemTranscriptDeltaNotification::itemId() const { return stringMember("itemId"); }
+    inline std::optional<std::string> ThreadRealtimeItemTranscriptDeltaNotification::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeItemTranscriptDeltaNotification::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadRealtimeListVoicesParams::keys() const { return objectKeys(); }
+    inline RealtimeVoicesList ThreadRealtimeListVoicesResponse::voices() const { return RealtimeVoicesList(memberRaw("voices")); }
+    inline std::vector<std::string> ThreadRealtimeListVoicesResponse::keys() const { return objectKeys(); }
     inline ThreadRealtimeAudioChunk ThreadRealtimeOutputAudioDeltaNotification::audio() const { return ThreadRealtimeAudioChunk(memberRaw("audio")); }
     inline std::optional<std::string> ThreadRealtimeOutputAudioDeltaNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadRealtimeOutputAudioDeltaNotification::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadRealtimeSdpNotification::sdp() const { return stringMember("sdp"); }
     inline std::optional<std::string> ThreadRealtimeSdpNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadRealtimeSdpNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeSessionOutcome::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeSessionOutcome::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("ended"), nlohmann::json("failed")}; return values; }
+    inline bool ThreadRealtimeSessionOutcome::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<bool> ThreadRealtimeStartParams::clientManagedHandoffs() const { return boolMember("clientManagedHandoffs"); }
+    inline ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes ThreadRealtimeStartParams::codexResponseHandoffChannelPrefixes() const { return ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes(memberRaw("codexResponseHandoffChannelPrefixes")); }
+    inline ThreadRealtimeStartParamsCodexResponseHandoffMode ThreadRealtimeStartParams::codexResponseHandoffMode() const { return ThreadRealtimeStartParamsCodexResponseHandoffMode(memberRaw("codexResponseHandoffMode")); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::codexResponseItemPrefix() const { return stringMember("codexResponseItemPrefix"); }
+    inline std::optional<bool> ThreadRealtimeStartParams::codexResponsesAsItems() const { return boolMember("codexResponsesAsItems"); }
+    inline std::optional<bool> ThreadRealtimeStartParams::delegationAckFiller() const { return boolMember("delegationAckFiller"); }
+    inline std::optional<bool> ThreadRealtimeStartParams::flushTranscriptTailOnSessionEnd() const { return boolMember("flushTranscriptTailOnSessionEnd"); }
+    inline std::optional<bool> ThreadRealtimeStartParams::includeStartupContext() const { return boolMember("includeStartupContext"); }
+    inline ThreadRealtimeStartParamsInitialItems ThreadRealtimeStartParams::initialItems() const { return ThreadRealtimeStartParamsInitialItems(memberRaw("initialItems")); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::model() const { return stringMember("model"); }
+    inline ThreadRealtimeStartParamsOutputModality ThreadRealtimeStartParams::outputModality() const { return ThreadRealtimeStartParamsOutputModality(memberRaw("outputModality")); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::prompt() const { return stringMember("prompt"); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::realtimeEndInstructions() const { return stringMember("realtimeEndInstructions"); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::realtimeSessionId() const { return stringMember("realtimeSessionId"); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::realtimeStartInstructions() const { return stringMember("realtimeStartInstructions"); }
+    inline std::optional<std::string> ThreadRealtimeStartParams::threadId() const { return stringMember("threadId"); }
+    inline ThreadRealtimeStartParamsTransport ThreadRealtimeStartParams::transport() const { return ThreadRealtimeStartParamsTransport(memberRaw("transport")); }
+    inline ThreadRealtimeStartParamsVersion ThreadRealtimeStartParams::version() const { return ThreadRealtimeStartParamsVersion(memberRaw("version")); }
+    inline ThreadRealtimeStartParamsVoice ThreadRealtimeStartParams::voice() const { return ThreadRealtimeStartParamsVoice(memberRaw("voice")); }
+    inline std::vector<std::string> ThreadRealtimeStartParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes::keys() const { return objectKeys(); }
+    inline std::vector<ThreadRealtimeInitialItem> ThreadRealtimeStartParamsInitialItems::items() const { return arrayItems<ThreadRealtimeInitialItem>(); }
+    inline std::vector<std::string> ThreadRealtimeStartResponse::keys() const { return objectKeys(); }
     inline WebsocketThreadRealtimeStartTransportType WebsocketThreadRealtimeStartTransport::type() const { return WebsocketThreadRealtimeStartTransportType(memberRaw("type")); }
     inline std::vector<std::string> WebsocketThreadRealtimeStartTransport::keys() const { return objectKeys(); }
     inline std::optional<std::string> WebsocketThreadRealtimeStartTransportType::value() const { return stringValue(); }
@@ -21879,6 +27312,9 @@ namespace v2 {
     inline std::optional<std::string> ThreadRealtimeStartedNotification::threadId() const { return stringMember("threadId"); }
     inline RealtimeConversationVersion ThreadRealtimeStartedNotification::version() const { return RealtimeConversationVersion(memberRaw("version")); }
     inline std::vector<std::string> ThreadRealtimeStartedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeStopParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRealtimeStopParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadRealtimeStopResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadRealtimeTranscriptDeltaNotification::delta() const { return stringMember("delta"); }
     inline std::optional<std::string> ThreadRealtimeTranscriptDeltaNotification::role() const { return stringMember("role"); }
     inline std::optional<std::string> ThreadRealtimeTranscriptDeltaNotification::threadId() const { return stringMember("threadId"); }
@@ -21887,6 +27323,9 @@ namespace v2 {
     inline std::optional<std::string> ThreadRealtimeTranscriptDoneNotification::text() const { return stringMember("text"); }
     inline std::optional<std::string> ThreadRealtimeTranscriptDoneNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadRealtimeTranscriptDoneNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRealtimeTranscriptRole::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ThreadRealtimeTranscriptRole::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("user"), nlohmann::json("assistant")}; return values; }
+    inline bool ThreadRealtimeTranscriptRole::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
     inline ThreadResumeInitialTurnsPageParamsItemsView ThreadResumeInitialTurnsPageParams::itemsView() const { return ThreadResumeInitialTurnsPageParamsItemsView(memberRaw("itemsView")); }
     inline std::optional<std::int64_t> ThreadResumeInitialTurnsPageParams::limit() const { return integerMember("limit"); }
     inline ThreadResumeInitialTurnsPageParamsSortDirection ThreadResumeInitialTurnsPageParams::sortDirection() const { return ThreadResumeInitialTurnsPageParamsSortDirection(memberRaw("sortDirection")); }
@@ -21897,26 +27336,48 @@ namespace v2 {
     inline ThreadResumeParamsConfig ThreadResumeParams::config() const { return ThreadResumeParamsConfig(memberRaw("config")); }
     inline std::optional<std::string> ThreadResumeParams::cwd() const { return stringMember("cwd"); }
     inline std::optional<std::string> ThreadResumeParams::developerInstructions() const { return stringMember("developerInstructions"); }
+    inline std::optional<bool> ThreadResumeParams::excludeTurns() const { return boolMember("excludeTurns"); }
+    inline ThreadResumeParamsHistory ThreadResumeParams::history() const { return ThreadResumeParamsHistory(memberRaw("history")); }
+    inline ThreadResumeParamsInitialTurnsPage ThreadResumeParams::initialTurnsPage() const { return ThreadResumeParamsInitialTurnsPage(memberRaw("initialTurnsPage")); }
     inline std::optional<std::string> ThreadResumeParams::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadResumeParams::modelProvider() const { return stringMember("modelProvider"); }
+    inline std::optional<std::string> ThreadResumeParams::path() const { return stringMember("path"); }
+    inline std::optional<std::string> ThreadResumeParams::permissions() const { return stringMember("permissions"); }
     inline ThreadResumeParamsPersonality ThreadResumeParams::personality() const { return ThreadResumeParamsPersonality(memberRaw("personality")); }
+    inline ThreadResumeParamsRuntimeWorkspaceRoots ThreadResumeParams::runtimeWorkspaceRoots() const { return ThreadResumeParamsRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline ThreadResumeParamsSandbox ThreadResumeParams::sandbox() const { return ThreadResumeParamsSandbox(memberRaw("sandbox")); }
     inline std::optional<std::string> ThreadResumeParams::serviceTier() const { return stringMember("serviceTier"); }
     inline std::optional<std::string> ThreadResumeParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadResumeParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadResumeParamsConfig::keys() const { return objectKeys(); }
+    inline std::vector<ResponseItem> ThreadResumeParamsHistory::items() const { return arrayItems<ResponseItem>(); }
+    inline std::vector<AbsolutePathBuf> ThreadResumeParamsRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
+    inline ThreadResumeResponseActivePermissionProfile ThreadResumeResponse::activePermissionProfile() const { return ThreadResumeResponseActivePermissionProfile(memberRaw("activePermissionProfile")); }
     inline AskForApproval ThreadResumeResponse::approvalPolicy() const { return AskForApproval(memberRaw("approvalPolicy")); }
     inline ThreadResumeResponseApprovalsReviewer ThreadResumeResponse::approvalsReviewer() const { return ThreadResumeResponseApprovalsReviewer(memberRaw("approvalsReviewer")); }
     inline AbsolutePathBuf ThreadResumeResponse::cwd() const { return AbsolutePathBuf(memberRaw("cwd")); }
+    inline ThreadResumeResponseInitialTurnsPage ThreadResumeResponse::initialTurnsPage() const { return ThreadResumeResponseInitialTurnsPage(memberRaw("initialTurnsPage")); }
     inline ThreadResumeResponseInstructionSources ThreadResumeResponse::instructionSources() const { return ThreadResumeResponseInstructionSources(memberRaw("instructionSources")); }
+    inline std::optional<std::string> ThreadResumeResponse::itemsBackwardsCursor() const { return stringMember("itemsBackwardsCursor"); }
     inline std::optional<std::string> ThreadResumeResponse::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadResumeResponse::modelProvider() const { return stringMember("modelProvider"); }
+    inline ThreadResumeResponseMultiAgentMode ThreadResumeResponse::multiAgentMode() const { return ThreadResumeResponseMultiAgentMode(memberRaw("multiAgentMode")); }
     inline ThreadResumeResponseReasoningEffort ThreadResumeResponse::reasoningEffort() const { return ThreadResumeResponseReasoningEffort(memberRaw("reasoningEffort")); }
+    inline ThreadResumeResponseRuntimeWorkspaceRoots ThreadResumeResponse::runtimeWorkspaceRoots() const { return ThreadResumeResponseRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline ThreadResumeResponseSandbox ThreadResumeResponse::sandbox() const { return ThreadResumeResponseSandbox(memberRaw("sandbox")); }
     inline std::optional<std::string> ThreadResumeResponse::serviceTier() const { return stringMember("serviceTier"); }
     inline Thread ThreadResumeResponse::thread() const { return Thread(memberRaw("thread")); }
+    inline std::optional<std::string> ThreadResumeResponse::turnsBackwardsCursor() const { return stringMember("turnsBackwardsCursor"); }
     inline std::vector<std::string> ThreadResumeResponse::keys() const { return objectKeys(); }
     inline std::vector<LegacyAppPathString> ThreadResumeResponseInstructionSources::items() const { return arrayItems<LegacyAppPathString>(); }
+    inline std::vector<AbsolutePathBuf> ThreadResumeResponseRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
+    inline std::optional<std::string> ThreadRevertParams::beforeTurnId() const { return stringMember("beforeTurnId"); }
+    inline std::optional<std::string> ThreadRevertParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadRevertParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadRevertResponse::itemsBackwardsCursor() const { return stringMember("itemsBackwardsCursor"); }
+    inline ThreadRevertResponseThread ThreadRevertResponse::thread() const { return ThreadRevertResponseThread(memberRaw("thread")); }
+    inline std::optional<std::string> ThreadRevertResponse::turnsBackwardsCursor() const { return stringMember("turnsBackwardsCursor"); }
+    inline std::vector<std::string> ThreadRevertResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadRevertedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadRevertedNotification::keys() const { return objectKeys(); }
     inline std::optional<std::int64_t> ThreadRollbackParams::numTurns() const { return integerMember("numTurns"); }
@@ -21924,12 +27385,44 @@ namespace v2 {
     inline std::vector<std::string> ThreadRollbackParams::keys() const { return objectKeys(); }
     inline ThreadRollbackResponseThread ThreadRollbackResponse::thread() const { return ThreadRollbackResponseThread(memberRaw("thread")); }
     inline std::vector<std::string> ThreadRollbackResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadSearchOccurrence::itemId() const { return stringMember("itemId"); }
+    inline std::optional<std::string> ThreadSearchOccurrence::snippet() const { return stringMember("snippet"); }
+    inline ThreadSearchOccurrenceSnippetMatchRange ThreadSearchOccurrence::snippetMatchRange() const { return ThreadSearchOccurrenceSnippetMatchRange(memberRaw("snippetMatchRange")); }
+    inline std::optional<std::string> ThreadSearchOccurrence::turnCursor() const { return stringMember("turnCursor"); }
+    inline std::optional<std::string> ThreadSearchOccurrence::turnId() const { return stringMember("turnId"); }
+    inline std::vector<std::string> ThreadSearchOccurrence::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadSearchOccurrencesParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ThreadSearchOccurrencesParams::limit() const { return integerMember("limit"); }
+    inline std::optional<std::string> ThreadSearchOccurrencesParams::searchTerm() const { return stringMember("searchTerm"); }
+    inline std::optional<std::string> ThreadSearchOccurrencesParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadSearchOccurrencesParams::keys() const { return objectKeys(); }
+    inline ThreadSearchOccurrencesResponseData ThreadSearchOccurrencesResponse::data() const { return ThreadSearchOccurrencesResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadSearchOccurrencesResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadSearchOccurrencesResponse::keys() const { return objectKeys(); }
+    inline std::vector<ThreadSearchOccurrence> ThreadSearchOccurrencesResponseData::items() const { return arrayItems<ThreadSearchOccurrence>(); }
+    inline std::optional<bool> ThreadSearchParams::archived() const { return boolMember("archived"); }
+    inline std::optional<std::string> ThreadSearchParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ThreadSearchParams::limit() const { return integerMember("limit"); }
+    inline std::optional<std::string> ThreadSearchParams::searchTerm() const { return stringMember("searchTerm"); }
+    inline ThreadSearchParamsSortDirection ThreadSearchParams::sortDirection() const { return ThreadSearchParamsSortDirection(memberRaw("sortDirection")); }
+    inline ThreadSearchParamsSortKey ThreadSearchParams::sortKey() const { return ThreadSearchParamsSortKey(memberRaw("sortKey")); }
+    inline ThreadSearchParamsSourceKinds ThreadSearchParams::sourceKinds() const { return ThreadSearchParamsSourceKinds(memberRaw("sourceKinds")); }
+    inline std::vector<std::string> ThreadSearchParams::keys() const { return objectKeys(); }
+    inline std::vector<ThreadSourceKind> ThreadSearchParamsSourceKinds::items() const { return arrayItems<ThreadSourceKind>(); }
+    inline std::optional<std::string> ThreadSearchResponse::backwardsCursor() const { return stringMember("backwardsCursor"); }
+    inline ThreadSearchResponseData ThreadSearchResponse::data() const { return ThreadSearchResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadSearchResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadSearchResponse::keys() const { return objectKeys(); }
+    inline std::vector<ThreadSearchResult> ThreadSearchResponseData::items() const { return arrayItems<ThreadSearchResult>(); }
     inline std::optional<std::string> ThreadSearchResult::snippet() const { return stringMember("snippet"); }
     inline Thread ThreadSearchResult::thread() const { return Thread(memberRaw("thread")); }
     inline std::vector<std::string> ThreadSearchResult::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadSearchSortKey::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadSearchSortKey::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("created_at"), nlohmann::json("updated_at"), nlohmann::json("recency_at")}; return values; }
     inline bool ThreadSearchSortKey::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::int64_t> ThreadSearchTextRange::end() const { return integerMember("end"); }
+    inline std::optional<std::int64_t> ThreadSearchTextRange::start() const { return integerMember("start"); }
+    inline std::vector<std::string> ThreadSearchTextRange::keys() const { return objectKeys(); }
     inline ThreadSectionAppearance2 ThreadSection::appearance() const { return ThreadSectionAppearance2(memberRaw("appearance")); }
     inline std::optional<std::string> ThreadSection::id() const { return stringMember("id"); }
     inline std::optional<std::string> ThreadSection::name() const { return stringMember("name"); }
@@ -21975,16 +27468,33 @@ namespace v2 {
     inline ThreadSettingsEffort ThreadSettings::effort() const { return ThreadSettingsEffort(memberRaw("effort")); }
     inline std::optional<std::string> ThreadSettings::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadSettings::modelProvider() const { return stringMember("modelProvider"); }
+    inline ThreadSettingsMultiAgentMode ThreadSettings::multiAgentMode() const { return ThreadSettingsMultiAgentMode(memberRaw("multiAgentMode")); }
     inline ThreadSettingsPersonality ThreadSettings::personality() const { return ThreadSettingsPersonality(memberRaw("personality")); }
     inline SandboxPolicy ThreadSettings::sandboxPolicy() const { return SandboxPolicy(memberRaw("sandboxPolicy")); }
     inline std::optional<std::string> ThreadSettings::serviceTier() const { return stringMember("serviceTier"); }
     inline ThreadSettingsSummary ThreadSettings::summary() const { return ThreadSettingsSummary(memberRaw("summary")); }
     inline std::vector<std::string> ThreadSettings::keys() const { return objectKeys(); }
+    inline ThreadSettingsUpdateParamsApprovalPolicy ThreadSettingsUpdateParams::approvalPolicy() const { return ThreadSettingsUpdateParamsApprovalPolicy(memberRaw("approvalPolicy")); }
+    inline ThreadSettingsUpdateParamsApprovalsReviewer ThreadSettingsUpdateParams::approvalsReviewer() const { return ThreadSettingsUpdateParamsApprovalsReviewer(memberRaw("approvalsReviewer")); }
+    inline ThreadSettingsUpdateParamsCollaborationMode ThreadSettingsUpdateParams::collaborationMode() const { return ThreadSettingsUpdateParamsCollaborationMode(memberRaw("collaborationMode")); }
+    inline std::optional<std::string> ThreadSettingsUpdateParams::cwd() const { return stringMember("cwd"); }
+    inline ThreadSettingsUpdateParamsEffort ThreadSettingsUpdateParams::effort() const { return ThreadSettingsUpdateParamsEffort(memberRaw("effort")); }
+    inline std::optional<std::string> ThreadSettingsUpdateParams::model() const { return stringMember("model"); }
+    inline ThreadSettingsUpdateParamsMultiAgentMode ThreadSettingsUpdateParams::multiAgentMode() const { return ThreadSettingsUpdateParamsMultiAgentMode(memberRaw("multiAgentMode")); }
+    inline std::optional<std::string> ThreadSettingsUpdateParams::permissions() const { return stringMember("permissions"); }
+    inline ThreadSettingsUpdateParamsPersonality ThreadSettingsUpdateParams::personality() const { return ThreadSettingsUpdateParamsPersonality(memberRaw("personality")); }
+    inline ThreadSettingsUpdateParamsSandboxPolicy ThreadSettingsUpdateParams::sandboxPolicy() const { return ThreadSettingsUpdateParamsSandboxPolicy(memberRaw("sandboxPolicy")); }
+    inline std::optional<std::string> ThreadSettingsUpdateParams::serviceTier() const { return stringMember("serviceTier"); }
+    inline ThreadSettingsUpdateParamsSummary ThreadSettingsUpdateParams::summary() const { return ThreadSettingsUpdateParamsSummary(memberRaw("summary")); }
+    inline std::optional<std::string> ThreadSettingsUpdateParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadSettingsUpdateParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> ThreadSettingsUpdateResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadSettingsUpdatedNotification::threadId() const { return stringMember("threadId"); }
     inline ThreadSettings ThreadSettingsUpdatedNotification::threadSettings() const { return ThreadSettings(memberRaw("threadSettings")); }
     inline std::vector<std::string> ThreadSettingsUpdatedNotification::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadShellCommandParams::command() const { return stringMember("command"); }
     inline std::optional<std::string> ThreadShellCommandParams::threadId() const { return stringMember("threadId"); }
+    inline std::optional<std::int64_t> ThreadShellCommandParams::timeoutMs() const { return integerMember("timeoutMs"); }
     inline std::vector<std::string> ThreadShellCommandParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadShellCommandResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> ThreadSortKey::value() const { return stringValue(); }
@@ -21994,35 +27504,54 @@ namespace v2 {
     inline std::optional<std::string> ThreadSourceKind::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadSourceKind::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("cli"), nlohmann::json("vscode"), nlohmann::json("exec"), nlohmann::json("appServer"), nlohmann::json("subAgent"), nlohmann::json("subAgentReview"), nlohmann::json("subAgentCompact"), nlohmann::json("subAgentThreadSpawn"), nlohmann::json("subAgentOther"), nlohmann::json("unknown")}; return values; }
     inline bool ThreadSourceKind::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<bool> ThreadStartParams::allowProviderModelFallback() const { return boolMember("allowProviderModelFallback"); }
     inline ThreadStartParamsApprovalPolicy ThreadStartParams::approvalPolicy() const { return ThreadStartParamsApprovalPolicy(memberRaw("approvalPolicy")); }
     inline ThreadStartParamsApprovalsReviewer ThreadStartParams::approvalsReviewer() const { return ThreadStartParamsApprovalsReviewer(memberRaw("approvalsReviewer")); }
     inline std::optional<std::string> ThreadStartParams::baseInstructions() const { return stringMember("baseInstructions"); }
     inline ThreadStartParamsConfig ThreadStartParams::config() const { return ThreadStartParamsConfig(memberRaw("config")); }
     inline std::optional<std::string> ThreadStartParams::cwd() const { return stringMember("cwd"); }
     inline std::optional<std::string> ThreadStartParams::developerInstructions() const { return stringMember("developerInstructions"); }
+    inline ThreadStartParamsDynamicTools ThreadStartParams::dynamicTools() const { return ThreadStartParamsDynamicTools(memberRaw("dynamicTools")); }
+    inline ThreadStartParamsEnvironments ThreadStartParams::environments() const { return ThreadStartParamsEnvironments(memberRaw("environments")); }
     inline std::optional<bool> ThreadStartParams::ephemeral() const { return boolMember("ephemeral"); }
+    inline std::optional<bool> ThreadStartParams::experimentalRawEvents() const { return boolMember("experimentalRawEvents"); }
+    inline ThreadStartParamsHistoryMode ThreadStartParams::historyMode() const { return ThreadStartParamsHistoryMode(memberRaw("historyMode")); }
+    inline std::optional<std::string> ThreadStartParams::mockExperimentalField() const { return stringMember("mockExperimentalField"); }
     inline std::optional<std::string> ThreadStartParams::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadStartParams::modelProvider() const { return stringMember("modelProvider"); }
+    inline ThreadStartParamsMultiAgentMode ThreadStartParams::multiAgentMode() const { return ThreadStartParamsMultiAgentMode(memberRaw("multiAgentMode")); }
+    inline std::optional<std::string> ThreadStartParams::permissions() const { return stringMember("permissions"); }
     inline ThreadStartParamsPersonality ThreadStartParams::personality() const { return ThreadStartParamsPersonality(memberRaw("personality")); }
+    inline std::optional<std::string> ThreadStartParams::projectId() const { return stringMember("projectId"); }
+    inline ThreadStartParamsRuntimeWorkspaceRoots ThreadStartParams::runtimeWorkspaceRoots() const { return ThreadStartParamsRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline ThreadStartParamsSandbox ThreadStartParams::sandbox() const { return ThreadStartParamsSandbox(memberRaw("sandbox")); }
+    inline ThreadStartParamsSelectedCapabilityRoots ThreadStartParams::selectedCapabilityRoots() const { return ThreadStartParamsSelectedCapabilityRoots(memberRaw("selectedCapabilityRoots")); }
     inline std::optional<std::string> ThreadStartParams::serviceName() const { return stringMember("serviceName"); }
     inline std::optional<std::string> ThreadStartParams::serviceTier() const { return stringMember("serviceTier"); }
     inline ThreadStartParamsSessionStartSource ThreadStartParams::sessionStartSource() const { return ThreadStartParamsSessionStartSource(memberRaw("sessionStartSource")); }
     inline ThreadStartParamsThreadSource ThreadStartParams::threadSource() const { return ThreadStartParamsThreadSource(memberRaw("threadSource")); }
     inline std::vector<std::string> ThreadStartParams::keys() const { return objectKeys(); }
     inline std::vector<std::string> ThreadStartParamsConfig::keys() const { return objectKeys(); }
+    inline std::vector<DynamicToolSpec> ThreadStartParamsDynamicTools::items() const { return arrayItems<DynamicToolSpec>(); }
+    inline std::vector<TurnEnvironmentParams> ThreadStartParamsEnvironments::items() const { return arrayItems<TurnEnvironmentParams>(); }
+    inline std::vector<AbsolutePathBuf> ThreadStartParamsRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
+    inline std::vector<SelectedCapabilityRoot> ThreadStartParamsSelectedCapabilityRoots::items() const { return arrayItems<SelectedCapabilityRoot>(); }
+    inline ThreadStartResponseActivePermissionProfile ThreadStartResponse::activePermissionProfile() const { return ThreadStartResponseActivePermissionProfile(memberRaw("activePermissionProfile")); }
     inline AskForApproval ThreadStartResponse::approvalPolicy() const { return AskForApproval(memberRaw("approvalPolicy")); }
     inline ThreadStartResponseApprovalsReviewer ThreadStartResponse::approvalsReviewer() const { return ThreadStartResponseApprovalsReviewer(memberRaw("approvalsReviewer")); }
     inline AbsolutePathBuf ThreadStartResponse::cwd() const { return AbsolutePathBuf(memberRaw("cwd")); }
     inline ThreadStartResponseInstructionSources ThreadStartResponse::instructionSources() const { return ThreadStartResponseInstructionSources(memberRaw("instructionSources")); }
     inline std::optional<std::string> ThreadStartResponse::model() const { return stringMember("model"); }
     inline std::optional<std::string> ThreadStartResponse::modelProvider() const { return stringMember("modelProvider"); }
+    inline ThreadStartResponseMultiAgentMode ThreadStartResponse::multiAgentMode() const { return ThreadStartResponseMultiAgentMode(memberRaw("multiAgentMode")); }
     inline ThreadStartResponseReasoningEffort ThreadStartResponse::reasoningEffort() const { return ThreadStartResponseReasoningEffort(memberRaw("reasoningEffort")); }
+    inline ThreadStartResponseRuntimeWorkspaceRoots ThreadStartResponse::runtimeWorkspaceRoots() const { return ThreadStartResponseRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline ThreadStartResponseSandbox ThreadStartResponse::sandbox() const { return ThreadStartResponseSandbox(memberRaw("sandbox")); }
     inline std::optional<std::string> ThreadStartResponse::serviceTier() const { return stringMember("serviceTier"); }
     inline Thread ThreadStartResponse::thread() const { return Thread(memberRaw("thread")); }
     inline std::vector<std::string> ThreadStartResponse::keys() const { return objectKeys(); }
     inline std::vector<LegacyAppPathString> ThreadStartResponseInstructionSources::items() const { return arrayItems<LegacyAppPathString>(); }
+    inline std::vector<AbsolutePathBuf> ThreadStartResponseRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
     inline std::optional<std::string> ThreadStartSource::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& ThreadStartSource::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("startup"), nlohmann::json("clear")}; return values; }
     inline bool ThreadStartSource::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -22053,6 +27582,50 @@ namespace v2 {
     inline ThreadStatus ThreadStatusChangedNotification::status() const { return ThreadStatus(memberRaw("status")); }
     inline std::optional<std::string> ThreadStatusChangedNotification::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadStatusChangedNotification::keys() const { return objectKeys(); }
+    inline ThreadItem ItemThreadTimelineEntry::item() const { return ThreadItem(memberRaw("item")); }
+    inline std::optional<std::int64_t> ItemThreadTimelineEntry::position() const { return integerMember("position"); }
+    inline std::optional<std::string> ItemThreadTimelineEntry::turnId() const { return stringMember("turnId"); }
+    inline ItemThreadTimelineEntryType ItemThreadTimelineEntry::type() const { return ItemThreadTimelineEntryType(memberRaw("type")); }
+    inline std::vector<std::string> ItemThreadTimelineEntry::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ItemThreadTimelineEntryType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& ItemThreadTimelineEntryType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("item")}; return values; }
+    inline bool ItemThreadTimelineEntryType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline ThreadRealtimeItem RealtimeThreadTimelineEntry::item() const { return ThreadRealtimeItem(memberRaw("item")); }
+    inline std::optional<std::int64_t> RealtimeThreadTimelineEntry::position() const { return integerMember("position"); }
+    inline RealtimeThreadTimelineEntryType RealtimeThreadTimelineEntry::type() const { return RealtimeThreadTimelineEntryType(memberRaw("type")); }
+    inline std::vector<std::string> RealtimeThreadTimelineEntry::keys() const { return objectKeys(); }
+    inline std::optional<std::string> RealtimeThreadTimelineEntryType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& RealtimeThreadTimelineEntryType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("realtime")}; return values; }
+    inline bool RealtimeThreadTimelineEntryType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::int64_t> TurnStartedThreadTimelineEntry::position() const { return integerMember("position"); }
+    inline std::optional<std::int64_t> TurnStartedThreadTimelineEntry::startedAt() const { return integerMember("started_at"); }
+    inline std::optional<std::string> TurnStartedThreadTimelineEntry::turnId() const { return stringMember("turn_id"); }
+    inline TurnStartedThreadTimelineEntryType TurnStartedThreadTimelineEntry::type() const { return TurnStartedThreadTimelineEntryType(memberRaw("type")); }
+    inline std::vector<std::string> TurnStartedThreadTimelineEntry::keys() const { return objectKeys(); }
+    inline std::optional<std::string> TurnStartedThreadTimelineEntryType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& TurnStartedThreadTimelineEntryType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turnStarted")}; return values; }
+    inline bool TurnStartedThreadTimelineEntryType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::int64_t> TurnCompletedThreadTimelineEntry::completedAt() const { return integerMember("completed_at"); }
+    inline std::optional<std::int64_t> TurnCompletedThreadTimelineEntry::durationMs() const { return integerMember("duration_ms"); }
+    inline TurnCompletedThreadTimelineEntryError TurnCompletedThreadTimelineEntry::error() const { return TurnCompletedThreadTimelineEntryError(memberRaw("error")); }
+    inline std::optional<std::int64_t> TurnCompletedThreadTimelineEntry::position() const { return integerMember("position"); }
+    inline std::optional<std::int64_t> TurnCompletedThreadTimelineEntry::startedAt() const { return integerMember("started_at"); }
+    inline TurnStatus TurnCompletedThreadTimelineEntry::status() const { return TurnStatus(memberRaw("status")); }
+    inline std::optional<std::string> TurnCompletedThreadTimelineEntry::turnId() const { return stringMember("turn_id"); }
+    inline TurnCompletedThreadTimelineEntryType TurnCompletedThreadTimelineEntry::type() const { return TurnCompletedThreadTimelineEntryType(memberRaw("type")); }
+    inline std::vector<std::string> TurnCompletedThreadTimelineEntry::keys() const { return objectKeys(); }
+    inline std::optional<std::string> TurnCompletedThreadTimelineEntryType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& TurnCompletedThreadTimelineEntryType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("turnCompleted")}; return values; }
+    inline bool TurnCompletedThreadTimelineEntryType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> ThreadTimelineListParams::cursor() const { return stringMember("cursor"); }
+    inline std::optional<std::int64_t> ThreadTimelineListParams::limit() const { return integerMember("limit"); }
+    inline std::optional<std::string> ThreadTimelineListParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadTimelineListParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadTimelineListResponse::activeRealtimeSessionAtPageStart() const { return stringMember("activeRealtimeSessionAtPageStart"); }
+    inline ThreadTimelineListResponseData ThreadTimelineListResponse::data() const { return ThreadTimelineListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadTimelineListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadTimelineListResponse::keys() const { return objectKeys(); }
+    inline std::vector<ThreadTimelineEntry> ThreadTimelineListResponseData::items() const { return arrayItems<ThreadTimelineEntry>(); }
     inline TokenUsageBreakdown ThreadTokenUsage::last() const { return TokenUsageBreakdown(memberRaw("last")); }
     inline std::optional<std::int64_t> ThreadTokenUsage::modelContextWindow() const { return integerMember("modelContextWindow"); }
     inline TokenUsageBreakdown ThreadTokenUsage::total() const { return TokenUsageBreakdown(memberRaw("total")); }
@@ -22061,6 +27634,17 @@ namespace v2 {
     inline ThreadTokenUsage ThreadTokenUsageUpdatedNotification::tokenUsage() const { return ThreadTokenUsage(memberRaw("tokenUsage")); }
     inline std::optional<std::string> ThreadTokenUsageUpdatedNotification::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> ThreadTokenUsageUpdatedNotification::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadTurnsListParams::cursor() const { return stringMember("cursor"); }
+    inline ThreadTurnsListParamsItemsView ThreadTurnsListParams::itemsView() const { return ThreadTurnsListParamsItemsView(memberRaw("itemsView")); }
+    inline std::optional<std::int64_t> ThreadTurnsListParams::limit() const { return integerMember("limit"); }
+    inline ThreadTurnsListParamsSortDirection ThreadTurnsListParams::sortDirection() const { return ThreadTurnsListParamsSortDirection(memberRaw("sortDirection")); }
+    inline std::optional<std::string> ThreadTurnsListParams::threadId() const { return stringMember("threadId"); }
+    inline std::vector<std::string> ThreadTurnsListParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> ThreadTurnsListResponse::backwardsCursor() const { return stringMember("backwardsCursor"); }
+    inline ThreadTurnsListResponseData ThreadTurnsListResponse::data() const { return ThreadTurnsListResponseData(memberRaw("data")); }
+    inline std::optional<std::string> ThreadTurnsListResponse::nextCursor() const { return stringMember("nextCursor"); }
+    inline std::vector<std::string> ThreadTurnsListResponse::keys() const { return objectKeys(); }
+    inline std::vector<Turn> ThreadTurnsListResponseData::items() const { return arrayItems<Turn>(); }
     inline std::optional<std::string> ThreadUnarchiveParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> ThreadUnarchiveParams::keys() const { return objectKeys(); }
     inline Thread ThreadUnarchiveResponse::thread() const { return Thread(memberRaw("thread")); }
@@ -22134,6 +27718,7 @@ namespace v2 {
     inline std::optional<std::string> TurnError::additionalDetails() const { return stringMember("additionalDetails"); }
     inline TurnErrorCodexErrorInfo TurnError::codexErrorInfo() const { return TurnErrorCodexErrorInfo(memberRaw("codexErrorInfo")); }
     inline std::optional<std::string> TurnError::message() const { return stringMember("message"); }
+    inline TurnErrorMisalignment TurnError::misalignment() const { return TurnErrorMisalignment(memberRaw("misalignment")); }
     inline std::vector<std::string> TurnError::keys() const { return objectKeys(); }
     inline std::optional<std::string> TurnInterruptParams::threadId() const { return stringMember("threadId"); }
     inline std::optional<std::string> TurnInterruptParams::turnId() const { return stringMember("turnId"); }
@@ -22164,21 +27749,52 @@ namespace v2 {
     inline std::optional<std::string> TurnPlanUpdatedNotification::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> TurnPlanUpdatedNotification::keys() const { return objectKeys(); }
     inline std::vector<TurnPlanStep> TurnPlanUpdatedNotificationPlan::items() const { return arrayItems<TurnPlanStep>(); }
+    inline TurnSettingsUpdateParamsApprovalsReviewer TurnSettingsUpdateParams::approvalsReviewer() const { return TurnSettingsUpdateParamsApprovalsReviewer(memberRaw("approvalsReviewer")); }
+    inline TurnSettingsUpdateParamsEffort TurnSettingsUpdateParams::effort() const { return TurnSettingsUpdateParamsEffort(memberRaw("effort")); }
+    inline std::optional<std::string> TurnSettingsUpdateParams::model() const { return stringMember("model"); }
+    inline std::optional<std::string> TurnSettingsUpdateParams::serviceTier() const { return stringMember("serviceTier"); }
+    inline TurnSettingsUpdateParamsSummary TurnSettingsUpdateParams::summary() const { return TurnSettingsUpdateParamsSummary(memberRaw("summary")); }
+    inline std::optional<std::string> TurnSettingsUpdateParams::threadId() const { return stringMember("threadId"); }
+    inline std::optional<std::string> TurnSettingsUpdateParams::turnId() const { return stringMember("turnId"); }
+    inline std::vector<std::string> TurnSettingsUpdateParams::keys() const { return objectKeys(); }
+    inline TurnSettingsUpdateStatus TurnSettingsUpdateResponse::status() const { return TurnSettingsUpdateStatus(memberRaw("status")); }
+    inline std::vector<std::string> TurnSettingsUpdateResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> TurnSettingsUpdateStatusOneOf1::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& TurnSettingsUpdateStatusOneOf1::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("applied")}; return values; }
+    inline bool TurnSettingsUpdateStatusOneOf1::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> TurnSettingsUpdateStatusOneOf2::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& TurnSettingsUpdateStatusOneOf2::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("targetUnavailable")}; return values; }
+    inline bool TurnSettingsUpdateStatusOneOf2::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline TurnStartParamsAdditionalContext TurnStartParams::additionalContext() const { return TurnStartParamsAdditionalContext(memberRaw("additionalContext")); }
     inline TurnStartParamsApprovalPolicy TurnStartParams::approvalPolicy() const { return TurnStartParamsApprovalPolicy(memberRaw("approvalPolicy")); }
     inline TurnStartParamsApprovalsReviewer TurnStartParams::approvalsReviewer() const { return TurnStartParamsApprovalsReviewer(memberRaw("approvalsReviewer")); }
     inline std::optional<std::string> TurnStartParams::clientUserMessageId() const { return stringMember("clientUserMessageId"); }
+    inline TurnStartParamsCollaborationMode TurnStartParams::collaborationMode() const { return TurnStartParamsCollaborationMode(memberRaw("collaborationMode")); }
     inline std::optional<std::string> TurnStartParams::cwd() const { return stringMember("cwd"); }
+    inline TurnStartParamsCyberAccessProgram TurnStartParams::cyberAccessProgram() const { return TurnStartParamsCyberAccessProgram(memberRaw("cyberAccessProgram")); }
     inline TurnStartParamsEffort TurnStartParams::effort() const { return TurnStartParamsEffort(memberRaw("effort")); }
+    inline TurnStartParamsEnvironments TurnStartParams::environments() const { return TurnStartParamsEnvironments(memberRaw("environments")); }
     inline TurnStartParamsInput TurnStartParams::input() const { return TurnStartParamsInput(memberRaw("input")); }
     inline std::optional<std::string> TurnStartParams::model() const { return stringMember("model"); }
+    inline TurnStartParamsMultiAgentMode TurnStartParams::multiAgentMode() const { return TurnStartParamsMultiAgentMode(memberRaw("multiAgentMode")); }
     inline nlohmann::json TurnStartParams::outputSchema() const { return memberRaw("outputSchema"); }
+    inline std::optional<std::string> TurnStartParams::permissions() const { return stringMember("permissions"); }
     inline TurnStartParamsPersonality TurnStartParams::personality() const { return TurnStartParamsPersonality(memberRaw("personality")); }
+    inline TurnStartParamsResponsesapiClientMetadata TurnStartParams::responsesapiClientMetadata() const { return TurnStartParamsResponsesapiClientMetadata(memberRaw("responsesapiClientMetadata")); }
+    inline TurnStartParamsRuntimeWorkspaceRoots TurnStartParams::runtimeWorkspaceRoots() const { return TurnStartParamsRuntimeWorkspaceRoots(memberRaw("runtimeWorkspaceRoots")); }
     inline TurnStartParamsSandboxPolicy TurnStartParams::sandboxPolicy() const { return TurnStartParamsSandboxPolicy(memberRaw("sandboxPolicy")); }
     inline std::optional<std::string> TurnStartParams::serviceTier() const { return stringMember("serviceTier"); }
+    inline std::optional<std::string> TurnStartParams::serviceTierForTurn() const { return stringMember("serviceTierForTurn"); }
     inline TurnStartParamsSummary TurnStartParams::summary() const { return TurnStartParamsSummary(memberRaw("summary")); }
     inline std::optional<std::string> TurnStartParams::threadId() const { return stringMember("threadId"); }
+    inline TurnStartParamsToolOutput TurnStartParams::toolOutput() const { return TurnStartParamsToolOutput(memberRaw("toolOutput")); }
+    inline std::optional<std::string> TurnStartParams::turnTrigger() const { return stringMember("turnTrigger"); }
     inline std::vector<std::string> TurnStartParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> TurnStartParamsAdditionalContext::keys() const { return objectKeys(); }
+    inline std::vector<TurnEnvironmentParams> TurnStartParamsEnvironments::items() const { return arrayItems<TurnEnvironmentParams>(); }
     inline std::vector<UserInput> TurnStartParamsInput::items() const { return arrayItems<UserInput>(); }
+    inline std::vector<std::string> TurnStartParamsResponsesapiClientMetadata::keys() const { return objectKeys(); }
+    inline std::vector<AbsolutePathBuf> TurnStartParamsRuntimeWorkspaceRoots::items() const { return arrayItems<AbsolutePathBuf>(); }
     inline Turn TurnStartResponse::turn() const { return Turn(memberRaw("turn")); }
     inline std::vector<std::string> TurnStartResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> TurnStartedNotification::threadId() const { return stringMember("threadId"); }
@@ -22187,14 +27803,22 @@ namespace v2 {
     inline std::optional<std::string> TurnStatus::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& TurnStatus::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("completed"), nlohmann::json("interrupted"), nlohmann::json("failed"), nlohmann::json("inProgress")}; return values; }
     inline bool TurnStatus::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline TurnSteerParamsAdditionalContext TurnSteerParams::additionalContext() const { return TurnSteerParamsAdditionalContext(memberRaw("additionalContext")); }
     inline std::optional<std::string> TurnSteerParams::clientUserMessageId() const { return stringMember("clientUserMessageId"); }
     inline std::optional<std::string> TurnSteerParams::expectedTurnId() const { return stringMember("expectedTurnId"); }
     inline TurnSteerParamsInput TurnSteerParams::input() const { return TurnSteerParamsInput(memberRaw("input")); }
+    inline TurnSteerParamsResponsesapiClientMetadata TurnSteerParams::responsesapiClientMetadata() const { return TurnSteerParamsResponsesapiClientMetadata(memberRaw("responsesapiClientMetadata")); }
     inline std::optional<std::string> TurnSteerParams::threadId() const { return stringMember("threadId"); }
     inline std::vector<std::string> TurnSteerParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> TurnSteerParamsAdditionalContext::keys() const { return objectKeys(); }
     inline std::vector<UserInput> TurnSteerParamsInput::items() const { return arrayItems<UserInput>(); }
+    inline std::vector<std::string> TurnSteerParamsResponsesapiClientMetadata::keys() const { return objectKeys(); }
     inline std::optional<std::string> TurnSteerResponse::turnId() const { return stringMember("turnId"); }
     inline std::vector<std::string> TurnSteerResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> TurnToolOutput::name() const { return stringMember("name"); }
+    inline std::optional<std::string> TurnToolOutput::namespace_() const { return stringMember("namespace"); }
+    inline FunctionCallOutputBody TurnToolOutput::output() const { return FunctionCallOutputBody(memberRaw("output")); }
+    inline std::vector<std::string> TurnToolOutput::keys() const { return objectKeys(); }
     inline std::optional<std::string> TurnsPage::backwardsCursor() const { return stringMember("backwardsCursor"); }
     inline TurnsPageData TurnsPage::data() const { return TurnsPageData(memberRaw("data")); }
     inline std::optional<std::string> TurnsPage::nextCursor() const { return stringMember("nextCursor"); }
@@ -22248,6 +27872,65 @@ namespace v2 {
     inline std::optional<std::string> MentionUserInputType::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& MentionUserInputType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("mention")}; return values; }
     inline bool MentionUserInputType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> UserVerificationCancellationReason::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationCancellationReason::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("userCancelled"), nlohmann::json("interrupted")}; return values; }
+    inline bool UserVerificationCancellationReason::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::vector<std::string> UserVerificationDeleteParams::keys() const { return objectKeys(); }
+    inline std::vector<std::string> UserVerificationDeleteResponse::keys() const { return objectKeys(); }
+    inline std::vector<std::string> UserVerificationEnrollParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationEnrollResponse::credentialId() const { return stringMember("credentialId"); }
+    inline std::vector<std::string> UserVerificationEnrollResponse::keys() const { return objectKeys(); }
+    inline UserVerificationInvalidRequestReason InvalidRequestUserVerificationErrorDetails::reason() const { return UserVerificationInvalidRequestReason(memberRaw("reason")); }
+    inline InvalidRequestUserVerificationErrorDetailsType InvalidRequestUserVerificationErrorDetails::type() const { return InvalidRequestUserVerificationErrorDetailsType(memberRaw("type")); }
+    inline std::vector<std::string> InvalidRequestUserVerificationErrorDetails::keys() const { return objectKeys(); }
+    inline std::optional<std::string> InvalidRequestUserVerificationErrorDetailsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& InvalidRequestUserVerificationErrorDetailsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("invalidRequest")}; return values; }
+    inline bool InvalidRequestUserVerificationErrorDetailsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline UserVerificationUnavailableReason UnavailableUserVerificationErrorDetails::reason() const { return UserVerificationUnavailableReason(memberRaw("reason")); }
+    inline UnavailableUserVerificationErrorDetailsType UnavailableUserVerificationErrorDetails::type() const { return UnavailableUserVerificationErrorDetailsType(memberRaw("type")); }
+    inline std::vector<std::string> UnavailableUserVerificationErrorDetails::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UnavailableUserVerificationErrorDetailsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UnavailableUserVerificationErrorDetailsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("unavailable")}; return values; }
+    inline bool UnavailableUserVerificationErrorDetailsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline UserVerificationCancellationReason CancelledUserVerificationErrorDetails::reason() const { return UserVerificationCancellationReason(memberRaw("reason")); }
+    inline CancelledUserVerificationErrorDetailsType CancelledUserVerificationErrorDetails::type() const { return CancelledUserVerificationErrorDetailsType(memberRaw("type")); }
+    inline std::vector<std::string> CancelledUserVerificationErrorDetails::keys() const { return objectKeys(); }
+    inline std::optional<std::string> CancelledUserVerificationErrorDetailsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& CancelledUserVerificationErrorDetailsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("cancelled")}; return values; }
+    inline bool CancelledUserVerificationErrorDetailsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline UserVerificationFailureReason FailedUserVerificationErrorDetails::reason() const { return UserVerificationFailureReason(memberRaw("reason")); }
+    inline FailedUserVerificationErrorDetailsType FailedUserVerificationErrorDetails::type() const { return FailedUserVerificationErrorDetailsType(memberRaw("type")); }
+    inline std::vector<std::string> FailedUserVerificationErrorDetails::keys() const { return objectKeys(); }
+    inline std::optional<std::string> FailedUserVerificationErrorDetailsType::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& FailedUserVerificationErrorDetailsType::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("failed")}; return values; }
+    inline bool FailedUserVerificationErrorDetailsType::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> UserVerificationFailureReason::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationFailureReason::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("authenticationFailed"), nlohmann::json("timeout"), nlohmann::json("providerError"), nlohmann::json("serviceError")}; return values; }
+    inline bool UserVerificationFailureReason::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> UserVerificationInvalidRequestReason::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationInvalidRequestReason::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("invalidParams")}; return values; }
+    inline bool UserVerificationInvalidRequestReason::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> UserVerificationProof::credentialId() const { return stringMember("credentialId"); }
+    inline std::optional<std::string> UserVerificationProof::signature() const { return stringMember("signature"); }
+    inline std::vector<std::string> UserVerificationProof::keys() const { return objectKeys(); }
+    inline std::optional<std::int64_t> UserVerificationRpcError::code() const { return integerMember("code"); }
+    inline UserVerificationErrorDetails UserVerificationRpcError::data() const { return UserVerificationErrorDetails(memberRaw("data")); }
+    inline std::optional<std::string> UserVerificationRpcError::message() const { return stringMember("message"); }
+    inline std::vector<std::string> UserVerificationRpcError::keys() const { return objectKeys(); }
+    inline std::vector<std::string> UserVerificationStatusParams::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationStatusResponse::credentialId() const { return stringMember("credentialId"); }
+    inline std::optional<std::string> UserVerificationStatusResponse::unavailableMessage() const { return stringMember("unavailableMessage"); }
+    inline UserVerificationStatusResponseUnavailableReason UserVerificationStatusResponse::unavailableReason() const { return UserVerificationStatusResponseUnavailableReason(memberRaw("unavailableReason")); }
+    inline std::vector<std::string> UserVerificationStatusResponse::keys() const { return objectKeys(); }
+    inline std::optional<std::string> UserVerificationUnavailableReason::value() const { return stringValue(); }
+    inline const std::vector<nlohmann::json>& UserVerificationUnavailableReason::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("credentialMissing"), nlohmann::json("biometricsUnavailable"), nlohmann::json("providerUnavailable")}; return values; }
+    inline bool UserVerificationUnavailableReason::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
+    inline std::optional<std::string> UserVerificationVerifyParams::challenge() const { return stringMember("challenge"); }
+    inline std::optional<std::string> UserVerificationVerifyParams::description() const { return stringMember("description"); }
+    inline std::optional<std::string> UserVerificationVerifyParams::title() const { return stringMember("title"); }
+    inline std::vector<std::string> UserVerificationVerifyParams::keys() const { return objectKeys(); }
+    inline UserVerificationProof UserVerificationVerifyResponse::proof() const { return UserVerificationProof(memberRaw("proof")); }
+    inline std::vector<std::string> UserVerificationVerifyResponse::keys() const { return objectKeys(); }
     inline std::optional<std::string> Verbosity::value() const { return stringValue(); }
     inline const std::vector<nlohmann::json>& Verbosity::knownValues() { static const std::vector<nlohmann::json> values{nlohmann::json("low"), nlohmann::json("medium"), nlohmann::json("high")}; return values; }
     inline bool Verbosity::isKnown() const { const auto& values = knownValues(); return std::find(values.begin(), values.end(), getRaw()) != values.end(); }
@@ -22340,6 +28023,41 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ServerDiagnostics {
+        static constexpr std::string_view method = "server/diagnostics";
+        using Params = v2::ServerDiagnosticsParams;
+        using Response = v2::ServerDiagnosticsResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct UserVerificationStatus {
+        static constexpr std::string_view method = "userVerification/status";
+        using Params = v2::UserVerificationStatusParams;
+        using Response = v2::UserVerificationStatusResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct UserVerificationEnroll {
+        static constexpr std::string_view method = "userVerification/enroll";
+        using Params = v2::UserVerificationEnrollParams;
+        using Response = v2::UserVerificationEnrollResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct UserVerificationDelete {
+        static constexpr std::string_view method = "userVerification/delete";
+        using Params = v2::UserVerificationDeleteParams;
+        using Response = v2::UserVerificationDeleteResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct UserVerificationVerify {
+        static constexpr std::string_view method = "userVerification/verify";
+        using Params = v2::UserVerificationVerifyParams;
+        using Response = v2::UserVerificationVerifyResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ThreadStart {
         static constexpr std::string_view method = "thread/start";
         using Params = v2::ThreadStartParams;
@@ -22382,6 +28100,20 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ThreadIncrementElicitation {
+        static constexpr std::string_view method = "thread/increment_elicitation";
+        using Params = v2::ThreadIncrementElicitationParams;
+        using Response = v2::ThreadIncrementElicitationResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadDecrementElicitation {
+        static constexpr std::string_view method = "thread/decrement_elicitation";
+        using Params = v2::ThreadDecrementElicitationParams;
+        using Response = v2::ThreadDecrementElicitationResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ThreadSetName {
         static constexpr std::string_view method = "thread/name/set";
         using Params = v2::ThreadSetNameParams;
@@ -22410,6 +28142,48 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ThreadQueueAdd {
+        static constexpr std::string_view method = "thread/queue/add";
+        using Params = v2::ThreadQueueAddParams;
+        using Response = v2::ThreadQueueAddResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadQueueList {
+        static constexpr std::string_view method = "thread/queue/list";
+        using Params = v2::ThreadQueueListParams;
+        using Response = v2::ThreadQueueListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadQueueUpdate {
+        static constexpr std::string_view method = "thread/queue/update";
+        using Params = v2::ThreadQueueUpdateParams;
+        using Response = v2::ThreadQueueUpdateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadQueueDelete {
+        static constexpr std::string_view method = "thread/queue/delete";
+        using Params = v2::ThreadQueueDeleteParams;
+        using Response = v2::ThreadQueueDeleteResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadQueueReorder {
+        static constexpr std::string_view method = "thread/queue/reorder";
+        using Params = v2::ThreadQueueReorderParams;
+        using Response = v2::ThreadQueueReorderResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadQueueStart {
+        static constexpr std::string_view method = "thread/queue/start";
+        using Params = v2::ThreadQueueStartParams;
+        using Response = v2::ThreadQueueStartResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ThreadMetadataUpdate {
         static constexpr std::string_view method = "thread/metadata/update";
         using Params = v2::ThreadMetadataUpdateParams;
@@ -22422,6 +28196,27 @@ namespace client_requests {
         using Params = v2::ThreadSectionMoveParams;
         using Response = v2::ThreadSectionMoveResponse;
         static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadSettingsUpdate {
+        static constexpr std::string_view method = "thread/settings/update";
+        using Params = v2::ThreadSettingsUpdateParams;
+        using Response = v2::ThreadSettingsUpdateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadMemoryModeSet {
+        static constexpr std::string_view method = "thread/memoryMode/set";
+        using Params = v2::ThreadMemoryModeSetParams;
+        using Response = v2::ThreadMemoryModeSetResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct MemoryReset {
+        static constexpr std::string_view method = "memory/reset";
+        using Params = Value;
+        using Response = v2::MemoryResetResponse;
+        static constexpr bool paramsRequired = false;
     };
 
     struct ThreadUnarchive {
@@ -22452,6 +28247,27 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ThreadBackgroundTerminalsClean {
+        static constexpr std::string_view method = "thread/backgroundTerminals/clean";
+        using Params = v2::ThreadBackgroundTerminalsCleanParams;
+        using Response = v2::ThreadBackgroundTerminalsCleanResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadBackgroundTerminalsList {
+        static constexpr std::string_view method = "thread/backgroundTerminals/list";
+        using Params = v2::ThreadBackgroundTerminalsListParams;
+        using Response = v2::ThreadBackgroundTerminalsListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadBackgroundTerminalsTerminate {
+        static constexpr std::string_view method = "thread/backgroundTerminals/terminate";
+        using Params = v2::ThreadBackgroundTerminalsTerminateParams;
+        using Response = v2::ThreadBackgroundTerminalsTerminateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ThreadRollback {
         static constexpr std::string_view method = "thread/rollback";
         using Params = v2::ThreadRollbackParams;
@@ -22459,10 +28275,66 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ThreadRevert {
+        static constexpr std::string_view method = "thread/revert";
+        using Params = v2::ThreadRevertParams;
+        using Response = v2::ThreadRevertResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ThreadList {
         static constexpr std::string_view method = "thread/list";
         using Params = v2::ThreadListParams;
         using Response = v2::ThreadListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectList {
+        static constexpr std::string_view method = "project/list";
+        using Params = v2::ProjectListParams;
+        using Response = v2::ProjectListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectRead {
+        static constexpr std::string_view method = "project/read";
+        using Params = v2::ProjectReadParams;
+        using Response = v2::ProjectReadResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectCreate {
+        static constexpr std::string_view method = "project/create";
+        using Params = v2::ProjectCreateParams;
+        using Response = v2::ProjectCreateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectImport {
+        static constexpr std::string_view method = "project/import";
+        using Params = v2::ProjectImportParams;
+        using Response = v2::ProjectImportResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectUpdate {
+        static constexpr std::string_view method = "project/update";
+        using Params = v2::ProjectUpdateParams;
+        using Response = v2::ProjectUpdateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectMove {
+        static constexpr std::string_view method = "project/move";
+        using Params = v2::ProjectMoveParams;
+        using Response = v2::ProjectMoveResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProjectDelete {
+        static constexpr std::string_view method = "project/delete";
+        using Params = v2::ProjectDeleteParams;
+        using Response = v2::ProjectDeleteResponse;
         static constexpr bool paramsRequired = true;
     };
 
@@ -22494,6 +28366,20 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ThreadSearch {
+        static constexpr std::string_view method = "thread/search";
+        using Params = v2::ThreadSearchParams;
+        using Response = v2::ThreadSearchResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadSearchOccurrences {
+        static constexpr std::string_view method = "thread/searchOccurrences";
+        using Params = v2::ThreadSearchOccurrencesParams;
+        using Response = v2::ThreadSearchOccurrencesResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ThreadLoadedList {
         static constexpr std::string_view method = "thread/loaded/list";
         using Params = v2::ThreadLoadedListParams;
@@ -22505,6 +28391,20 @@ namespace client_requests {
         static constexpr std::string_view method = "thread/read";
         using Params = v2::ThreadReadParams;
         using Response = v2::ThreadReadResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadTurnsList {
+        static constexpr std::string_view method = "thread/turns/list";
+        using Params = v2::ThreadTurnsListParams;
+        using Response = v2::ThreadTurnsListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadItemsList {
+        static constexpr std::string_view method = "thread/items/list";
+        using Params = v2::ThreadItemsListParams;
+        using Response = v2::ThreadItemsListResponse;
         static constexpr bool paramsRequired = true;
     };
 
@@ -22564,10 +28464,24 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct PluginSearch {
+        static constexpr std::string_view method = "plugin/search";
+        using Params = v2::PluginSearchParams;
+        using Response = v2::PluginSearchResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct PluginInstalled {
         static constexpr std::string_view method = "plugin/installed";
         using Params = v2::PluginInstalledParams;
         using Response = v2::PluginInstalledResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct PluginReconcile {
+        static constexpr std::string_view method = "plugin/reconcile";
+        using Params = v2::PluginReconcileParams;
+        using Response = v2::PluginReconcileResponse;
         static constexpr bool paramsRequired = true;
     };
 
@@ -22732,6 +28646,13 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct TurnSettingsUpdate {
+        static constexpr std::string_view method = "turn/settings/update";
+        using Params = v2::TurnSettingsUpdateParams;
+        using Response = v2::TurnSettingsUpdateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct TurnSteer {
         static constexpr std::string_view method = "turn/steer";
         using Params = v2::TurnSteerParams;
@@ -22743,6 +28664,55 @@ namespace client_requests {
         static constexpr std::string_view method = "turn/interrupt";
         using Params = v2::TurnInterruptParams;
         using Response = v2::TurnInterruptResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeStart {
+        static constexpr std::string_view method = "thread/realtime/start";
+        using Params = v2::ThreadRealtimeStartParams;
+        using Response = v2::ThreadRealtimeStartResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeAppendAudio {
+        static constexpr std::string_view method = "thread/realtime/appendAudio";
+        using Params = v2::ThreadRealtimeAppendAudioParams;
+        using Response = v2::ThreadRealtimeAppendAudioResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeAppendText {
+        static constexpr std::string_view method = "thread/realtime/appendText";
+        using Params = v2::ThreadRealtimeAppendTextParams;
+        using Response = v2::ThreadRealtimeAppendTextResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeAppendSpeech {
+        static constexpr std::string_view method = "thread/realtime/appendSpeech";
+        using Params = v2::ThreadRealtimeAppendSpeechParams;
+        using Response = v2::ThreadRealtimeAppendSpeechResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeStop {
+        static constexpr std::string_view method = "thread/realtime/stop";
+        using Params = v2::ThreadRealtimeStopParams;
+        using Response = v2::ThreadRealtimeStopResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadTimelineList {
+        static constexpr std::string_view method = "thread/timeline/list";
+        using Params = v2::ThreadTimelineListParams;
+        using Response = v2::ThreadTimelineListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeListVoices {
+        static constexpr std::string_view method = "thread/realtime/listVoices";
+        using Params = v2::ThreadRealtimeListVoicesParams;
+        using Response = v2::ThreadRealtimeListVoicesResponse;
         static constexpr bool paramsRequired = true;
     };
 
@@ -22788,6 +28758,90 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct RemoteControlEnable {
+        static constexpr std::string_view method = "remoteControl/enable";
+        using Params = Value;
+        using Response = v2::RemoteControlEnableResponse;
+        static constexpr bool paramsRequired = false;
+    };
+
+    struct RemoteControlDisable {
+        static constexpr std::string_view method = "remoteControl/disable";
+        using Params = Value;
+        using Response = v2::RemoteControlDisableResponse;
+        static constexpr bool paramsRequired = false;
+    };
+
+    struct RemoteControlStatusRead {
+        static constexpr std::string_view method = "remoteControl/status/read";
+        using Params = Value;
+        using Response = v2::RemoteControlStatusReadResponse;
+        static constexpr bool paramsRequired = false;
+    };
+
+    struct RemoteControlPairingStart {
+        static constexpr std::string_view method = "remoteControl/pairing/start";
+        using Params = v2::RemoteControlPairingStartParams;
+        using Response = v2::RemoteControlPairingStartResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct RemoteControlPairingStatus {
+        static constexpr std::string_view method = "remoteControl/pairing/status";
+        using Params = v2::RemoteControlPairingStatusParams;
+        using Response = v2::RemoteControlPairingStatusResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct RemoteControlClientsList {
+        static constexpr std::string_view method = "remoteControl/client/list";
+        using Params = v2::RemoteControlClientsListParams;
+        using Response = v2::RemoteControlClientsListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct RemoteControlClientsRevoke {
+        static constexpr std::string_view method = "remoteControl/client/revoke";
+        using Params = v2::RemoteControlClientsRevokeParams;
+        using Response = v2::RemoteControlClientsRevokeResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct CollaborationModeList {
+        static constexpr std::string_view method = "collaborationMode/list";
+        using Params = v2::CollaborationModeListParams;
+        using Response = v2::CollaborationModeListResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct MockExperimentalMethod {
+        static constexpr std::string_view method = "mock/experimentalMethod";
+        using Params = v2::MockExperimentalMethodParams;
+        using Response = v2::MockExperimentalMethodResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct EnvironmentAdd {
+        static constexpr std::string_view method = "environment/add";
+        using Params = v2::EnvironmentAddParams;
+        using Response = v2::EnvironmentAddResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct EnvironmentInfo {
+        static constexpr std::string_view method = "environment/info";
+        using Params = v2::EnvironmentInfoParams;
+        using Response = v2::EnvironmentInfoResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct EnvironmentStatus {
+        static constexpr std::string_view method = "environment/status";
+        using Params = v2::EnvironmentStatusParams;
+        using Response = v2::EnvironmentStatusResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct McpServerOauthLogin {
         static constexpr std::string_view method = "mcpServer/oauth/login";
         using Params = v2::McpServerOauthLoginParams;
@@ -22816,6 +28870,20 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct McpServerEventStreamStart {
+        static constexpr std::string_view method = "mcpServer/event/stream/start";
+        using Params = v2::McpServerEventStreamStartParams;
+        using Response = v2::McpServerEventStreamStartResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct McpServerEventStreamStop {
+        static constexpr std::string_view method = "mcpServer/event/stream/stop";
+        using Params = v2::McpServerEventStreamStopParams;
+        using Response = v2::McpServerEventStreamStopResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct McpServerToolCall {
         static constexpr std::string_view method = "mcpServer/tool/call";
         using Params = v2::McpServerToolCallParams;
@@ -22841,6 +28909,20 @@ namespace client_requests {
         static constexpr std::string_view method = "account/login/start";
         using Params = v2::LoginAccountParams;
         using Response = v2::LoginAccountResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct BedrockDiscover {
+        static constexpr std::string_view method = "account/bedrock/discover";
+        using Params = v2::BedrockDiscoverParams;
+        using Response = v2::BedrockDiscoverResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct BedrockSetup {
+        static constexpr std::string_view method = "account/bedrock/setup";
+        using Params = v2::BedrockSetupParams;
+        using Response = v2::BedrockSetupResponse;
         static constexpr bool paramsRequired = true;
     };
 
@@ -22928,6 +29010,34 @@ namespace client_requests {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ProcessSpawn {
+        static constexpr std::string_view method = "process/spawn";
+        using Params = v2::ProcessSpawnParams;
+        using Response = v2::ProcessSpawnResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProcessWriteStdin {
+        static constexpr std::string_view method = "process/writeStdin";
+        using Params = v2::ProcessWriteStdinParams;
+        using Response = v2::ProcessWriteStdinResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProcessKill {
+        static constexpr std::string_view method = "process/kill";
+        using Params = v2::ProcessKillParams;
+        using Response = v2::ProcessKillResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ProcessResizePty {
+        static constexpr std::string_view method = "process/resizePty";
+        using Params = v2::ProcessResizePtyParams;
+        using Response = v2::ProcessResizePtyResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct ConfigRead {
         static constexpr std::string_view method = "config/read";
         using Params = v2::ConfigReadParams;
@@ -22997,6 +29107,27 @@ namespace client_requests {
         using Response = root::FuzzyFileSearchResponse;
         static constexpr bool paramsRequired = true;
     };
+
+    struct FuzzyFileSearchSessionStart {
+        static constexpr std::string_view method = "fuzzyFileSearch/sessionStart";
+        using Params = root::FuzzyFileSearchSessionStartParams;
+        using Response = root::FuzzyFileSearchSessionStartResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct FuzzyFileSearchSessionUpdate {
+        static constexpr std::string_view method = "fuzzyFileSearch/sessionUpdate";
+        using Params = root::FuzzyFileSearchSessionUpdateParams;
+        using Response = root::FuzzyFileSearchSessionUpdateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct FuzzyFileSearchSessionStop {
+        static constexpr std::string_view method = "fuzzyFileSearch/sessionStop";
+        using Params = root::FuzzyFileSearchSessionStopParams;
+        using Response = root::FuzzyFileSearchSessionStopResponse;
+        static constexpr bool paramsRequired = true;
+    };
 } // namespace client_requests
 
 namespace server_requests {
@@ -23053,6 +29184,13 @@ namespace server_requests {
         static constexpr std::string_view method = "attestation/generate";
         using Params = root::AttestationGenerateParams;
         using Response = root::AttestationGenerateResponse;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct CurrentTimeRead {
+        static constexpr std::string_view method = "currentTime/read";
+        using Params = root::CurrentTimeReadParams;
+        using Response = root::CurrentTimeReadResponse;
         static constexpr bool paramsRequired = true;
     };
 
@@ -23422,6 +29560,18 @@ namespace server_notifications {
         static constexpr bool paramsRequired = true;
     };
 
+    struct ModelProviderAuthRecoveryStarted {
+        static constexpr std::string_view method = "modelProvider/authRecoveryStarted";
+        using Params = v2::AuthRecoveryNotification;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ModelProviderAuthRecoveryCompleted {
+        static constexpr std::string_view method = "modelProvider/authRecoveryCompleted";
+        using Params = v2::AuthRecoveryNotification;
+        static constexpr bool paramsRequired = true;
+    };
+
     struct TurnModerationMetadata {
         static constexpr std::string_view method = "turn/moderationMetadata";
         using Params = v2::TurnModerationMetadataNotification;
@@ -23479,6 +29629,24 @@ namespace server_notifications {
     struct ThreadRealtimeItemAdded {
         static constexpr std::string_view method = "thread/realtime/itemAdded";
         using Params = v2::ThreadRealtimeItemAddedNotification;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeItemStarted {
+        static constexpr std::string_view method = "thread/realtime/item/started";
+        using Params = v2::ThreadRealtimeItemStartedNotification;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeItemTranscriptDelta {
+        static constexpr std::string_view method = "thread/realtime/item/transcript/delta";
+        using Params = v2::ThreadRealtimeItemTranscriptDeltaNotification;
+        static constexpr bool paramsRequired = true;
+    };
+
+    struct ThreadRealtimeItemCompleted {
+        static constexpr std::string_view method = "thread/realtime/item/completed";
+        using Params = v2::ThreadRealtimeItemCompletedNotification;
         static constexpr bool paramsRequired = true;
     };
 
@@ -23541,30 +29709,61 @@ namespace server_notifications {
 
 #define AI_OPENAI_CODEX_CLIENT_REQUESTS(X) \
     X(Initialize, initialize) \
+    X(ServerDiagnostics, serverDiagnostics) \
+    X(UserVerificationStatus, userVerificationStatus) \
+    X(UserVerificationEnroll, userVerificationEnroll) \
+    X(UserVerificationDelete, userVerificationDelete) \
+    X(UserVerificationVerify, userVerificationVerify) \
     X(ThreadStart, threadStart) \
     X(ThreadResume, threadResume) \
     X(ThreadFork, threadFork) \
     X(ThreadArchive, threadArchive) \
     X(ThreadDelete, threadDelete) \
     X(ThreadUnsubscribe, threadUnsubscribe) \
+    X(ThreadIncrementElicitation, threadIncrementElicitation) \
+    X(ThreadDecrementElicitation, threadDecrementElicitation) \
     X(ThreadSetName, threadSetName) \
     X(ThreadGoalSet, threadGoalSet) \
     X(ThreadGoalGet, threadGoalGet) \
     X(ThreadGoalClear, threadGoalClear) \
+    X(ThreadQueueAdd, threadQueueAdd) \
+    X(ThreadQueueList, threadQueueList) \
+    X(ThreadQueueUpdate, threadQueueUpdate) \
+    X(ThreadQueueDelete, threadQueueDelete) \
+    X(ThreadQueueReorder, threadQueueReorder) \
+    X(ThreadQueueStart, threadQueueStart) \
     X(ThreadMetadataUpdate, threadMetadataUpdate) \
     X(ThreadSectionMove, threadSectionMove) \
+    X(ThreadSettingsUpdate, threadSettingsUpdate) \
+    X(ThreadMemoryModeSet, threadMemoryModeSet) \
+    X(MemoryReset, memoryReset) \
     X(ThreadUnarchive, threadUnarchive) \
     X(ThreadCompactStart, threadCompactStart) \
     X(ThreadShellCommand, threadShellCommand) \
     X(ThreadApproveGuardianDeniedAction, threadApproveGuardianDeniedAction) \
+    X(ThreadBackgroundTerminalsClean, threadBackgroundTerminalsClean) \
+    X(ThreadBackgroundTerminalsList, threadBackgroundTerminalsList) \
+    X(ThreadBackgroundTerminalsTerminate, threadBackgroundTerminalsTerminate) \
     X(ThreadRollback, threadRollback) \
+    X(ThreadRevert, threadRevert) \
     X(ThreadList, threadList) \
+    X(ProjectList, projectList) \
+    X(ProjectRead, projectRead) \
+    X(ProjectCreate, projectCreate) \
+    X(ProjectImport, projectImport) \
+    X(ProjectUpdate, projectUpdate) \
+    X(ProjectMove, projectMove) \
+    X(ProjectDelete, projectDelete) \
     X(ThreadSectionList, threadSectionList) \
     X(ThreadSectionCreate, threadSectionCreate) \
     X(ThreadSectionUpdate, threadSectionUpdate) \
     X(ThreadSectionDelete, threadSectionDelete) \
+    X(ThreadSearch, threadSearch) \
+    X(ThreadSearchOccurrences, threadSearchOccurrences) \
     X(ThreadLoadedList, threadLoadedList) \
     X(ThreadRead, threadRead) \
+    X(ThreadTurnsList, threadTurnsList) \
+    X(ThreadItemsList, threadItemsList) \
     X(ThreadInjectItems, threadInjectItems) \
     X(SkillsList, skillsList) \
     X(SkillsExtraRootsSet, skillsExtraRootsSet) \
@@ -23573,7 +29772,9 @@ namespace server_notifications {
     X(MarketplaceRemove, marketplaceRemove) \
     X(MarketplaceUpgrade, marketplaceUpgrade) \
     X(PluginList, pluginList) \
+    X(PluginSearch, pluginSearch) \
     X(PluginInstalled, pluginInstalled) \
+    X(PluginReconcile, pluginReconcile) \
     X(PluginRead, pluginRead) \
     X(PluginSkillRead, pluginSkillRead) \
     X(PluginShareSave, pluginShareSave) \
@@ -23597,22 +29798,46 @@ namespace server_notifications {
     X(PluginInstall, pluginInstall) \
     X(PluginUninstall, pluginUninstall) \
     X(TurnStart, turnStart) \
+    X(TurnSettingsUpdate, turnSettingsUpdate) \
     X(TurnSteer, turnSteer) \
     X(TurnInterrupt, turnInterrupt) \
+    X(ThreadRealtimeStart, threadRealtimeStart) \
+    X(ThreadRealtimeAppendAudio, threadRealtimeAppendAudio) \
+    X(ThreadRealtimeAppendText, threadRealtimeAppendText) \
+    X(ThreadRealtimeAppendSpeech, threadRealtimeAppendSpeech) \
+    X(ThreadRealtimeStop, threadRealtimeStop) \
+    X(ThreadTimelineList, threadTimelineList) \
+    X(ThreadRealtimeListVoices, threadRealtimeListVoices) \
     X(ReviewStart, reviewStart) \
     X(ModelList, modelList) \
     X(ModelProviderCapabilitiesRead, modelProviderCapabilitiesRead) \
     X(ExperimentalFeatureList, experimentalFeatureList) \
     X(PermissionProfileList, permissionProfileList) \
     X(ExperimentalFeatureEnablementSet, experimentalFeatureEnablementSet) \
+    X(RemoteControlEnable, remoteControlEnable) \
+    X(RemoteControlDisable, remoteControlDisable) \
+    X(RemoteControlStatusRead, remoteControlStatusRead) \
+    X(RemoteControlPairingStart, remoteControlPairingStart) \
+    X(RemoteControlPairingStatus, remoteControlPairingStatus) \
+    X(RemoteControlClientsList, remoteControlClientsList) \
+    X(RemoteControlClientsRevoke, remoteControlClientsRevoke) \
+    X(CollaborationModeList, collaborationModeList) \
+    X(MockExperimentalMethod, mockExperimentalMethod) \
+    X(EnvironmentAdd, environmentAdd) \
+    X(EnvironmentInfo, environmentInfo) \
+    X(EnvironmentStatus, environmentStatus) \
     X(McpServerOauthLogin, mcpServerOauthLogin) \
     X(McpServerRefresh, mcpServerRefresh) \
     X(McpServerStatusList, mcpServerStatusList) \
     X(McpResourceRead, mcpResourceRead) \
+    X(McpServerEventStreamStart, mcpServerEventStreamStart) \
+    X(McpServerEventStreamStop, mcpServerEventStreamStop) \
     X(McpServerToolCall, mcpServerToolCall) \
     X(WindowsSandboxSetupStart, windowsSandboxSetupStart) \
     X(WindowsSandboxReadiness, windowsSandboxReadiness) \
     X(LoginAccount, loginAccount) \
+    X(BedrockDiscover, bedrockDiscover) \
+    X(BedrockSetup, bedrockSetup) \
     X(CancelLoginAccount, cancelLoginAccount) \
     X(LogoutAccount, logoutAccount) \
     X(GetAccountRateLimits, getAccountRateLimits) \
@@ -23625,6 +29850,10 @@ namespace server_notifications {
     X(CommandExecWrite, commandExecWrite) \
     X(CommandExecTerminate, commandExecTerminate) \
     X(CommandExecResize, commandExecResize) \
+    X(ProcessSpawn, processSpawn) \
+    X(ProcessWriteStdin, processWriteStdin) \
+    X(ProcessKill, processKill) \
+    X(ProcessResizePty, processResizePty) \
     X(ConfigRead, configRead) \
     X(ExternalAgentConfigDetect, externalAgentConfigDetect) \
     X(ExternalAgentConfigImport, externalAgentConfigImport) \
@@ -23634,8 +29863,15 @@ namespace server_notifications {
     X(ConfigBatchWrite, configBatchWrite) \
     X(ConfigRequirementsRead, configRequirementsRead) \
     X(GetAccount, getAccount) \
-    X(FuzzyFileSearch, fuzzyFileSearch)
+    X(FuzzyFileSearch, fuzzyFileSearch) \
+    X(FuzzyFileSearchSessionStart, fuzzyFileSearchSessionStart) \
+    X(FuzzyFileSearchSessionUpdate, fuzzyFileSearchSessionUpdate) \
+    X(FuzzyFileSearchSessionStop, fuzzyFileSearchSessionStop)
 #define AI_OPENAI_CODEX_PARAMETERLESS_CLIENT_REQUESTS(X) \
+    X(MemoryReset, memoryReset) \
+    X(RemoteControlEnable, remoteControlEnable) \
+    X(RemoteControlDisable, remoteControlDisable) \
+    X(RemoteControlStatusRead, remoteControlStatusRead) \
     X(McpServerRefresh, mcpServerRefresh) \
     X(WindowsSandboxReadiness, windowsSandboxReadiness) \
     X(LogoutAccount, logoutAccount) \
@@ -23653,6 +29889,7 @@ namespace server_notifications {
     X(DynamicToolCall, dynamicToolCall) \
     X(ChatgptAuthTokensRefresh, chatgptAuthTokensRefresh) \
     X(AttestationGenerate, attestationGenerate) \
+    X(CurrentTimeRead, currentTimeRead) \
     X(ApplyPatchApproval, applyPatchApproval) \
     X(ExecCommandApproval, execCommandApproval)
 #define AI_OPENAI_CODEX_CLIENT_NOTIFICATIONS(X) \
@@ -23717,6 +29954,8 @@ namespace server_notifications {
     X(ThreadCompacted, threadCompacted) \
     X(ModelRerouted, modelRerouted) \
     X(ModelVerification, modelVerification) \
+    X(ModelProviderAuthRecoveryStarted, modelProviderAuthRecoveryStarted) \
+    X(ModelProviderAuthRecoveryCompleted, modelProviderAuthRecoveryCompleted) \
     X(TurnModerationMetadata, turnModerationMetadata) \
     X(ModelSafetyBufferingUpdated, modelSafetyBufferingUpdated) \
     X(Warning, warning) \
@@ -23727,6 +29966,9 @@ namespace server_notifications {
     X(FuzzyFileSearchSessionCompleted, fuzzyFileSearchSessionCompleted) \
     X(ThreadRealtimeStarted, threadRealtimeStarted) \
     X(ThreadRealtimeItemAdded, threadRealtimeItemAdded) \
+    X(ThreadRealtimeItemStarted, threadRealtimeItemStarted) \
+    X(ThreadRealtimeItemTranscriptDelta, threadRealtimeItemTranscriptDelta) \
+    X(ThreadRealtimeItemCompleted, threadRealtimeItemCompleted) \
     X(ThreadRealtimeTranscriptDelta, threadRealtimeTranscriptDelta) \
     X(ThreadRealtimeTranscriptDone, threadRealtimeTranscriptDone) \
     X(ThreadRealtimeOutputAudioDelta, threadRealtimeOutputAudioDelta) \

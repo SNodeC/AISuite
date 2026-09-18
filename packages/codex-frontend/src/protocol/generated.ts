@@ -1,16 +1,22 @@
 /*
  * Generated from Codex app-server protocol exports. DO NOT EDIT.
- * Schema SHA-256: 48f025b407c0a96bffed6e06f0fe1c9e23e770039d9262688d6f7b708d1890fd
- * Protocol source SHA-256: a88f193d64f6c24364ee9d8c6895698c7f4d4b22c83468ac0488966b7f49f907
+ * Codex release: rust-v0.154.0
+ * Codex revision: 6b9826e3aa83b1a5947db50f4332cb9c65f1b340
+ * Experimental API: true
+ * Schema SHA-256: 24df528acec2952e6b96c1c2b061f98e60177d059e12c90cf318621380c9de9e
+ * Protocol source SHA-256: 6aa47ec984c9198ea797bf63b784cf6a88cc0ab85efb0a4ac75e01aabffc2cfa
  * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT
  */
 
 export const protocolGeneration = {
-    schemaSha256: "48f025b407c0a96bffed6e06f0fe1c9e23e770039d9262688d6f7b708d1890fd",
-    protocolSourceSha256: "a88f193d64f6c24364ee9d8c6895698c7f4d4b22c83468ac0488966b7f49f907",
-    generatedTypes: 1920,
-    canonicalRootTypes: 81,
-    canonicalV2Types: 585,
+    codexRelease: "rust-v0.154.0",
+    codexRevision: "6b9826e3aa83b1a5947db50f4332cb9c65f1b340",
+    experimentalApi: true,
+    schemaSha256: "24df528acec2952e6b96c1c2b061f98e60177d059e12c90cf318621380c9de9e",
+    protocolSourceSha256: "6aa47ec984c9198ea797bf63b784cf6a88cc0ab85efb0a4ac75e01aabffc2cfa",
+    generatedTypes: 2413,
+    canonicalRootTypes: 90,
+    canonicalV2Types: 748,
 } as const;
 
 export type RootAbsolutePathBuf = string;
@@ -85,7 +91,7 @@ export type RootInitializedNotification = {
 
 export type RootInitializedNotificationMethod = "initialized";
 
-export type RootClientRequest = RootInitializeRequest | RootThreadStartRequest | RootThreadResumeRequest | RootThreadForkRequest | RootThreadArchiveRequest | RootThreadDeleteRequest | RootThreadUnsubscribeRequest | RootThreadNameSetRequest | RootThreadGoalSetRequest | RootThreadGoalGetRequest | RootThreadGoalClearRequest | RootThreadMetadataUpdateRequest | RootThreadSectionMoveRequest | RootThreadUnarchiveRequest | RootThreadCompactStartRequest | RootThreadShellCommandRequest | RootThreadApproveGuardianDeniedActionRequest | RootThreadRollbackRequest | RootThreadListRequest | RootThreadSectionListRequest | RootThreadSectionCreateRequest | RootThreadSectionUpdateRequest | RootThreadSectionDeleteRequest | RootThreadLoadedListRequest | RootThreadReadRequest | RootThreadInjectItemsRequest | RootSkillsListRequest | RootSkillsExtraRootsSetRequest | RootHooksListRequest | RootMarketplaceAddRequest | RootMarketplaceRemoveRequest | RootMarketplaceUpgradeRequest | RootPluginListRequest | RootPluginInstalledRequest | RootPluginReadRequest | RootPluginSkillReadRequest | RootPluginShareSaveRequest | RootPluginShareUpdateTargetsRequest | RootPluginShareListRequest | RootPluginShareCheckoutRequest | RootPluginShareDeleteRequest | RootAppReadRequest | RootAppListRequest | RootAppInstalledRequest | RootFsReadFileRequest | RootFsWriteFileRequest | RootFsCreateDirectoryRequest | RootFsGetMetadataRequest | RootFsReadDirectoryRequest | RootFsRemoveRequest | RootFsCopyRequest | RootFsWatchRequest | RootFsUnwatchRequest | RootSkillsConfigWriteRequest | RootPluginInstallRequest | RootPluginUninstallRequest | RootTurnStartRequest | RootTurnSteerRequest | RootTurnInterruptRequest | RootReviewStartRequest | RootModelListRequest | RootModelProviderCapabilitiesReadRequest | RootExperimentalFeatureListRequest | RootPermissionProfileListRequest | RootExperimentalFeatureEnablementSetRequest | RootMcpServerOauthLoginRequest | RootConfigMcpServerReloadRequest | RootMcpServerStatusListRequest | RootMcpServerResourceReadRequest | RootMcpServerToolCallRequest | RootWindowsSandboxSetupStartRequest | RootWindowsSandboxReadinessRequest | RootAccountLoginStartRequest | RootAccountLoginCancelRequest | RootAccountLogoutRequest | RootAccountRateLimitsReadRequest | RootAccountRateLimitResetCreditConsumeRequest | RootAccountUsageReadRequest | RootAccountWorkspaceMessagesReadRequest | RootAccountSendAddCreditsNudgeEmailRequest | RootFeedbackUploadRequest | RootCommandExecRequest | RootCommandExecWriteRequest | RootCommandExecTerminateRequest | RootCommandExecResizeRequest | RootConfigReadRequest | RootExternalAgentConfigDetectRequest | RootExternalAgentConfigImportRequest | RootExternalAgentConfigImportRecordHistoryRequest | RootExternalAgentConfigImportReadHistoriesRequest | RootConfigValueWriteRequest | RootConfigBatchWriteRequest | RootConfigRequirementsReadRequest | RootAccountReadRequest | RootFuzzyFileSearchRequest;
+export type RootClientRequest = RootInitializeRequest | RootServerDiagnosticsRequest | RootUserVerificationStatusRequest | RootUserVerificationEnrollRequest | RootUserVerificationDeleteRequest | RootUserVerificationVerifyRequest | RootThreadStartRequest | RootThreadResumeRequest | RootThreadForkRequest | RootThreadArchiveRequest | RootThreadDeleteRequest | RootThreadUnsubscribeRequest | RootThreadIncrementElicitationRequest | RootThreadDecrementElicitationRequest | RootThreadNameSetRequest | RootThreadGoalSetRequest | RootThreadGoalGetRequest | RootThreadGoalClearRequest | RootThreadQueueAddRequest | RootThreadQueueListRequest | RootThreadQueueUpdateRequest | RootThreadQueueDeleteRequest | RootThreadQueueReorderRequest | RootThreadQueueStartRequest | RootThreadMetadataUpdateRequest | RootThreadSectionMoveRequest | RootThreadSettingsUpdateRequest | RootThreadMemoryModeSetRequest | RootMemoryResetRequest | RootThreadUnarchiveRequest | RootThreadCompactStartRequest | RootThreadShellCommandRequest | RootThreadApproveGuardianDeniedActionRequest | RootThreadBackgroundTerminalsCleanRequest | RootThreadBackgroundTerminalsListRequest | RootThreadBackgroundTerminalsTerminateRequest | RootThreadRollbackRequest | RootThreadRevertRequest | RootThreadListRequest | RootProjectListRequest | RootProjectReadRequest | RootProjectCreateRequest | RootProjectImportRequest | RootProjectUpdateRequest | RootProjectMoveRequest | RootProjectDeleteRequest | RootThreadSectionListRequest | RootThreadSectionCreateRequest | RootThreadSectionUpdateRequest | RootThreadSectionDeleteRequest | RootThreadSearchRequest | RootThreadSearchOccurrencesRequest | RootThreadLoadedListRequest | RootThreadReadRequest | RootThreadTurnsListRequest | RootThreadItemsListRequest | RootThreadInjectItemsRequest | RootSkillsListRequest | RootSkillsExtraRootsSetRequest | RootHooksListRequest | RootMarketplaceAddRequest | RootMarketplaceRemoveRequest | RootMarketplaceUpgradeRequest | RootPluginListRequest | RootPluginSearchRequest | RootPluginInstalledRequest | RootPluginReconcileRequest | RootPluginReadRequest | RootPluginSkillReadRequest | RootPluginShareSaveRequest | RootPluginShareUpdateTargetsRequest | RootPluginShareListRequest | RootPluginShareCheckoutRequest | RootPluginShareDeleteRequest | RootAppReadRequest | RootAppListRequest | RootAppInstalledRequest | RootFsReadFileRequest | RootFsWriteFileRequest | RootFsCreateDirectoryRequest | RootFsGetMetadataRequest | RootFsReadDirectoryRequest | RootFsRemoveRequest | RootFsCopyRequest | RootFsWatchRequest | RootFsUnwatchRequest | RootSkillsConfigWriteRequest | RootPluginInstallRequest | RootPluginUninstallRequest | RootTurnStartRequest | RootTurnSettingsUpdateRequest | RootTurnSteerRequest | RootTurnInterruptRequest | RootThreadRealtimeStartRequest | RootThreadRealtimeAppendAudioRequest | RootThreadRealtimeAppendTextRequest | RootThreadRealtimeAppendSpeechRequest | RootThreadRealtimeStopRequest | RootThreadTimelineListRequest | RootThreadRealtimeListVoicesRequest | RootReviewStartRequest | RootModelListRequest | RootModelProviderCapabilitiesReadRequest | RootExperimentalFeatureListRequest | RootPermissionProfileListRequest | RootExperimentalFeatureEnablementSetRequest | RootRemoteControlEnableRequest | RootRemoteControlDisableRequest | RootRemoteControlStatusReadRequest | RootRemoteControlPairingStartRequest | RootRemoteControlPairingStatusRequest | RootRemoteControlClientListRequest | RootRemoteControlClientRevokeRequest | RootCollaborationModeListRequest | RootMockExperimentalMethodRequest | RootEnvironmentAddRequest | RootEnvironmentInfoRequest | RootEnvironmentStatusRequest | RootMcpServerOauthLoginRequest | RootConfigMcpServerReloadRequest | RootMcpServerStatusListRequest | RootMcpServerResourceReadRequest | RootMcpServerEventStreamStartRequest | RootMcpServerEventStreamStopRequest | RootMcpServerToolCallRequest | RootWindowsSandboxSetupStartRequest | RootWindowsSandboxReadinessRequest | RootAccountLoginStartRequest | RootAccountBedrockDiscoverRequest | RootAccountBedrockSetupRequest | RootAccountLoginCancelRequest | RootAccountLogoutRequest | RootAccountRateLimitsReadRequest | RootAccountRateLimitResetCreditConsumeRequest | RootAccountUsageReadRequest | RootAccountWorkspaceMessagesReadRequest | RootAccountSendAddCreditsNudgeEmailRequest | RootFeedbackUploadRequest | RootCommandExecRequest | RootCommandExecWriteRequest | RootCommandExecTerminateRequest | RootCommandExecResizeRequest | RootProcessSpawnRequest | RootProcessWriteStdinRequest | RootProcessKillRequest | RootProcessResizePtyRequest | RootConfigReadRequest | RootExternalAgentConfigDetectRequest | RootExternalAgentConfigImportRequest | RootExternalAgentConfigImportRecordHistoryRequest | RootExternalAgentConfigImportReadHistoriesRequest | RootConfigValueWriteRequest | RootConfigBatchWriteRequest | RootConfigRequirementsReadRequest | RootAccountReadRequest | RootFuzzyFileSearchRequest | RootFuzzyFileSearchSessionStartRequest | RootFuzzyFileSearchSessionUpdateRequest | RootFuzzyFileSearchSessionStopRequest;
 
 export type RootInitializeRequest = {
     readonly "id": V2RequestId;
@@ -95,6 +101,51 @@ export type RootInitializeRequest = {
 };
 
 export type RootInitializeRequestMethod = "initialize";
+
+export type RootServerDiagnosticsRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootServerDiagnosticsRequestMethod;
+    readonly "params": V2ServerDiagnosticsParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootServerDiagnosticsRequestMethod = "server/diagnostics";
+
+export type RootUserVerificationStatusRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootUserVerificationStatusRequestMethod;
+    readonly "params": V2UserVerificationStatusParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootUserVerificationStatusRequestMethod = "userVerification/status";
+
+export type RootUserVerificationEnrollRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootUserVerificationEnrollRequestMethod;
+    readonly "params": V2UserVerificationEnrollParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootUserVerificationEnrollRequestMethod = "userVerification/enroll";
+
+export type RootUserVerificationDeleteRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootUserVerificationDeleteRequestMethod;
+    readonly "params": V2UserVerificationDeleteParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootUserVerificationDeleteRequestMethod = "userVerification/delete";
+
+export type RootUserVerificationVerifyRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootUserVerificationVerifyRequestMethod;
+    readonly "params": V2UserVerificationVerifyParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootUserVerificationVerifyRequestMethod = "userVerification/verify";
 
 export type RootThreadStartRequest = {
     readonly "id": V2RequestId;
@@ -150,6 +201,24 @@ export type RootThreadUnsubscribeRequest = {
 
 export type RootThreadUnsubscribeRequestMethod = "thread/unsubscribe";
 
+export type RootThreadIncrementElicitationRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadIncrementElicitationRequestMethod;
+    readonly "params": V2ThreadIncrementElicitationParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadIncrementElicitationRequestMethod = "thread/increment_elicitation";
+
+export type RootThreadDecrementElicitationRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadDecrementElicitationRequestMethod;
+    readonly "params": V2ThreadDecrementElicitationParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadDecrementElicitationRequestMethod = "thread/decrement_elicitation";
+
 export type RootThreadNameSetRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootThreadNameSetRequestMethod;
@@ -186,6 +255,60 @@ export type RootThreadGoalClearRequest = {
 
 export type RootThreadGoalClearRequestMethod = "thread/goal/clear";
 
+export type RootThreadQueueAddRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadQueueAddRequestMethod;
+    readonly "params": V2ThreadQueueAddParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadQueueAddRequestMethod = "thread/queue/add";
+
+export type RootThreadQueueListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadQueueListRequestMethod;
+    readonly "params": V2ThreadQueueListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadQueueListRequestMethod = "thread/queue/list";
+
+export type RootThreadQueueUpdateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadQueueUpdateRequestMethod;
+    readonly "params": V2ThreadQueueUpdateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadQueueUpdateRequestMethod = "thread/queue/update";
+
+export type RootThreadQueueDeleteRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadQueueDeleteRequestMethod;
+    readonly "params": V2ThreadQueueDeleteParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadQueueDeleteRequestMethod = "thread/queue/delete";
+
+export type RootThreadQueueReorderRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadQueueReorderRequestMethod;
+    readonly "params": V2ThreadQueueReorderParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadQueueReorderRequestMethod = "thread/queue/reorder";
+
+export type RootThreadQueueStartRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadQueueStartRequestMethod;
+    readonly "params": V2ThreadQueueStartParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadQueueStartRequestMethod = "thread/queue/start";
+
 export type RootThreadMetadataUpdateRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootThreadMetadataUpdateRequestMethod;
@@ -203,6 +326,33 @@ export type RootThreadSectionMoveRequest = {
 };
 
 export type RootThreadSectionMoveRequestMethod = "thread/section/move";
+
+export type RootThreadSettingsUpdateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadSettingsUpdateRequestMethod;
+    readonly "params": V2ThreadSettingsUpdateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadSettingsUpdateRequestMethod = "thread/settings/update";
+
+export type RootThreadMemoryModeSetRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadMemoryModeSetRequestMethod;
+    readonly "params": V2ThreadMemoryModeSetParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadMemoryModeSetRequestMethod = "thread/memoryMode/set";
+
+export type RootMemoryResetRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootMemoryResetRequestMethod;
+    readonly "params"?: null;
+    readonly [key: string]: unknown;
+};
+
+export type RootMemoryResetRequestMethod = "memory/reset";
 
 export type RootThreadUnarchiveRequest = {
     readonly "id": V2RequestId;
@@ -240,6 +390,33 @@ export type RootThreadApproveGuardianDeniedActionRequest = {
 
 export type RootThreadApproveGuardianDeniedActionRequestMethod = "thread/approveGuardianDeniedAction";
 
+export type RootThreadBackgroundTerminalsCleanRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadBackgroundTerminalsCleanRequestMethod;
+    readonly "params": V2ThreadBackgroundTerminalsCleanParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadBackgroundTerminalsCleanRequestMethod = "thread/backgroundTerminals/clean";
+
+export type RootThreadBackgroundTerminalsListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadBackgroundTerminalsListRequestMethod;
+    readonly "params": V2ThreadBackgroundTerminalsListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadBackgroundTerminalsListRequestMethod = "thread/backgroundTerminals/list";
+
+export type RootThreadBackgroundTerminalsTerminateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadBackgroundTerminalsTerminateRequestMethod;
+    readonly "params": V2ThreadBackgroundTerminalsTerminateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadBackgroundTerminalsTerminateRequestMethod = "thread/backgroundTerminals/terminate";
+
 export type RootThreadRollbackRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootThreadRollbackRequestMethod;
@@ -249,6 +426,15 @@ export type RootThreadRollbackRequest = {
 
 export type RootThreadRollbackRequestMethod = "thread/rollback";
 
+export type RootThreadRevertRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRevertRequestMethod;
+    readonly "params": V2ThreadRevertParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRevertRequestMethod = "thread/revert";
+
 export type RootThreadListRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootThreadListRequestMethod;
@@ -257,6 +443,69 @@ export type RootThreadListRequest = {
 };
 
 export type RootThreadListRequestMethod = "thread/list";
+
+export type RootProjectListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectListRequestMethod;
+    readonly "params": V2ProjectListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectListRequestMethod = "project/list";
+
+export type RootProjectReadRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectReadRequestMethod;
+    readonly "params": V2ProjectReadParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectReadRequestMethod = "project/read";
+
+export type RootProjectCreateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectCreateRequestMethod;
+    readonly "params": V2ProjectCreateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectCreateRequestMethod = "project/create";
+
+export type RootProjectImportRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectImportRequestMethod;
+    readonly "params": V2ProjectImportParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectImportRequestMethod = "project/import";
+
+export type RootProjectUpdateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectUpdateRequestMethod;
+    readonly "params": V2ProjectUpdateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectUpdateRequestMethod = "project/update";
+
+export type RootProjectMoveRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectMoveRequestMethod;
+    readonly "params": V2ProjectMoveParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectMoveRequestMethod = "project/move";
+
+export type RootProjectDeleteRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProjectDeleteRequestMethod;
+    readonly "params": V2ProjectDeleteParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProjectDeleteRequestMethod = "project/delete";
 
 export type RootThreadSectionListRequest = {
     readonly "id": V2RequestId;
@@ -294,6 +543,24 @@ export type RootThreadSectionDeleteRequest = {
 
 export type RootThreadSectionDeleteRequestMethod = "threadSection/delete";
 
+export type RootThreadSearchRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadSearchRequestMethod;
+    readonly "params": V2ThreadSearchParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadSearchRequestMethod = "thread/search";
+
+export type RootThreadSearchOccurrencesRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadSearchOccurrencesRequestMethod;
+    readonly "params": V2ThreadSearchOccurrencesParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadSearchOccurrencesRequestMethod = "thread/searchOccurrences";
+
 export type RootThreadLoadedListRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootThreadLoadedListRequestMethod;
@@ -311,6 +578,24 @@ export type RootThreadReadRequest = {
 };
 
 export type RootThreadReadRequestMethod = "thread/read";
+
+export type RootThreadTurnsListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadTurnsListRequestMethod;
+    readonly "params": V2ThreadTurnsListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadTurnsListRequestMethod = "thread/turns/list";
+
+export type RootThreadItemsListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadItemsListRequestMethod;
+    readonly "params": V2ThreadItemsListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadItemsListRequestMethod = "thread/items/list";
 
 export type RootThreadInjectItemsRequest = {
     readonly "id": V2RequestId;
@@ -384,6 +669,15 @@ export type RootPluginListRequest = {
 
 export type RootPluginListRequestMethod = "plugin/list";
 
+export type RootPluginSearchRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootPluginSearchRequestMethod;
+    readonly "params": V2PluginSearchParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootPluginSearchRequestMethod = "plugin/search";
+
 export type RootPluginInstalledRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootPluginInstalledRequestMethod;
@@ -392,6 +686,15 @@ export type RootPluginInstalledRequest = {
 };
 
 export type RootPluginInstalledRequestMethod = "plugin/installed";
+
+export type RootPluginReconcileRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootPluginReconcileRequestMethod;
+    readonly "params": V2PluginReconcileParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootPluginReconcileRequestMethod = "plugin/reconcile";
 
 export type RootPluginReadRequest = {
     readonly "id": V2RequestId;
@@ -600,6 +903,15 @@ export type RootTurnStartRequest = {
 
 export type RootTurnStartRequestMethod = "turn/start";
 
+export type RootTurnSettingsUpdateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootTurnSettingsUpdateRequestMethod;
+    readonly "params": V2TurnSettingsUpdateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootTurnSettingsUpdateRequestMethod = "turn/settings/update";
+
 export type RootTurnSteerRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootTurnSteerRequestMethod;
@@ -617,6 +929,69 @@ export type RootTurnInterruptRequest = {
 };
 
 export type RootTurnInterruptRequestMethod = "turn/interrupt";
+
+export type RootThreadRealtimeStartRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRealtimeStartRequestMethod;
+    readonly "params": V2ThreadRealtimeStartParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeStartRequestMethod = "thread/realtime/start";
+
+export type RootThreadRealtimeAppendAudioRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRealtimeAppendAudioRequestMethod;
+    readonly "params": V2ThreadRealtimeAppendAudioParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeAppendAudioRequestMethod = "thread/realtime/appendAudio";
+
+export type RootThreadRealtimeAppendTextRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRealtimeAppendTextRequestMethod;
+    readonly "params": V2ThreadRealtimeAppendTextParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeAppendTextRequestMethod = "thread/realtime/appendText";
+
+export type RootThreadRealtimeAppendSpeechRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRealtimeAppendSpeechRequestMethod;
+    readonly "params": V2ThreadRealtimeAppendSpeechParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeAppendSpeechRequestMethod = "thread/realtime/appendSpeech";
+
+export type RootThreadRealtimeStopRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRealtimeStopRequestMethod;
+    readonly "params": V2ThreadRealtimeStopParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeStopRequestMethod = "thread/realtime/stop";
+
+export type RootThreadTimelineListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadTimelineListRequestMethod;
+    readonly "params": V2ThreadTimelineListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadTimelineListRequestMethod = "thread/timeline/list";
+
+export type RootThreadRealtimeListVoicesRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootThreadRealtimeListVoicesRequestMethod;
+    readonly "params": V2ThreadRealtimeListVoicesParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeListVoicesRequestMethod = "thread/realtime/listVoices";
 
 export type RootReviewStartRequest = {
     readonly "id": V2RequestId;
@@ -672,6 +1047,118 @@ export type RootExperimentalFeatureEnablementSetRequest = {
 
 export type RootExperimentalFeatureEnablementSetRequestMethod = "experimentalFeature/enablement/set";
 
+export type RootRemoteControlEnableRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlEnableRequestMethod;
+    readonly "params"?: RootRemoteControlEnableRequestParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlEnableRequestMethod = "remoteControl/enable";
+
+export type RootRemoteControlEnableRequestParams = V2RemoteControlEnableParams | null;
+
+export type RootRemoteControlDisableRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlDisableRequestMethod;
+    readonly "params"?: RootRemoteControlDisableRequestParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlDisableRequestMethod = "remoteControl/disable";
+
+export type RootRemoteControlDisableRequestParams = V2RemoteControlDisableParams | null;
+
+export type RootRemoteControlStatusReadRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlStatusReadRequestMethod;
+    readonly "params"?: null;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlStatusReadRequestMethod = "remoteControl/status/read";
+
+export type RootRemoteControlPairingStartRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlPairingStartRequestMethod;
+    readonly "params": V2RemoteControlPairingStartParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlPairingStartRequestMethod = "remoteControl/pairing/start";
+
+export type RootRemoteControlPairingStatusRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlPairingStatusRequestMethod;
+    readonly "params": V2RemoteControlPairingStatusParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlPairingStatusRequestMethod = "remoteControl/pairing/status";
+
+export type RootRemoteControlClientListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlClientListRequestMethod;
+    readonly "params": V2RemoteControlClientsListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlClientListRequestMethod = "remoteControl/client/list";
+
+export type RootRemoteControlClientRevokeRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootRemoteControlClientRevokeRequestMethod;
+    readonly "params": V2RemoteControlClientsRevokeParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootRemoteControlClientRevokeRequestMethod = "remoteControl/client/revoke";
+
+export type RootCollaborationModeListRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootCollaborationModeListRequestMethod;
+    readonly "params": V2CollaborationModeListParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootCollaborationModeListRequestMethod = "collaborationMode/list";
+
+export type RootMockExperimentalMethodRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootMockExperimentalMethodRequestMethod;
+    readonly "params": V2MockExperimentalMethodParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootMockExperimentalMethodRequestMethod = "mock/experimentalMethod";
+
+export type RootEnvironmentAddRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootEnvironmentAddRequestMethod;
+    readonly "params": V2EnvironmentAddParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootEnvironmentAddRequestMethod = "environment/add";
+
+export type RootEnvironmentInfoRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootEnvironmentInfoRequestMethod;
+    readonly "params": V2EnvironmentInfoParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootEnvironmentInfoRequestMethod = "environment/info";
+
+export type RootEnvironmentStatusRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootEnvironmentStatusRequestMethod;
+    readonly "params": V2EnvironmentStatusParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootEnvironmentStatusRequestMethod = "environment/status";
+
 export type RootMcpServerOauthLoginRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootMcpServerOauthLoginRequestMethod;
@@ -707,6 +1194,24 @@ export type RootMcpServerResourceReadRequest = {
 };
 
 export type RootMcpServerResourceReadRequestMethod = "mcpServer/resource/read";
+
+export type RootMcpServerEventStreamStartRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootMcpServerEventStreamStartRequestMethod;
+    readonly "params": V2McpServerEventStreamStartParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootMcpServerEventStreamStartRequestMethod = "mcpServer/event/stream/start";
+
+export type RootMcpServerEventStreamStopRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootMcpServerEventStreamStopRequestMethod;
+    readonly "params": V2McpServerEventStreamStopParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootMcpServerEventStreamStopRequestMethod = "mcpServer/event/stream/stop";
 
 export type RootMcpServerToolCallRequest = {
     readonly "id": V2RequestId;
@@ -744,6 +1249,24 @@ export type RootAccountLoginStartRequest = {
 
 export type RootAccountLoginStartRequestMethod = "account/login/start";
 
+export type RootAccountBedrockDiscoverRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootAccountBedrockDiscoverRequestMethod;
+    readonly "params": V2BedrockDiscoverParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootAccountBedrockDiscoverRequestMethod = "account/bedrock/discover";
+
+export type RootAccountBedrockSetupRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootAccountBedrockSetupRequestMethod;
+    readonly "params": V2BedrockSetupParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootAccountBedrockSetupRequestMethod = "account/bedrock/setup";
+
 export type RootAccountLoginCancelRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootAccountLoginCancelRequestMethod;
@@ -765,11 +1288,13 @@ export type RootAccountLogoutRequestMethod = "account/logout";
 export type RootAccountRateLimitsReadRequest = {
     readonly "id": V2RequestId;
     readonly "method": RootAccountRateLimitsReadRequestMethod;
-    readonly "params"?: null;
+    readonly "params"?: RootAccountRateLimitsReadRequestParams;
     readonly [key: string]: unknown;
 };
 
 export type RootAccountRateLimitsReadRequestMethod = "account/rateLimits/read";
+
+export type RootAccountRateLimitsReadRequestParams = V2GetAccountRateLimitsParams | null;
 
 export type RootAccountRateLimitResetCreditConsumeRequest = {
     readonly "id": V2RequestId;
@@ -853,6 +1378,42 @@ export type RootCommandExecResizeRequest = {
 };
 
 export type RootCommandExecResizeRequestMethod = "command/exec/resize";
+
+export type RootProcessSpawnRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProcessSpawnRequestMethod;
+    readonly "params": V2ProcessSpawnParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProcessSpawnRequestMethod = "process/spawn";
+
+export type RootProcessWriteStdinRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProcessWriteStdinRequestMethod;
+    readonly "params": V2ProcessWriteStdinParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProcessWriteStdinRequestMethod = "process/writeStdin";
+
+export type RootProcessKillRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProcessKillRequestMethod;
+    readonly "params": V2ProcessKillParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProcessKillRequestMethod = "process/kill";
+
+export type RootProcessResizePtyRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootProcessResizePtyRequestMethod;
+    readonly "params": V2ProcessResizePtyParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootProcessResizePtyRequestMethod = "process/resizePty";
 
 export type RootConfigReadRequest = {
     readonly "id": V2RequestId;
@@ -944,6 +1505,33 @@ export type RootFuzzyFileSearchRequest = {
 
 export type RootFuzzyFileSearchRequestMethod = "fuzzyFileSearch";
 
+export type RootFuzzyFileSearchSessionStartRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootFuzzyFileSearchSessionStartRequestMethod;
+    readonly "params": RootFuzzyFileSearchSessionStartParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionStartRequestMethod = "fuzzyFileSearch/sessionStart";
+
+export type RootFuzzyFileSearchSessionUpdateRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootFuzzyFileSearchSessionUpdateRequestMethod;
+    readonly "params": RootFuzzyFileSearchSessionUpdateParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionUpdateRequestMethod = "fuzzyFileSearch/sessionUpdate";
+
+export type RootFuzzyFileSearchSessionStopRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootFuzzyFileSearchSessionStopRequestMethod;
+    readonly "params": RootFuzzyFileSearchSessionStopParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionStopRequestMethod = "fuzzyFileSearch/sessionStop";
+
 export type RootCommandExecutionApprovalDecision = RootCommandExecutionApprovalDecisionOneOf1 | RootCommandExecutionApprovalDecisionOneOf2 | RootAcceptWithExecpolicyAmendmentCommandExecutionApprovalDecision | RootApplyNetworkPolicyAmendmentCommandExecutionApprovalDecision | RootCommandExecutionApprovalDecisionOneOf5 | RootCommandExecutionApprovalDecisionOneOf6;
 
 export type RootCommandExecutionApprovalDecisionOneOf1 = "accept";
@@ -974,13 +1562,18 @@ export type RootCommandExecutionApprovalDecisionOneOf5 = "decline";
 
 export type RootCommandExecutionApprovalDecisionOneOf6 = "cancel";
 
+export type RootCommandExecutionApprovalKind = "command" | "writeStdin";
+
 export type RootCommandExecutionRequestApprovalParams = {
+    readonly "additionalPermissions"?: RootCommandExecutionRequestApprovalParamsAdditionalPermissions;
     readonly "approvalId"?: string | null;
+    readonly "availableDecisions"?: RootCommandExecutionRequestApprovalParamsAvailableDecisions;
     readonly "command"?: string | null;
     readonly "commandActions"?: RootCommandExecutionRequestApprovalParamsCommandActions;
     readonly "cwd"?: RootCommandExecutionRequestApprovalParamsCwd;
     readonly "environmentId"?: string | null;
     readonly "itemId": string;
+    readonly "kind"?: RootCommandExecutionRequestApprovalParamsKind;
     readonly "networkApprovalContext"?: RootCommandExecutionRequestApprovalParamsNetworkApprovalContext;
     readonly "proposedExecpolicyAmendment"?: RootCommandExecutionRequestApprovalParamsProposedExecpolicyAmendment;
     readonly "proposedNetworkPolicyAmendments"?: RootCommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendments;
@@ -991,9 +1584,15 @@ export type RootCommandExecutionRequestApprovalParams = {
     readonly [key: string]: unknown;
 };
 
+export type RootCommandExecutionRequestApprovalParamsAdditionalPermissions = RootAdditionalPermissionProfile | null;
+
+export type RootCommandExecutionRequestApprovalParamsAvailableDecisions = ReadonlyArray<RootCommandExecutionApprovalDecision> | null;
+
 export type RootCommandExecutionRequestApprovalParamsCommandActions = ReadonlyArray<V2CommandAction> | null;
 
 export type RootCommandExecutionRequestApprovalParamsCwd = V2LegacyAppPathString | null;
+
+export type RootCommandExecutionRequestApprovalParamsKind = RootCommandExecutionApprovalKind;
 
 export type RootCommandExecutionRequestApprovalParamsNetworkApprovalContext = RootNetworkApprovalContext | null;
 
@@ -1003,6 +1602,16 @@ export type RootCommandExecutionRequestApprovalParamsProposedNetworkPolicyAmendm
 
 export type RootCommandExecutionRequestApprovalResponse = {
     readonly "decision": RootCommandExecutionApprovalDecision;
+    readonly [key: string]: unknown;
+};
+
+export type RootCurrentTimeReadParams = {
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type RootCurrentTimeReadResponse = {
+    readonly "currentTimeAt": number;
     readonly [key: string]: unknown;
 };
 
@@ -1128,6 +1737,37 @@ export type RootFuzzyFileSearchResultIndices = ReadonlyArray<number> | null;
 
 export type RootFuzzyFileSearchSessionCompletedNotification = {
     readonly "sessionId": string;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionStartParams = {
+    readonly "roots": RootFuzzyFileSearchSessionStartParamsRoots;
+    readonly "sessionId": string;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionStartParamsRoots = ReadonlyArray<string>;
+
+export type RootFuzzyFileSearchSessionStartResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionStopParams = {
+    readonly "sessionId": string;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionStopResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionUpdateParams = {
+    readonly "query": string;
+    readonly "sessionId": string;
+    readonly [key: string]: unknown;
+};
+
+export type RootFuzzyFileSearchSessionUpdateResponse = {
     readonly [key: string]: unknown;
 };
 
@@ -1358,38 +1998,58 @@ export type RootMcpElicitationUntitledSingleSelectEnumSchemaEnum = ReadonlyArray
 
 export type RootMcpServerElicitationAction = "accept" | "decline" | "cancel";
 
-export type RootMcpServerElicitationRequestParams = RootMcpServerElicitationRequestParamsOneOf1 | RootMcpServerElicitationRequestParamsOneOf2 | RootMcpServerElicitationRequestParamsOneOf3;
+export type RootMcpServerElicitationRequestParams = RootMcpServerElicitationRequestParamsOneOf1 | RootMcpServerElicitationRequestParamsOneOf2 | RootMcpServerElicitationRequestParamsOneOf3 | RootMcpServerElicitationRequestParamsOneOf4 | RootMcpServerElicitationRequestParamsOneOf5;
 
 export type RootMcpServerElicitationRequestParamsOneOf1 = {
-    readonly "_meta"?: unknown;
-    readonly "message": string;
+    readonly "challenge": string;
+    readonly "description": string;
     readonly "mode": RootMcpServerElicitationRequestParamsOneOf1Mode;
-    readonly "requestedSchema": RootMcpElicitationSchema;
+    readonly "title": string;
     readonly [key: string]: unknown;
 };
 
-export type RootMcpServerElicitationRequestParamsOneOf1Mode = "form";
+export type RootMcpServerElicitationRequestParamsOneOf1Mode = "openai/userVerification";
 
 export type RootMcpServerElicitationRequestParamsOneOf2 = {
     readonly "_meta"?: unknown;
     readonly "message": string;
     readonly "mode": RootMcpServerElicitationRequestParamsOneOf2Mode;
+    readonly "requestedSchema": RootMcpElicitationSchema;
+    readonly [key: string]: unknown;
+};
+
+export type RootMcpServerElicitationRequestParamsOneOf2Mode = "form";
+
+export type RootMcpServerElicitationRequestParamsOneOf3 = {
+    readonly "_meta"?: unknown;
+    readonly "message": string;
+    readonly "mode": RootMcpServerElicitationRequestParamsOneOf3Mode;
     readonly "requestedSchema": unknown;
     readonly [key: string]: unknown;
 };
 
-export type RootMcpServerElicitationRequestParamsOneOf2Mode = "openai/form";
+export type RootMcpServerElicitationRequestParamsOneOf3Mode = "openai/form";
 
-export type RootMcpServerElicitationRequestParamsOneOf3 = {
+export type RootMcpServerElicitationRequestParamsOneOf4 = {
+    readonly "_meta"?: unknown;
+    readonly "message": string;
+    readonly "mode": RootMcpServerElicitationRequestParamsOneOf4Mode;
+    readonly "requestedSchema": unknown;
+    readonly [key: string]: unknown;
+};
+
+export type RootMcpServerElicitationRequestParamsOneOf4Mode = "openaiForm";
+
+export type RootMcpServerElicitationRequestParamsOneOf5 = {
     readonly "_meta"?: unknown;
     readonly "elicitationId": string;
     readonly "message": string;
-    readonly "mode": RootMcpServerElicitationRequestParamsOneOf3Mode;
+    readonly "mode": RootMcpServerElicitationRequestParamsOneOf5Mode;
     readonly "url": string;
     readonly [key: string]: unknown;
 };
 
-export type RootMcpServerElicitationRequestParamsOneOf3Mode = "url";
+export type RootMcpServerElicitationRequestParamsOneOf5Mode = "url";
 
 export type RootMcpServerElicitationRequestResponse = {
     readonly "_meta"?: unknown;
@@ -1454,7 +2114,7 @@ export type RootUnknownParsedCommandType = "unknown";
 export type RootPermissionGrantScope = "turn" | "session";
 
 export type RootPermissionsRequestApprovalParams = {
-    readonly "cwd": V2AbsolutePathBuf;
+    readonly "cwd": V2LegacyAppPathString;
     readonly "environmentId"?: string | null;
     readonly "itemId": string;
     readonly "permissions": V2RequestPermissionProfile;
@@ -1517,7 +2177,7 @@ export type RootReviewDecisionOneOf7 = "timed_out";
 
 export type RootReviewDecisionOneOf8 = "abort";
 
-export type RootServerNotification = RootErrorNotification | RootThreadStartedNotification | RootThreadStatusChangedNotification | RootThreadArchivedNotification | RootThreadDeletedNotification | RootThreadUnarchivedNotification | RootThreadClosedNotification | RootThreadRevertedNotification | RootSkillsChangedNotification | RootThreadNameUpdatedNotification | RootThreadGoalUpdatedNotification | RootThreadGoalClearedNotification | RootThreadQueueChangedNotification | RootProjectChangedNotification | RootThreadProjectUpdatedNotification | RootThreadEnvironmentConnectedNotification | RootThreadEnvironmentDisconnectedNotification | RootThreadSettingsUpdatedNotification | RootThreadTokenUsageUpdatedNotification | RootTurnStartedNotification | RootHookStartedNotification | RootTurnCompletedNotification | RootHookCompletedNotification | RootTurnDiffUpdatedNotification | RootTurnPlanUpdatedNotification | RootItemStartedNotification | RootItemAutoApprovalReviewStartedNotification | RootItemAutoApprovalReviewCompletedNotification | RootAutoApprovalReviewStrictReviewRequiredNotification | RootItemCompletedNotification | RootItemAgentMessageDeltaNotification | RootItemPlanDeltaNotification | RootCommandExecOutputDeltaNotification | RootProcessOutputDeltaNotification | RootProcessExitedNotification | RootItemCommandExecutionOutputDeltaNotification | RootItemCommandExecutionTerminalInteractionNotification | RootItemFileChangeOutputDeltaNotification | RootItemFileChangePatchUpdatedNotification | RootServerRequestResolvedNotification | RootItemMcpToolCallProgressNotification | RootMcpServerOauthLoginCompletedNotification | RootMcpServerStartupStatusUpdatedNotification | RootMcpServerEventStreamNotificationNotification | RootAccountUpdatedNotification | RootAccountRateLimitsUpdatedNotification | RootAppListUpdatedNotification | RootRemoteControlStatusChangedNotification | RootExternalAgentConfigImportProgressNotification | RootExternalAgentConfigImportCompletedNotification | RootFsChangedNotification | RootItemReasoningSummaryTextDeltaNotification | RootItemReasoningSummaryPartAddedNotification | RootItemReasoningTextDeltaNotification | RootThreadCompactedNotification | RootModelReroutedNotification | RootModelVerificationNotification | RootTurnModerationMetadataNotification | RootModelSafetyBufferingUpdatedNotification | RootWarningNotification | RootGuardianWarningNotification | RootDeprecationNoticeNotification | RootConfigWarningNotification | RootFuzzyFileSearchSessionUpdatedNotification2 | RootFuzzyFileSearchSessionCompletedNotification2 | RootThreadRealtimeStartedNotification | RootThreadRealtimeItemAddedNotification | RootThreadRealtimeTranscriptDeltaNotification | RootThreadRealtimeTranscriptDoneNotification | RootThreadRealtimeOutputAudioDeltaNotification | RootThreadRealtimeSdpNotification | RootThreadRealtimeErrorNotification | RootThreadRealtimeClosedNotification | RootWindowsWorldWritableWarningNotification | RootWindowsSandboxSetupCompletedNotification | RootAccountLoginCompletedNotification;
+export type RootServerNotification = RootErrorNotification | RootThreadStartedNotification | RootThreadStatusChangedNotification | RootThreadArchivedNotification | RootThreadDeletedNotification | RootThreadUnarchivedNotification | RootThreadClosedNotification | RootThreadRevertedNotification | RootSkillsChangedNotification | RootThreadNameUpdatedNotification | RootThreadGoalUpdatedNotification | RootThreadGoalClearedNotification | RootThreadQueueChangedNotification | RootProjectChangedNotification | RootThreadProjectUpdatedNotification | RootThreadEnvironmentConnectedNotification | RootThreadEnvironmentDisconnectedNotification | RootThreadSettingsUpdatedNotification | RootThreadTokenUsageUpdatedNotification | RootTurnStartedNotification | RootHookStartedNotification | RootTurnCompletedNotification | RootHookCompletedNotification | RootTurnDiffUpdatedNotification | RootTurnPlanUpdatedNotification | RootItemStartedNotification | RootItemAutoApprovalReviewStartedNotification | RootItemAutoApprovalReviewCompletedNotification | RootAutoApprovalReviewStrictReviewRequiredNotification | RootItemCompletedNotification | RootItemAgentMessageDeltaNotification | RootItemPlanDeltaNotification | RootCommandExecOutputDeltaNotification | RootProcessOutputDeltaNotification | RootProcessExitedNotification | RootItemCommandExecutionOutputDeltaNotification | RootItemCommandExecutionTerminalInteractionNotification | RootItemFileChangeOutputDeltaNotification | RootItemFileChangePatchUpdatedNotification | RootServerRequestResolvedNotification | RootItemMcpToolCallProgressNotification | RootMcpServerOauthLoginCompletedNotification | RootMcpServerStartupStatusUpdatedNotification | RootMcpServerEventStreamNotificationNotification | RootAccountUpdatedNotification | RootAccountRateLimitsUpdatedNotification | RootAppListUpdatedNotification | RootRemoteControlStatusChangedNotification | RootExternalAgentConfigImportProgressNotification | RootExternalAgentConfigImportCompletedNotification | RootFsChangedNotification | RootItemReasoningSummaryTextDeltaNotification | RootItemReasoningSummaryPartAddedNotification | RootItemReasoningTextDeltaNotification | RootThreadCompactedNotification | RootModelReroutedNotification | RootModelVerificationNotification | RootModelProviderAuthRecoveryStartedNotification | RootModelProviderAuthRecoveryCompletedNotification | RootTurnModerationMetadataNotification | RootModelSafetyBufferingUpdatedNotification | RootWarningNotification | RootGuardianWarningNotification | RootDeprecationNoticeNotification | RootConfigWarningNotification | RootFuzzyFileSearchSessionUpdatedNotification2 | RootFuzzyFileSearchSessionCompletedNotification2 | RootThreadRealtimeStartedNotification | RootThreadRealtimeItemAddedNotification | RootThreadRealtimeItemStartedNotification | RootThreadRealtimeItemTranscriptDeltaNotification | RootThreadRealtimeItemCompletedNotification | RootThreadRealtimeTranscriptDeltaNotification | RootThreadRealtimeTranscriptDoneNotification | RootThreadRealtimeOutputAudioDeltaNotification | RootThreadRealtimeSdpNotification | RootThreadRealtimeErrorNotification | RootThreadRealtimeClosedNotification | RootWindowsWorldWritableWarningNotification | RootWindowsSandboxSetupCompletedNotification | RootAccountLoginCompletedNotification;
 
 export type RootErrorNotification = {
     readonly "method": RootErrorNotificationMethod;
@@ -1975,6 +2635,22 @@ export type RootModelVerificationNotification = {
 
 export type RootModelVerificationNotificationMethod = "model/verification";
 
+export type RootModelProviderAuthRecoveryStartedNotification = {
+    readonly "method": RootModelProviderAuthRecoveryStartedNotificationMethod;
+    readonly "params": V2AuthRecoveryNotification;
+    readonly [key: string]: unknown;
+};
+
+export type RootModelProviderAuthRecoveryStartedNotificationMethod = "modelProvider/authRecoveryStarted";
+
+export type RootModelProviderAuthRecoveryCompletedNotification = {
+    readonly "method": RootModelProviderAuthRecoveryCompletedNotificationMethod;
+    readonly "params": V2AuthRecoveryNotification;
+    readonly [key: string]: unknown;
+};
+
+export type RootModelProviderAuthRecoveryCompletedNotificationMethod = "modelProvider/authRecoveryCompleted";
+
 export type RootTurnModerationMetadataNotification = {
     readonly "method": RootTurnModerationMetadataNotificationMethod;
     readonly "params": V2TurnModerationMetadataNotification;
@@ -2055,6 +2731,30 @@ export type RootThreadRealtimeItemAddedNotification = {
 
 export type RootThreadRealtimeItemAddedNotificationMethod = "thread/realtime/itemAdded";
 
+export type RootThreadRealtimeItemStartedNotification = {
+    readonly "method": RootThreadRealtimeItemStartedNotificationMethod;
+    readonly "params": V2ThreadRealtimeItemStartedNotification;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeItemStartedNotificationMethod = "thread/realtime/item/started";
+
+export type RootThreadRealtimeItemTranscriptDeltaNotification = {
+    readonly "method": RootThreadRealtimeItemTranscriptDeltaNotificationMethod;
+    readonly "params": V2ThreadRealtimeItemTranscriptDeltaNotification;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeItemTranscriptDeltaNotificationMethod = "thread/realtime/item/transcript/delta";
+
+export type RootThreadRealtimeItemCompletedNotification = {
+    readonly "method": RootThreadRealtimeItemCompletedNotificationMethod;
+    readonly "params": V2ThreadRealtimeItemCompletedNotification;
+    readonly [key: string]: unknown;
+};
+
+export type RootThreadRealtimeItemCompletedNotificationMethod = "thread/realtime/item/completed";
+
 export type RootThreadRealtimeTranscriptDeltaNotification = {
     readonly "method": RootThreadRealtimeTranscriptDeltaNotificationMethod;
     readonly "params": V2ThreadRealtimeTranscriptDeltaNotification;
@@ -2127,7 +2827,7 @@ export type RootAccountLoginCompletedNotification = {
 
 export type RootAccountLoginCompletedNotificationMethod = "account/login/completed";
 
-export type RootServerRequest = RootItemCommandExecutionRequestApprovalRequest | RootItemFileChangeRequestApprovalRequest | RootItemToolRequestUserInputRequest | RootMcpServerElicitationRequestRequest | RootItemPermissionsRequestApprovalRequest | RootItemToolCallRequest | RootAccountChatgptAuthTokensRefreshRequest | RootAttestationGenerateRequest | RootApplyPatchApprovalRequest | RootExecCommandApprovalRequest;
+export type RootServerRequest = RootItemCommandExecutionRequestApprovalRequest | RootItemFileChangeRequestApprovalRequest | RootItemToolRequestUserInputRequest | RootMcpServerElicitationRequestRequest | RootItemPermissionsRequestApprovalRequest | RootItemToolCallRequest | RootAccountChatgptAuthTokensRefreshRequest | RootAttestationGenerateRequest | RootCurrentTimeReadRequest | RootApplyPatchApprovalRequest | RootExecCommandApprovalRequest;
 
 export type RootItemCommandExecutionRequestApprovalRequest = {
     readonly "id": V2RequestId;
@@ -2200,6 +2900,15 @@ export type RootAttestationGenerateRequest = {
 };
 
 export type RootAttestationGenerateRequestMethod = "attestation/generate";
+
+export type RootCurrentTimeReadRequest = {
+    readonly "id": V2RequestId;
+    readonly "method": RootCurrentTimeReadRequestMethod;
+    readonly "params": RootCurrentTimeReadParams;
+    readonly [key: string]: unknown;
+};
+
+export type RootCurrentTimeReadRequestMethod = "currentTime/read";
 
 export type RootApplyPatchApprovalRequest = {
     readonly "id": V2RequestId;
@@ -2429,6 +3138,7 @@ export type V2AppConfig = {
     readonly "default_tools_enabled"?: boolean | null;
     readonly "destructive_enabled"?: boolean | null;
     readonly "enabled"?: boolean;
+    readonly "links"?: V2AppConfigLinks;
     readonly "open_world_enabled"?: boolean | null;
     readonly "tools"?: V2AppConfigTools;
     readonly [key: string]: unknown;
@@ -2437,6 +3147,8 @@ export type V2AppConfig = {
 export type V2AppConfigApprovalsReviewer = V2ApprovalsReviewer | null;
 
 export type V2AppConfigDefaultToolsApprovalMode = V2AppToolApproval | null;
+
+export type V2AppConfigLinks = V2AppLinksConfig | null;
 
 export type V2AppConfigTools = V2AppToolsConfig | null;
 
@@ -2476,6 +3188,20 @@ export type V2AppInfoLabels = {
 } | null;
 
 export type V2AppInfoPluginDisplayNames = ReadonlyArray<string>;
+
+export type V2AppLinkConfig = {
+    readonly "approvals_reviewer"?: V2AppLinkConfigApprovalsReviewer;
+    readonly "default_tools_approval_mode"?: V2AppLinkConfigDefaultToolsApprovalMode;
+    readonly [key: string]: unknown;
+};
+
+export type V2AppLinkConfigApprovalsReviewer = V2ApprovalsReviewer | null;
+
+export type V2AppLinkConfigDefaultToolsApprovalMode = V2AppToolApproval | null;
+
+export type V2AppLinksConfig = {
+    readonly [key: string]: unknown;
+};
 
 export type V2AppListUpdatedNotification = {
     readonly "data": V2AppListUpdatedNotificationData;
@@ -2571,6 +3297,23 @@ export type V2AppToolsConfig = {
     readonly [key: string]: unknown;
 };
 
+export type V2ApplicationNetworkRequirements = {
+    readonly "domains": V2ApplicationNetworkRequirementsDomains;
+    readonly "enabled": boolean;
+    readonly [key: string]: unknown;
+};
+
+export type V2ApplicationNetworkRequirementsDomains = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ApplicationRequirements = {
+    readonly "network"?: V2ApplicationRequirementsNetwork;
+    readonly [key: string]: unknown;
+};
+
+export type V2ApplicationRequirementsNetwork = V2ApplicationNetworkRequirements | null;
+
 export type V2ApprovalsReviewer = "user" | "auto_review" | "guardian_subagent";
 
 export type V2AppsConfig = {
@@ -2658,7 +3401,14 @@ export type V2GranularAskForApprovalGranular = {
     readonly [key: string]: unknown;
 };
 
-export type V2AuthMode = V2AuthModeOneOf1 | V2AuthModeOneOf2 | V2AuthModeOneOf3 | V2AuthModeOneOf4 | V2AuthModeOneOf5 | V2AuthModeOneOf6 | V2AuthModeOneOf7;
+export type V2AsyncUserInputQuestion = {
+    readonly "options"?: V2AsyncUserInputQuestionOptions;
+    readonly "title": string;
+};
+
+export type V2AsyncUserInputQuestionOptions = ReadonlyArray<string> | null;
+
+export type V2AuthMode = V2AuthModeOneOf1 | V2AuthModeOneOf2 | V2AuthModeOneOf3 | V2AuthModeOneOf4 | V2AuthModeOneOf5 | V2AuthModeOneOf6 | V2AuthModeOneOf7 | V2AuthModeOneOf8;
 
 export type V2AuthModeOneOf1 = "apikey";
 
@@ -2673,6 +3423,16 @@ export type V2AuthModeOneOf5 = "agentIdentity";
 export type V2AuthModeOneOf6 = "personalAccessToken";
 
 export type V2AuthModeOneOf7 = "bedrockApiKey";
+
+export type V2AuthModeOneOf8 = "bedrockAccessKeys";
+
+export type V2AuthRecoveryNotification = {
+    readonly "message": string;
+    readonly "provider": string;
+    readonly "threadId": string;
+    readonly "turnId": string;
+    readonly [key: string]: unknown;
+};
 
 export type V2AutoCompactTokenLimitScope = V2AutoCompactTokenLimitScopeOneOf1 | V2AutoCompactTokenLimitScopeOneOf2;
 
@@ -2691,6 +3451,57 @@ export type V2AutoReviewRequirements = {
 export type V2AutoReviewRequirementsIgnoreRules = ReadonlyArray<string> | null;
 
 export type V2AutoReviewRequirementsRequiredOnModels = ReadonlyArray<string> | null;
+
+export type V2AwsCredentialType = "accessKeys" | "bedrockApiKey";
+
+export type V2BedrockAwsProfile = {
+    readonly "name": string;
+    readonly "region"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2BedrockDiscoverParams = {
+    readonly [key: string]: unknown;
+};
+
+export type V2BedrockDiscoverResponse = {
+    readonly "environmentCredentials": V2BedrockDiscoverResponseEnvironmentCredentials;
+    readonly "profiles": V2BedrockDiscoverResponseProfiles;
+    readonly [key: string]: unknown;
+};
+
+export type V2BedrockDiscoverResponseEnvironmentCredentials = ReadonlyArray<V2BedrockEnvironmentCredential>;
+
+export type V2BedrockDiscoverResponseProfiles = ReadonlyArray<V2BedrockAwsProfile>;
+
+export type V2BedrockEnvironmentCredential = {
+    readonly "region"?: string | null;
+    readonly "type": V2AwsCredentialType;
+    readonly [key: string]: unknown;
+};
+
+export type V2BedrockSetupParams = V2Profilev2BedrockSetupParams | V2Environmentv2BedrockSetupParams;
+
+export type V2Profilev2BedrockSetupParams = {
+    readonly "profile": string;
+    readonly "region": string;
+    readonly "type": V2Profilev2BedrockSetupParamsType;
+    readonly [key: string]: unknown;
+};
+
+export type V2Profilev2BedrockSetupParamsType = "profile";
+
+export type V2Environmentv2BedrockSetupParams = {
+    readonly "region": string;
+    readonly "type": V2Environmentv2BedrockSetupParamsType;
+    readonly [key: string]: unknown;
+};
+
+export type V2Environmentv2BedrockSetupParamsType = "environment";
+
+export type V2BedrockSetupResponse = {
+    readonly [key: string]: unknown;
+};
 
 export type V2BrowserUseAccessApprovalLifetime = "turn" | "thread";
 
@@ -2749,6 +3560,7 @@ export type V2BrowserUseOriginPolicyConfigUploads = V2AllowDenyRequirement | nul
 export type V2BrowserUseRequirements = {
     readonly "allowGlobalPersistentApproval"?: boolean | null;
     readonly "allowHistoryAccess"?: boolean | null;
+    readonly "allowWebmcp"?: boolean | null;
     readonly "defaultOriginPolicy"?: V2BrowserUseRequirementsDefaultOriginPolicy;
     readonly "disableAutoReview"?: boolean | null;
     readonly "origins"?: V2BrowserUseRequirementsOrigins;
@@ -2794,7 +3606,7 @@ export type V2CliAuthCredentialsStoreMode = "file" | "keyring" | "auto" | "ephem
 
 export type V2CodexErrorInfo = V2CodexErrorInfoOneOf1 | V2HttpConnectionFailedCodexErrorInfo | V2ResponseStreamConnectionFailedCodexErrorInfo | V2ResponseStreamDisconnectedCodexErrorInfo | V2ResponseTooManyFailedAttemptsCodexErrorInfo | V2ActiveTurnNotSteerableCodexErrorInfo;
 
-export type V2CodexErrorInfoOneOf1 = "contextWindowExceeded" | "sessionBudgetExceeded" | "usageLimitExceeded" | "serverOverloaded" | "cyberPolicy" | "misalignmentPolicyViolation" | "internalServerError" | "unauthorized" | "badRequest" | "threadRollbackFailed" | "sandboxError" | "other";
+export type V2CodexErrorInfoOneOf1 = "contextWindowExceeded" | "sessionBudgetExceeded" | "usageLimitExceeded" | "rateLimitExceeded" | "serverOverloaded" | "cyberPolicy" | "misalignmentPolicyViolation" | "internalServerError" | "unauthorized" | "badRequest" | "threadRollbackFailed" | "sandboxError" | "other";
 
 export type V2HttpConnectionFailedCodexErrorInfo = {
     readonly "httpConnectionFailed": V2HttpConnectionFailedCodexErrorInfoHttpConnectionFailed;
@@ -2851,15 +3663,26 @@ export type V2CollabAgentState = {
 
 export type V2CollabAgentStatus = "pendingInit" | "running" | "interrupted" | "completed" | "errored" | "shutdown" | "notFound";
 
-export type V2CollabAgentTool = "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+export type V2CollabAgentTool = "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent" | "sendMessage" | "followupTask" | "interruptAgent" | "listAgents";
 
-export type V2CollabAgentToolCallStatus = "inProgress" | "completed" | "failed";
+export type V2CollabAgentToolCallStatus = "inProgress" | "completed" | "failed" | "interrupted";
 
 export type V2CollaborationMode = {
     readonly "mode": V2ModeKind;
     readonly "settings": V2Settings;
     readonly [key: string]: unknown;
 };
+
+export type V2CollaborationModeListParams = {
+    readonly [key: string]: unknown;
+};
+
+export type V2CollaborationModeListResponse = {
+    readonly "data": V2CollaborationModeListResponseData;
+    readonly [key: string]: unknown;
+};
+
+export type V2CollaborationModeListResponseData = ReadonlyArray<V2CollaborationModeMask>;
 
 export type V2CollaborationModeMask = {
     readonly "mode"?: V2CollaborationModeMaskMode;
@@ -2937,6 +3760,7 @@ export type V2CommandExecParams = {
     readonly "disableTimeout"?: boolean;
     readonly "env"?: V2CommandExecParamsEnv;
     readonly "outputBytesCap"?: number | null;
+    readonly "permissionProfile"?: string | null;
     readonly "processId"?: string | null;
     readonly "sandboxPolicy"?: V2CommandExecParamsSandboxPolicy;
     readonly "size"?: V2CommandExecParamsSize;
@@ -3109,6 +3933,7 @@ export type V2Config = {
     readonly "analytics"?: V2ConfigAnalytics;
     readonly "approval_policy"?: V2ConfigApprovalPolicy;
     readonly "approvals_reviewer"?: V2ConfigApprovalsReviewer;
+    readonly "apps"?: V2ConfigApps;
     readonly "browser_use"?: V2ConfigBrowserUse;
     readonly "compact_prompt"?: string | null;
     readonly "computer_use"?: V2ConfigComputerUse;
@@ -3139,6 +3964,8 @@ export type V2ConfigAnalytics = V2AnalyticsConfig | null;
 export type V2ConfigApprovalPolicy = V2AskForApproval | null;
 
 export type V2ConfigApprovalsReviewer = V2ApprovalsReviewer | null;
+
+export type V2ConfigApps = V2AppsConfig | null;
 
 export type V2ConfigBrowserUse = V2BrowserUseConfig | null;
 
@@ -3307,10 +4134,12 @@ export type V2ConfigRequirements = {
     readonly "allowManagedHooksOnly"?: boolean | null;
     readonly "allowRemoteControl"?: boolean | null;
     readonly "allowedApprovalPolicies"?: V2ConfigRequirementsAllowedApprovalPolicies;
+    readonly "allowedApprovalsReviewers"?: V2ConfigRequirementsAllowedApprovalsReviewers;
     readonly "allowedPermissionProfiles"?: V2ConfigRequirementsAllowedPermissionProfiles;
     readonly "allowedSandboxModes"?: V2ConfigRequirementsAllowedSandboxModes;
     readonly "allowedWebSearchModes"?: V2ConfigRequirementsAllowedWebSearchModes;
     readonly "allowedWindowsSandboxImplementations"?: V2ConfigRequirementsAllowedWindowsSandboxImplementations;
+    readonly "application"?: V2ConfigRequirementsApplication;
     readonly "autoReview"?: V2ConfigRequirementsAutoReview;
     readonly "browserUse"?: V2ConfigRequirementsBrowserUse;
     readonly "chatgptBaseUrl"?: string | null;
@@ -3321,16 +4150,20 @@ export type V2ConfigRequirements = {
     readonly "enforceResidency"?: V2ConfigRequirementsEnforceResidency;
     readonly "featureRequirements"?: V2ConfigRequirementsFeatureRequirements;
     readonly "feedback"?: V2ConfigRequirementsFeedback;
+    readonly "hooks"?: V2ConfigRequirementsHooks;
     readonly "inAppBrowser"?: V2ConfigRequirementsInAppBrowser;
     readonly "logDir"?: string | null;
     readonly "modelCatalogJson"?: string | null;
     readonly "models"?: V2ConfigRequirementsModels;
+    readonly "network"?: V2ConfigRequirementsNetwork;
     readonly "sqliteHome"?: string | null;
     readonly "windowsSandboxPrivateDesktop"?: boolean | null;
     readonly [key: string]: unknown;
 };
 
 export type V2ConfigRequirementsAllowedApprovalPolicies = ReadonlyArray<V2AskForApproval> | null;
+
+export type V2ConfigRequirementsAllowedApprovalsReviewers = ReadonlyArray<V2ApprovalsReviewer> | null;
 
 export type V2ConfigRequirementsAllowedPermissionProfiles = {
     readonly [key: string]: unknown;
@@ -3341,6 +4174,8 @@ export type V2ConfigRequirementsAllowedSandboxModes = ReadonlyArray<V2SandboxMod
 export type V2ConfigRequirementsAllowedWebSearchModes = ReadonlyArray<V2WebSearchMode> | null;
 
 export type V2ConfigRequirementsAllowedWindowsSandboxImplementations = ReadonlyArray<V2WindowsSandboxSetupMode> | null;
+
+export type V2ConfigRequirementsApplication = V2ApplicationRequirements | null;
 
 export type V2ConfigRequirementsAutoReview = V2AutoReviewRequirements | null;
 
@@ -3358,9 +4193,13 @@ export type V2ConfigRequirementsFeatureRequirements = {
 
 export type V2ConfigRequirementsFeedback = V2FeedbackRequirements | null;
 
+export type V2ConfigRequirementsHooks = V2ManagedHooksRequirements | null;
+
 export type V2ConfigRequirementsInAppBrowser = V2InAppBrowserRequirements | null;
 
 export type V2ConfigRequirementsModels = V2ModelsRequirements | null;
+
+export type V2ConfigRequirementsNetwork = V2NetworkRequirements | null;
 
 export type V2ConfigRequirementsReadResponse = {
     readonly "requirements"?: V2ConfigRequirementsReadResponseRequirements;
@@ -3399,6 +4238,11 @@ export type V2ConfigWriteResponse = {
 export type V2ConfigWriteResponseFilePath = V2AbsolutePathBuf;
 
 export type V2ConfigWriteResponseOverriddenMetadata = V2OverriddenMetadata | null;
+
+export type V2ConfigurationReasoning = {
+    readonly "effort": V2ReasoningEffort;
+    readonly [key: string]: unknown;
+};
 
 export type V2ConfiguredHookHandler = V2CommandConfiguredHookHandler | V2McpToolConfiguredHookHandler | V2PromptConfiguredHookHandler | V2AgentConfiguredHookHandler;
 
@@ -3543,6 +4387,8 @@ export type V2CreditsSnapshot = {
     readonly [key: string]: unknown;
 };
 
+export type V2CyberAccessProgram = "standard" | "daybreakBlue" | "daybreakRed";
+
 export type V2DeprecationNoticeNotification = {
     readonly "details"?: string | null;
     readonly "summary": string;
@@ -3617,11 +4463,64 @@ export type V2NamespaceDynamicToolSpecTools = ReadonlyArray<V2DynamicToolNamespa
 
 export type V2NamespaceDynamicToolSpecType = "namespace";
 
+export type V2EnvironmentAddParams = {
+    readonly "connectTimeoutMs"?: number | null;
+    readonly "environmentId": string;
+    readonly "execServerUrl": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2EnvironmentAddResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2EnvironmentConnectionNotification = {
     readonly "environmentId": string;
     readonly "threadId": string;
     readonly [key: string]: unknown;
 };
+
+export type V2EnvironmentInfoParams = {
+    readonly "environmentId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2EnvironmentInfoResponse = {
+    readonly "cwd"?: V2EnvironmentInfoResponseCwd;
+    readonly "shell": V2EnvironmentShellInfo;
+    readonly [key: string]: unknown;
+};
+
+export type V2EnvironmentInfoResponseCwd = V2PathUri | null;
+
+export type V2EnvironmentShellInfo = {
+    readonly "name": string;
+    readonly "path": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2EnvironmentStatusKind = V2EnvironmentStatusKindOneOf1 | V2EnvironmentStatusKindOneOf2 | V2EnvironmentStatusKindOneOf3 | V2EnvironmentStatusKindOneOf4;
+
+export type V2EnvironmentStatusKindOneOf1 = "ready";
+
+export type V2EnvironmentStatusKindOneOf2 = "pending";
+
+export type V2EnvironmentStatusKindOneOf3 = "disconnected";
+
+export type V2EnvironmentStatusKindOneOf4 = "unknown";
+
+export type V2EnvironmentStatusParams = {
+    readonly "environmentId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2EnvironmentStatusResponse = {
+    readonly "error"?: string | null;
+    readonly "status": V2EnvironmentStatusResponseStatus;
+    readonly [key: string]: unknown;
+};
+
+export type V2EnvironmentStatusResponseStatus = V2EnvironmentStatusKind;
 
 export type V2ErrorNotification = {
     readonly "error": V2TurnError;
@@ -4180,8 +5079,17 @@ export type V2GetAccountParams = {
     readonly [key: string]: unknown;
 };
 
+export type V2GetAccountRateLimitsParams = {
+    readonly "excludeResetCreditDetails"?: boolean;
+    readonly "supportsLunaReserve"?: boolean;
+    readonly [key: string]: unknown;
+};
+
 export type V2GetAccountRateLimitsResponse = {
+    readonly "accountId"?: string | null;
+    readonly "ordinaryUsageAllowed"?: boolean | null;
     readonly "rateLimitResetCredits"?: V2GetAccountRateLimitsResponseRateLimitResetCredits;
+    readonly "rateLimitUpsell"?: unknown;
     readonly "rateLimits": V2GetAccountRateLimitsResponseRateLimits;
     readonly "rateLimitsByLimitId"?: V2GetAccountRateLimitsResponseRateLimitsByLimitId;
     readonly [key: string]: unknown;
@@ -4246,11 +5154,11 @@ export type V2GuardianApprovalReviewRiskLevel = V2GuardianRiskLevel | null;
 
 export type V2GuardianApprovalReviewUserAuthorization = V2GuardianUserAuthorization | null;
 
-export type V2GuardianApprovalReviewAction = V2CommandGuardianApprovalReviewAction | V2ExecveGuardianApprovalReviewAction | V2ApplyPatchGuardianApprovalReviewAction | V2NetworkAccessGuardianApprovalReviewAction | V2McpToolCallGuardianApprovalReviewAction | V2RequestPermissionsGuardianApprovalReviewAction;
+export type V2GuardianApprovalReviewAction = V2CommandGuardianApprovalReviewAction | V2ExecveGuardianApprovalReviewAction | V2WriteStdinGuardianApprovalReviewAction | V2ApplyPatchGuardianApprovalReviewAction | V2NetworkAccessGuardianApprovalReviewAction | V2McpToolCallGuardianApprovalReviewAction | V2RequestPermissionsGuardianApprovalReviewAction;
 
 export type V2CommandGuardianApprovalReviewAction = {
     readonly "command": string;
-    readonly "cwd": V2AbsolutePathBuf;
+    readonly "cwd": V2LegacyAppPathString;
     readonly "source": V2GuardianCommandSource;
     readonly "type": V2CommandGuardianApprovalReviewActionType;
     readonly [key: string]: unknown;
@@ -4271,14 +5179,25 @@ export type V2ExecveGuardianApprovalReviewActionArgv = ReadonlyArray<string>;
 
 export type V2ExecveGuardianApprovalReviewActionType = "execve";
 
+export type V2WriteStdinGuardianApprovalReviewAction = {
+    readonly "approvalId": string;
+    readonly "cwd": V2LegacyAppPathString;
+    readonly "processId": string;
+    readonly "stdin": string;
+    readonly "type": V2WriteStdinGuardianApprovalReviewActionType;
+    readonly [key: string]: unknown;
+};
+
+export type V2WriteStdinGuardianApprovalReviewActionType = "writeStdin";
+
 export type V2ApplyPatchGuardianApprovalReviewAction = {
-    readonly "cwd": V2AbsolutePathBuf;
+    readonly "cwd": V2LegacyAppPathString;
     readonly "files": V2ApplyPatchGuardianApprovalReviewActionFiles;
     readonly "type": V2ApplyPatchGuardianApprovalReviewActionType;
     readonly [key: string]: unknown;
 };
 
-export type V2ApplyPatchGuardianApprovalReviewActionFiles = ReadonlyArray<V2AbsolutePathBuf>;
+export type V2ApplyPatchGuardianApprovalReviewActionFiles = ReadonlyArray<V2LegacyAppPathString>;
 
 export type V2ApplyPatchGuardianApprovalReviewActionType = "applyPatch";
 
@@ -4341,7 +5260,7 @@ export type V2HookErrorInfo = {
     readonly [key: string]: unknown;
 };
 
-export type V2HookEventName = "preToolUse" | "permissionRequest" | "postToolUse" | "preCompact" | "postCompact" | "sessionStart" | "sessionEnd" | "userPromptSubmit" | "subagentStart" | "subagentStop" | "stop";
+export type V2HookEventName = "preToolUse" | "permissionRequest" | "postToolUse" | "preCompact" | "postCompact" | "sessionStart" | "sessionEnd" | "userPromptSubmit" | "subagentStart" | "subagentStop" | "stop" | "interrupt";
 
 export type V2HookExecutionMode = "sync" | "async";
 
@@ -4586,7 +5505,7 @@ export type V2ExecLocalShellActionType = "exec";
 
 export type V2LocalShellStatus = "completed" | "in_progress" | "incomplete";
 
-export type V2LoginAccountParams = V2ApiKeyv2LoginAccountParams | V2Chatgptv2LoginAccountParams | V2ChatgptDeviceCodev2LoginAccountParams | V2ChatgptAuthTokensv2LoginAccountParams | V2AmazonBedrockv2LoginAccountParams;
+export type V2LoginAccountParams = V2ApiKeyv2LoginAccountParams | V2Chatgptv2LoginAccountParams | V2ChatgptDeviceCodev2LoginAccountParams | V2ChatgptAuthTokensv2LoginAccountParams | V2AmazonBedrockv2LoginAccountParams | V2AmazonBedrockAccessKeysv2LoginAccountParams;
 
 export type V2ApiKeyv2LoginAccountParams = {
     readonly "apiKey": string;
@@ -4633,6 +5552,17 @@ export type V2AmazonBedrockv2LoginAccountParams = {
 };
 
 export type V2AmazonBedrockv2LoginAccountParamsType = "amazonBedrock";
+
+export type V2AmazonBedrockAccessKeysv2LoginAccountParams = {
+    readonly "accessKeyId": string;
+    readonly "region": string;
+    readonly "secretAccessKey": string;
+    readonly "sessionToken"?: string | null;
+    readonly "type": V2AmazonBedrockAccessKeysv2LoginAccountParamsType;
+    readonly [key: string]: unknown;
+};
+
+export type V2AmazonBedrockAccessKeysv2LoginAccountParamsType = "amazonBedrockAccessKeys";
 
 export type V2LoginAccountResponse = V2ApiKeyv2LoginAccountResponse | V2Chatgptv2LoginAccountResponse | V2ChatgptDeviceCodev2LoginAccountResponse | V2ChatgptAuthTokensv2LoginAccountResponse | V2AmazonBedrockv2LoginAccountResponse;
 
@@ -4683,6 +5613,7 @@ export type V2LogoutAccountResponse = {
 };
 
 export type V2ManagedHooksRequirements = {
+    readonly "Interrupt"?: V2ManagedHooksRequirementsInterrupt;
     readonly "PermissionRequest": V2ManagedHooksRequirementsPermissionRequest;
     readonly "PostCompact": V2ManagedHooksRequirementsPostCompact;
     readonly "PostToolUse": V2ManagedHooksRequirementsPostToolUse;
@@ -4698,6 +5629,8 @@ export type V2ManagedHooksRequirements = {
     readonly "windowsManagedDir"?: string | null;
     readonly [key: string]: unknown;
 };
+
+export type V2ManagedHooksRequirementsInterrupt = ReadonlyArray<V2ConfiguredHookMatcherGroup>;
 
 export type V2ManagedHooksRequirementsPermissionRequest = ReadonlyArray<V2ConfiguredHookMatcherGroup>;
 
@@ -4818,6 +5751,29 @@ export type V2McpServerEventStreamNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2McpServerEventStreamStartParams = {
+    readonly "_meta"?: unknown;
+    readonly "arguments": unknown;
+    readonly "name": string;
+    readonly "server": string;
+    readonly "subscriptionId": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2McpServerEventStreamStartResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2McpServerEventStreamStopParams = {
+    readonly "subscriptionId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2McpServerEventStreamStopResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2McpServerInfo = {
     readonly "description"?: string | null;
     readonly "icons"?: V2McpServerInfoIcons;
@@ -4880,6 +5836,7 @@ export type V2McpServerStatus = {
     readonly "runtimeStatus"?: V2McpServerStatusRuntimeStatus;
     readonly "serverInfo"?: V2McpServerStatusServerInfo;
     readonly "tools": V2McpServerStatusTools;
+    readonly "toolsError"?: string | null;
     readonly [key: string]: unknown;
 };
 
@@ -4978,6 +5935,10 @@ export type V2MemoryCitationEntry = {
     readonly [key: string]: unknown;
 };
 
+export type V2MemoryResetResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2MergeStrategy = "replace" | "upsert";
 
 export type V2MessagePhase = V2MessagePhaseOneOf1 | V2MessagePhaseOneOf2;
@@ -5013,6 +5974,30 @@ export type V2MigrationDetailsSessions = ReadonlyArray<V2SessionMigration>;
 export type V2MigrationDetailsSkills = ReadonlyArray<V2SkillMigration>;
 
 export type V2MigrationDetailsSubagents = ReadonlyArray<V2SubagentMigration>;
+
+export type V2MisalignmentErrorDetails = {
+    readonly "detailedExplanation"?: string | null;
+    readonly "errorType"?: string | null;
+    readonly "steer"?: V2MisalignmentErrorDetailsSteer;
+    readonly [key: string]: unknown;
+};
+
+export type V2MisalignmentErrorDetailsSteer = V2MisalignmentSteer | null;
+
+export type V2MisalignmentSteer = {
+    readonly "message": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2MockExperimentalMethodParams = {
+    readonly "value"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2MockExperimentalMethodResponse = {
+    readonly "echoed"?: string | null;
+    readonly [key: string]: unknown;
+};
 
 export type V2ModeKind = "plan" | "default";
 
@@ -5203,7 +6188,13 @@ export type V2NewThreadModelDefaultsModelReasoningEffort = V2ReasoningEffort | n
 
 export type V2NonSteerableTurnKind = "review" | "compact";
 
+export type V2NullableGetAccountRateLimitsParams = V2GetAccountRateLimitsParams | null;
+
 export type V2NullableGetAccountTokenUsageParams = V2GetAccountTokenUsageParams | null;
+
+export type V2NullableRemoteControlDisableParams = V2RemoteControlDisableParams | null;
+
+export type V2NullableRemoteControlEnableParams = V2RemoteControlEnableParams | null;
 
 export type V2OverriddenMetadata = {
     readonly "effectiveValue": unknown;
@@ -5452,6 +6443,54 @@ export type V2PluginReadResponse = {
     readonly [key: string]: unknown;
 };
 
+export type V2PluginReconcileChangedPlugin = {
+    readonly "hasApps": boolean;
+    readonly "hasHooks": boolean;
+    readonly "hasMcps": boolean;
+    readonly "hasSkills": boolean;
+    readonly "id": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2PluginReconcileParams = {
+    readonly "reason"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2PluginReconcileResponse = {
+    readonly "changedPlugins": V2PluginReconcileResponseChangedPlugins;
+    readonly "failedMaterializationRemotePluginIds": V2PluginReconcileResponseFailedMaterializationRemotePluginIds;
+    readonly "failedRemotePluginIds": V2PluginReconcileResponseFailedRemotePluginIds;
+    readonly [key: string]: unknown;
+};
+
+export type V2PluginReconcileResponseChangedPlugins = ReadonlyArray<V2PluginReconcileChangedPlugin>;
+
+export type V2PluginReconcileResponseFailedMaterializationRemotePluginIds = ReadonlyArray<string>;
+
+export type V2PluginReconcileResponseFailedRemotePluginIds = ReadonlyArray<string>;
+
+export type V2PluginSearchParams = {
+    readonly "cursor"?: string | null;
+    readonly "cwds"?: V2PluginSearchParamsCwds;
+    readonly "limit"?: number | null;
+    readonly "scope"?: V2PluginSearchParamsScope;
+    readonly "searchTerm": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2PluginSearchParamsCwds = ReadonlyArray<V2AbsolutePathBuf> | null;
+
+export type V2PluginSearchParamsScope = V2PluginSearchScope | null;
+
+export type V2PluginSearchResponse = {
+    readonly "data": V2PluginSearchResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2PluginSearchResponseData = ReadonlyArray<V2PluginSearchResult>;
+
 export type V2PluginSearchResult = {
     readonly "marketplaceName": string;
     readonly "marketplacePath"?: V2PluginSearchResultMarketplacePath;
@@ -5698,6 +6737,15 @@ export type V2ProcessExitedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ProcessKillParams = {
+    readonly "processHandle": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProcessKillResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2ProcessOutputDeltaNotification = {
     readonly "capReached": boolean;
     readonly "deltaBase64": string;
@@ -5714,9 +6762,60 @@ export type V2ProcessOutputStreamOneOf1 = "stdout";
 
 export type V2ProcessOutputStreamOneOf2 = "stderr";
 
+export type V2ProcessResizePtyParams = {
+    readonly "processHandle": string;
+    readonly "size": V2ProcessResizePtyParamsSize;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProcessResizePtyParamsSize = V2ProcessTerminalSize;
+
+export type V2ProcessResizePtyResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ProcessSpawnParams = {
+    readonly "command": V2ProcessSpawnParamsCommand;
+    readonly "cwd": V2ProcessSpawnParamsCwd;
+    readonly "env"?: V2ProcessSpawnParamsEnv;
+    readonly "outputBytesCap"?: number | null;
+    readonly "processHandle": string;
+    readonly "size"?: V2ProcessSpawnParamsSize;
+    readonly "streamStdin"?: boolean;
+    readonly "streamStdoutStderr"?: boolean;
+    readonly "timeoutMs"?: number | null;
+    readonly "tty"?: boolean;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProcessSpawnParamsCommand = ReadonlyArray<string>;
+
+export type V2ProcessSpawnParamsCwd = V2AbsolutePathBuf;
+
+export type V2ProcessSpawnParamsEnv = {
+    readonly [key: string]: unknown;
+} | null;
+
+export type V2ProcessSpawnParamsSize = V2ProcessTerminalSize | null;
+
+export type V2ProcessSpawnResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2ProcessTerminalSize = {
     readonly "cols": number;
     readonly "rows": number;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProcessWriteStdinParams = {
+    readonly "closeStdin"?: boolean;
+    readonly "deltaBase64"?: string | null;
+    readonly "processHandle": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProcessWriteStdinResponse = {
     readonly [key: string]: unknown;
 };
 
@@ -5726,6 +6825,7 @@ export type V2Project = {
     readonly "metadata": V2ProjectMetadata;
     readonly "name": string;
     readonly "position": number;
+    readonly "recencyAt"?: number | null;
     readonly "roots": V2ProjectRoots;
     readonly "updatedAt": number;
     readonly [key: string]: unknown;
@@ -5745,8 +6845,119 @@ export type V2ProjectChangedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ProjectCreateParams = {
+    readonly "idempotencyKey": string;
+    readonly "metadata"?: V2ProjectCreateParamsMetadata;
+    readonly "name": string;
+    readonly "roots": V2ProjectCreateParamsRoots;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectCreateParamsMetadata = {
+    readonly [key: string]: unknown;
+} | null;
+
+export type V2ProjectCreateParamsRoots = ReadonlyArray<V2ProjectRoot>;
+
+export type V2ProjectCreateResponse = {
+    readonly "project": V2Project;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectDeleteParams = {
+    readonly "projectId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectDeleteResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectImportParams = {
+    readonly "idempotencyKey": string;
+    readonly "metadata"?: V2ProjectImportParamsMetadata;
+    readonly "name": string;
+    readonly "roots": V2ProjectImportParamsRoots;
+    readonly "threads"?: V2ProjectImportParamsThreads;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectImportParamsMetadata = {
+    readonly [key: string]: unknown;
+} | null;
+
+export type V2ProjectImportParamsRoots = ReadonlyArray<V2ProjectRoot>;
+
+export type V2ProjectImportParamsThreads = ReadonlyArray<string> | null;
+
+export type V2ProjectImportResponse = {
+    readonly "project": V2Project;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectListParams = {
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "sortDirection"?: V2ProjectListParamsSortDirection;
+    readonly "sortKey"?: V2ProjectListParamsSortKey;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectListParamsSortDirection = V2SortDirection | null;
+
+export type V2ProjectListParamsSortKey = V2ProjectSortKey | null;
+
+export type V2ProjectListResponse = {
+    readonly "data": V2ProjectListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectListResponseData = ReadonlyArray<V2Project>;
+
+export type V2ProjectMoveParams = {
+    readonly "beforeProjectId"?: string | null;
+    readonly "projectId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectMoveResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectReadParams = {
+    readonly "projectId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectReadResponse = {
+    readonly "project": V2Project;
+    readonly [key: string]: unknown;
+};
+
 export type V2ProjectRoot = {
     readonly "path": V2AbsolutePathBuf;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectSortKey = "position" | "recencyAt";
+
+export type V2ProjectUpdateParams = {
+    readonly "metadata"?: V2ProjectUpdateParamsMetadata;
+    readonly "name"?: string | null;
+    readonly "projectId": string;
+    readonly "roots"?: V2ProjectUpdateParamsRoots;
+    readonly [key: string]: unknown;
+};
+
+export type V2ProjectUpdateParamsMetadata = {
+    readonly [key: string]: unknown;
+} | null;
+
+export type V2ProjectUpdateParamsRoots = ReadonlyArray<V2ProjectRoot> | null;
+
+export type V2ProjectUpdateResponse = {
+    readonly "project": V2Project;
     readonly [key: string]: unknown;
 };
 
@@ -5789,6 +7000,7 @@ export type V2RateLimitSnapshot = {
     readonly "individualLimit"?: V2RateLimitSnapshotIndividualLimit;
     readonly "limitId"?: string | null;
     readonly "limitName"?: string | null;
+    readonly "normalModelSlug"?: string | null;
     readonly "planType"?: V2RateLimitSnapshotPlanType;
     readonly "primary"?: V2RateLimitSnapshotPrimary;
     readonly "rateLimitReachedType"?: V2RateLimitSnapshotRateLimitReachedType;
@@ -5821,10 +7033,13 @@ export type V2RawResponseCompletedNotification = {
     readonly "threadId": string;
     readonly "turnId": string;
     readonly "usage"?: V2RawResponseCompletedNotificationUsage;
+    readonly "usageMetadata"?: V2RawResponseCompletedNotificationUsageMetadata;
     readonly [key: string]: unknown;
 };
 
 export type V2RawResponseCompletedNotificationUsage = V2TokenUsageBreakdown | null;
+
+export type V2RawResponseCompletedNotificationUsageMetadata = V2ResponseUsageMetadata | null;
 
 export type V2RawResponseItemCompletedNotification = {
     readonly "item": V2ResponseItem;
@@ -5919,10 +7134,60 @@ export type V2ReasoningTextDeltaNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2RemoteControlClient = {
+    readonly "appVersion"?: string | null;
+    readonly "clientId": string;
+    readonly "deviceModel"?: string | null;
+    readonly "deviceType"?: string | null;
+    readonly "displayName"?: string | null;
+    readonly "lastSeenAt"?: number | null;
+    readonly "osVersion"?: string | null;
+    readonly "platform"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlClientsListOrder = "asc" | "desc";
+
+export type V2RemoteControlClientsListParams = {
+    readonly "cursor"?: string | null;
+    readonly "environmentId": string;
+    readonly "limit"?: number | null;
+    readonly "order"?: V2RemoteControlClientsListParamsOrder;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlClientsListParamsOrder = V2RemoteControlClientsListOrder | null;
+
+export type V2RemoteControlClientsListResponse = {
+    readonly "data": V2RemoteControlClientsListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlClientsListResponseData = ReadonlyArray<V2RemoteControlClient>;
+
+export type V2RemoteControlClientsRevokeParams = {
+    readonly "clientId": string;
+    readonly "environmentId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlClientsRevokeResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2RemoteControlConnectionStatus = "disabled" | "connecting" | "connected" | "errored";
 
 export type V2RemoteControlDisableParams = {
     readonly "ephemeral"?: boolean;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlDisableResponse = {
+    readonly "environmentId"?: string | null;
+    readonly "installationId": string;
+    readonly "serverName": string;
+    readonly "status": V2RemoteControlConnectionStatus;
     readonly [key: string]: unknown;
 };
 
@@ -5931,7 +7196,47 @@ export type V2RemoteControlEnableParams = {
     readonly [key: string]: unknown;
 };
 
+export type V2RemoteControlEnableResponse = {
+    readonly "environmentId"?: string | null;
+    readonly "installationId": string;
+    readonly "serverName": string;
+    readonly "status": V2RemoteControlConnectionStatus;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlPairingStartParams = {
+    readonly "manualCode"?: boolean;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlPairingStartResponse = {
+    readonly "environmentId": string;
+    readonly "expiresAt": number;
+    readonly "manualPairingCode"?: string | null;
+    readonly "pairingCode": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlPairingStatusParams = {
+    readonly "manualPairingCode"?: string | null;
+    readonly "pairingCode"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlPairingStatusResponse = {
+    readonly "claimed": boolean;
+    readonly [key: string]: unknown;
+};
+
 export type V2RemoteControlStatusChangedNotification = {
+    readonly "environmentId"?: string | null;
+    readonly "installationId": string;
+    readonly "serverName": string;
+    readonly "status": V2RemoteControlConnectionStatus;
+    readonly [key: string]: unknown;
+};
+
+export type V2RemoteControlStatusReadResponse = {
     readonly "environmentId"?: string | null;
     readonly "installationId": string;
     readonly "serverName": string;
@@ -5995,7 +7300,7 @@ export type V2ResourceTemplate = {
     readonly [key: string]: unknown;
 };
 
-export type V2ResponseItem = V2MessageResponseItem | V2AgentMessageResponseItem | V2ReasoningResponseItem | V2LocalShellCallResponseItem | V2FunctionCallResponseItem | V2ToolSearchCallResponseItem | V2FunctionCallOutputResponseItem | V2CustomToolCallResponseItem | V2CustomToolCallOutputResponseItem | V2ToolSearchOutputResponseItem | V2WebSearchCallResponseItem | V2ImageGenerationCallResponseItem | V2CompactionResponseItem | V2CompactionTriggerResponseItem | V2ContextCompactionResponseItem | V2OtherResponseItem;
+export type V2ResponseItem = V2MessageResponseItem | V2AgentMessageResponseItem | V2ReasoningResponseItem | V2LocalShellCallResponseItem | V2FunctionCallResponseItem | V2ToolSearchCallResponseItem | V2FunctionCallOutputResponseItem | V2CustomToolCallResponseItem | V2CustomToolCallOutputResponseItem | V2ToolSearchOutputResponseItem | V2WebSearchCallResponseItem | V2ImageGenerationCallResponseItem | V2CompactionResponseItem | V2ConfigurationUpdateResponseItem | V2CompactionTriggerResponseItem | V2ContextCompactionResponseItem | V2OtherResponseItem;
 
 export type V2MessageResponseItem = {
     readonly "content": V2MessageResponseItemContent;
@@ -6199,6 +7504,14 @@ export type V2CompactionResponseItemInternalChatMessageMetadataPassthrough = V2I
 
 export type V2CompactionResponseItemType = "compaction";
 
+export type V2ConfigurationUpdateResponseItem = {
+    readonly "reasoning": V2ConfigurationReasoning;
+    readonly "type": V2ConfigurationUpdateResponseItemType;
+    readonly [key: string]: unknown;
+};
+
+export type V2ConfigurationUpdateResponseItemType = "configuration_update";
+
 export type V2CompactionTriggerResponseItem = {
     readonly "type": V2CompactionTriggerResponseItemType;
     readonly [key: string]: unknown;
@@ -6224,6 +7537,12 @@ export type V2OtherResponseItem = {
 };
 
 export type V2OtherResponseItemType = "other";
+
+export type V2ResponseUsageMetadata = {
+    readonly "amount"?: string | null;
+    readonly "metadata"?: unknown;
+    readonly [key: string]: unknown;
+};
 
 export type V2ResponsesApiWebSearchAction = V2SearchResponsesApiWebSearchAction | V2OpenPageResponsesApiWebSearchAction | V2FindInPageResponsesApiWebSearchAction | V2OtherResponsesApiWebSearchAction;
 
@@ -6439,12 +7758,24 @@ export type V2ServerDiagnosticsGauge = {
     readonly [key: string]: unknown;
 };
 
+export type V2ServerDiagnosticsParams = {
+    readonly [key: string]: unknown;
+};
+
 export type V2ServerDiagnosticsProcess = {
     readonly "id": number;
     readonly "physicalFootprintBytes"?: number | null;
     readonly "residentMemoryBytes"?: number | null;
     readonly [key: string]: unknown;
 };
+
+export type V2ServerDiagnosticsResponse = {
+    readonly "gauges": V2ServerDiagnosticsResponseGauges;
+    readonly "process": V2ServerDiagnosticsProcess;
+    readonly [key: string]: unknown;
+};
+
+export type V2ServerDiagnosticsResponseGauges = ReadonlyArray<V2ServerDiagnosticsGauge>;
 
 export type V2ServerRequestResolvedNotification = {
     readonly "requestId": V2RequestId;
@@ -6516,6 +7847,7 @@ export type V2SkillMetadata = {
     readonly "interface"?: V2SkillMetadataInterface;
     readonly "name": string;
     readonly "path": V2AbsolutePathBuf;
+    readonly "pluginId"?: string | null;
     readonly "scope": V2SkillScope;
     readonly "shortDescription"?: string | null;
     readonly [key: string]: unknown;
@@ -6628,7 +7960,7 @@ export type V2StrictReviewRequiredNotification = {
     readonly [key: string]: unknown;
 };
 
-export type V2SubAgentActivityKind = "started" | "interacted" | "interrupted";
+export type V2SubAgentActivityKind = "started" | "interacted" | "interrupted" | "completed";
 
 export type V2SubAgentSource = V2SubAgentSourceOneOf1 | V2ThreadSpawnSubAgentSource | V2OtherSubAgentSource;
 
@@ -6690,19 +8022,27 @@ export type V2TextRange = {
 export type V2Thread = {
     readonly "agentNickname"?: string | null;
     readonly "agentRole"?: string | null;
+    readonly "canAcceptDirectInput"?: boolean | null;
     readonly "cliVersion": string;
     readonly "createdAt": number;
     readonly "cwd": V2ThreadCwd;
+    readonly "daybreakEnabled"?: boolean | null;
+    readonly "environments"?: V2ThreadEnvironments;
     readonly "ephemeral": boolean;
+    readonly "extra"?: V2ThreadExtra2;
     readonly "forkedFromId"?: string | null;
     readonly "gitInfo"?: V2ThreadGitInfo;
+    readonly "historyMode"?: V2ThreadHistoryMode2;
     readonly "id": string;
+    readonly "model"?: string | null;
     readonly "modelProvider": string;
     readonly "name"?: string | null;
+    readonly "originator"?: string | null;
     readonly "parentThreadId"?: string | null;
     readonly "path"?: string | null;
     readonly "preview": string;
     readonly "projectId": string | null;
+    readonly "reasoningEffort"?: V2ThreadReasoningEffort;
     readonly "recencyAt"?: number | null;
     readonly "section"?: V2ThreadSection2;
     readonly "sectionEnteredAt"?: number | null;
@@ -6717,7 +8057,15 @@ export type V2Thread = {
 
 export type V2ThreadCwd = V2AbsolutePathBuf;
 
+export type V2ThreadEnvironments = ReadonlyArray<V2ThreadEnvironment> | null;
+
+export type V2ThreadExtra2 = V2ThreadExtra | null;
+
 export type V2ThreadGitInfo = V2GitInfo | null;
+
+export type V2ThreadHistoryMode2 = V2ThreadHistoryMode;
+
+export type V2ThreadReasoningEffort = V2ReasoningEffort | null;
 
 export type V2ThreadSection2 = V2ThreadSection | null;
 
@@ -6755,6 +8103,52 @@ export type V2ThreadArchivedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadBackgroundTerminal = {
+    readonly "command": string;
+    readonly "cpuPercent"?: number | null;
+    readonly "cwd": V2LegacyAppPathString;
+    readonly "itemId": string;
+    readonly "osPid"?: number | null;
+    readonly "processId": string;
+    readonly "rssKb"?: number | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadBackgroundTerminalsCleanParams = {
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadBackgroundTerminalsCleanResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadBackgroundTerminalsListParams = {
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadBackgroundTerminalsListResponse = {
+    readonly "data": V2ThreadBackgroundTerminalsListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadBackgroundTerminalsListResponseData = ReadonlyArray<V2ThreadBackgroundTerminal>;
+
+export type V2ThreadBackgroundTerminalsTerminateParams = {
+    readonly "processId": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadBackgroundTerminalsTerminateResponse = {
+    readonly "terminated": boolean;
+    readonly [key: string]: unknown;
+};
+
 export type V2ThreadClosedNotification = {
     readonly "threadId": string;
     readonly [key: string]: unknown;
@@ -6766,6 +8160,17 @@ export type V2ThreadCompactStartParams = {
 };
 
 export type V2ThreadCompactStartResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadDecrementElicitationParams = {
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadDecrementElicitationResponse = {
+    readonly "count": number;
+    readonly "paused": boolean;
     readonly [key: string]: unknown;
 };
 
@@ -6783,6 +8188,15 @@ export type V2ThreadDeletedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadEnvironment = {
+    readonly "cwd": V2LegacyAppPathString;
+    readonly "environmentId": string;
+    readonly "runtimeWorkspaceRoots": V2ThreadEnvironmentRuntimeWorkspaceRoots;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadEnvironmentRuntimeWorkspaceRoots = ReadonlyArray<V2LegacyAppPathString>;
+
 export type V2ThreadExtra = {
     readonly [key: string]: unknown;
 };
@@ -6791,13 +8205,19 @@ export type V2ThreadForkParams = {
     readonly "approvalPolicy"?: V2ThreadForkParamsApprovalPolicy;
     readonly "approvalsReviewer"?: V2ThreadForkParamsApprovalsReviewer;
     readonly "baseInstructions"?: string | null;
+    readonly "beforeTurnId"?: string | null;
     readonly "config"?: V2ThreadForkParamsConfig;
     readonly "cwd"?: string | null;
+    readonly "deferGoalContinuation"?: boolean;
     readonly "developerInstructions"?: string | null;
     readonly "ephemeral"?: boolean;
+    readonly "excludeTurns"?: boolean;
     readonly "lastTurnId"?: string | null;
     readonly "model"?: string | null;
     readonly "modelProvider"?: string | null;
+    readonly "path"?: string | null;
+    readonly "permissions"?: string | null;
+    readonly "runtimeWorkspaceRoots"?: V2ThreadForkParamsRuntimeWorkspaceRoots;
     readonly "sandbox"?: V2ThreadForkParamsSandbox;
     readonly "serviceTier"?: string | null;
     readonly "threadId": string;
@@ -6813,29 +8233,40 @@ export type V2ThreadForkParamsConfig = {
     readonly [key: string]: unknown;
 } | null;
 
+export type V2ThreadForkParamsRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf> | null;
+
 export type V2ThreadForkParamsSandbox = V2SandboxMode | null;
 
 export type V2ThreadForkParamsThreadSource = V2ThreadSource | null;
 
 export type V2ThreadForkResponse = {
+    readonly "activePermissionProfile"?: V2ThreadForkResponseActivePermissionProfile;
     readonly "approvalPolicy": V2AskForApproval;
     readonly "approvalsReviewer": V2ThreadForkResponseApprovalsReviewer;
     readonly "cwd": V2AbsolutePathBuf;
     readonly "instructionSources"?: V2ThreadForkResponseInstructionSources;
     readonly "model": string;
     readonly "modelProvider": string;
+    readonly "multiAgentMode"?: V2ThreadForkResponseMultiAgentMode;
     readonly "reasoningEffort"?: V2ThreadForkResponseReasoningEffort;
+    readonly "runtimeWorkspaceRoots"?: V2ThreadForkResponseRuntimeWorkspaceRoots;
     readonly "sandbox": V2ThreadForkResponseSandbox;
     readonly "serviceTier"?: string | null;
     readonly "thread": V2Thread;
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadForkResponseActivePermissionProfile = V2ActivePermissionProfile | null;
+
 export type V2ThreadForkResponseApprovalsReviewer = V2ApprovalsReviewer;
 
 export type V2ThreadForkResponseInstructionSources = ReadonlyArray<V2LegacyAppPathString>;
 
+export type V2ThreadForkResponseMultiAgentMode = V2MultiAgentMode;
+
 export type V2ThreadForkResponseReasoningEffort = V2ReasoningEffort | null;
+
+export type V2ThreadForkResponseRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf>;
 
 export type V2ThreadForkResponseSandbox = V2SandboxPolicy;
 
@@ -6906,6 +8337,17 @@ export type V2ThreadHistoryMode = "legacy" | "paginated";
 
 export type V2ThreadId = string;
 
+export type V2ThreadIncrementElicitationParams = {
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadIncrementElicitationResponse = {
+    readonly "count": number;
+    readonly "paused": boolean;
+    readonly [key: string]: unknown;
+};
+
 export type V2ThreadInjectItemsParams = {
     readonly "items": V2ThreadInjectItemsParamsItems;
     readonly "threadId": string;
@@ -6918,7 +8360,7 @@ export type V2ThreadInjectItemsResponse = {
     readonly [key: string]: unknown;
 };
 
-export type V2ThreadItem = V2UserMessageThreadItem | V2HookPromptThreadItem | V2AgentMessageThreadItem | V2PlanThreadItem | V2ReasoningThreadItem | V2CommandExecutionThreadItem | V2FileChangeThreadItem | V2McpToolCallThreadItem | V2DynamicToolCallThreadItem | V2CollabAgentToolCallThreadItem | V2SubAgentActivityThreadItem | V2WebSearchThreadItem | V2ImageViewThreadItem | V2SleepThreadItem | V2ImageGenerationThreadItem | V2EnteredReviewModeThreadItem | V2ExitedReviewModeThreadItem | V2ContextCompactionThreadItem;
+export type V2ThreadItem = V2UserMessageThreadItem | V2HookPromptThreadItem | V2AgentMessageThreadItem | V2FunctionCallOutputThreadItem | V2PlanThreadItem | V2ReasoningThreadItem | V2CommandExecutionThreadItem | V2FileChangeThreadItem | V2McpToolCallThreadItem | V2DynamicToolCallThreadItem | V2CollabAgentToolCallThreadItem | V2SubAgentActivityThreadItem | V2WebSearchThreadItem | V2ImageViewThreadItem | V2SleepThreadItem | V2ImageGenerationThreadItem | V2EnteredReviewModeThreadItem | V2ExitedReviewModeThreadItem | V2ContextCompactionThreadItem;
 
 export type V2UserMessageThreadItem = {
     readonly "clientId"?: string | null;
@@ -6948,6 +8390,7 @@ export type V2AgentMessageThreadItem = {
     readonly "id": string;
     readonly "memoryCitation"?: V2AgentMessageThreadItemMemoryCitation;
     readonly "phase"?: V2AgentMessageThreadItemPhase;
+    readonly "questions"?: V2AgentMessageThreadItemQuestions;
     readonly "text": string;
     readonly "type": V2AgentMessageThreadItemType;
     readonly [key: string]: unknown;
@@ -6959,7 +8402,20 @@ export type V2AgentMessageThreadItemMemoryCitation = V2MemoryCitation | null;
 
 export type V2AgentMessageThreadItemPhase = V2MessagePhase | null;
 
+export type V2AgentMessageThreadItemQuestions = ReadonlyArray<V2AsyncUserInputQuestion> | null;
+
 export type V2AgentMessageThreadItemType = "agentMessage";
+
+export type V2FunctionCallOutputThreadItem = {
+    readonly "id": string;
+    readonly "name": string;
+    readonly "namespace"?: string | null;
+    readonly "output": V2FunctionCallOutputBody;
+    readonly "type": V2FunctionCallOutputThreadItemType;
+    readonly [key: string]: unknown;
+};
+
+export type V2FunctionCallOutputThreadItemType = "functionCallOutput";
 
 export type V2PlanThreadItem = {
     readonly "id": string;
@@ -7185,16 +8641,40 @@ export type V2ThreadItemEntry = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadItemsListParams = {
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "sortDirection"?: V2ThreadItemsListParamsSortDirection;
+    readonly "threadId": string;
+    readonly "turnId"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadItemsListParamsSortDirection = V2SortDirection | null;
+
+export type V2ThreadItemsListResponse = {
+    readonly "backwardsCursor"?: string | null;
+    readonly "data": V2ThreadItemsListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadItemsListResponseData = ReadonlyArray<V2ThreadItemEntry>;
+
 export type V2ThreadListCwdFilter = string | V2ThreadListCwdFilterAnyOf2;
 
 export type V2ThreadListCwdFilterAnyOf2 = ReadonlyArray<string>;
 
 export type V2ThreadListParams = {
+    readonly "ancestorThreadId"?: string | null;
     readonly "archived"?: boolean | null;
     readonly "cursor"?: string | null;
     readonly "cwd"?: V2ThreadListParamsCwd;
     readonly "limit"?: number | null;
     readonly "modelProviders"?: V2ThreadListParamsModelProviders;
+    readonly "originators"?: V2ThreadListParamsOriginators;
+    readonly "parentThreadId"?: string | null;
+    readonly "projectId"?: string | null;
     readonly "searchTerm"?: string | null;
     readonly "sectionId"?: string | null;
     readonly "sortDirection"?: V2ThreadListParamsSortDirection;
@@ -7207,6 +8687,8 @@ export type V2ThreadListParams = {
 export type V2ThreadListParamsCwd = V2ThreadListCwdFilter | null;
 
 export type V2ThreadListParamsModelProviders = ReadonlyArray<string> | null;
+
+export type V2ThreadListParamsOriginators = ReadonlyArray<string> | null;
 
 export type V2ThreadListParamsSortDirection = V2SortDirection | null;
 
@@ -7239,6 +8721,16 @@ export type V2ThreadLoadedListResponseData = ReadonlyArray<string>;
 
 export type V2ThreadMemoryMode = "enabled" | "disabled";
 
+export type V2ThreadMemoryModeSetParams = {
+    readonly "mode": V2ThreadMemoryMode;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadMemoryModeSetResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2ThreadMetadataGitInfoUpdateParams = {
     readonly "branch"?: string | null;
     readonly "originUrl"?: string | null;
@@ -7247,7 +8739,9 @@ export type V2ThreadMetadataGitInfoUpdateParams = {
 };
 
 export type V2ThreadMetadataUpdateParams = {
+    readonly "daybreakEnabled"?: boolean | null;
     readonly "gitInfo"?: V2ThreadMetadataUpdateParamsGitInfo;
+    readonly "projectId"?: string | null;
     readonly "threadId": string;
     readonly [key: string]: unknown;
 };
@@ -7271,8 +8765,85 @@ export type V2ThreadProjectUpdatedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadQueueAddParams = {
+    readonly "clientUserMessageId": string;
+    readonly "input": V2ThreadQueueAddParamsInput;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueAddParamsInput = ReadonlyArray<V2UserInput>;
+
+export type V2ThreadQueueAddResponse = {
+    readonly "queuedSubmission": V2QueuedSubmission;
+    readonly [key: string]: unknown;
+};
+
 export type V2ThreadQueueChangedNotification = {
     readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueDeleteParams = {
+    readonly "queuedSubmissionId": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueDeleteResponse = {
+    readonly "deleted": boolean;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueListParams = {
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueListResponse = {
+    readonly "data": V2ThreadQueueListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueListResponseData = ReadonlyArray<V2QueuedSubmission>;
+
+export type V2ThreadQueueReorderParams = {
+    readonly "queuedSubmissionIds": V2ThreadQueueReorderParamsQueuedSubmissionIds;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueReorderParamsQueuedSubmissionIds = ReadonlyArray<string>;
+
+export type V2ThreadQueueReorderResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueStartParams = {
+    readonly "queuedSubmissionId"?: string | null;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueStartResponse = {
+    readonly "turn": V2Turn;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueUpdateParams = {
+    readonly "input": V2ThreadQueueUpdateParamsInput;
+    readonly "queuedSubmissionId": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadQueueUpdateParamsInput = ReadonlyArray<V2UserInput>;
+
+export type V2ThreadQueueUpdateResponse = {
+    readonly "queuedSubmission": V2QueuedSubmission;
     readonly [key: string]: unknown;
 };
 
@@ -7287,6 +8858,39 @@ export type V2ThreadReadResponse = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadRealtimeAppendAudioParams = {
+    readonly "audio": V2ThreadRealtimeAudioChunk;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeAppendAudioResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeAppendSpeechParams = {
+    readonly "text": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeAppendSpeechResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeAppendTextParams = {
+    readonly "role"?: V2ThreadRealtimeAppendTextParamsRole;
+    readonly "text": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeAppendTextParamsRole = V2ConversationTextRole;
+
+export type V2ThreadRealtimeAppendTextResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2ThreadRealtimeAudioChunk = {
     readonly "data": string;
     readonly "itemId"?: string | null;
@@ -7295,6 +8899,30 @@ export type V2ThreadRealtimeAudioChunk = {
     readonly "samplesPerChannel"?: number | null;
     readonly [key: string]: unknown;
 };
+
+export type V2ThreadRealtimeBemItemPresentation = V2WholeItemThreadRealtimeBemItemPresentation | V2InlineMarkdownThreadRealtimeBemItemPresentation | V2InlineVisualizationThreadRealtimeBemItemPresentation;
+
+export type V2WholeItemThreadRealtimeBemItemPresentation = {
+    readonly "type": V2WholeItemThreadRealtimeBemItemPresentationType;
+    readonly [key: string]: unknown;
+};
+
+export type V2WholeItemThreadRealtimeBemItemPresentationType = "wholeItem";
+
+export type V2InlineMarkdownThreadRealtimeBemItemPresentation = {
+    readonly "type": V2InlineMarkdownThreadRealtimeBemItemPresentationType;
+    readonly [key: string]: unknown;
+};
+
+export type V2InlineMarkdownThreadRealtimeBemItemPresentationType = "inlineMarkdown";
+
+export type V2InlineVisualizationThreadRealtimeBemItemPresentation = {
+    readonly "index": number;
+    readonly "type": V2InlineVisualizationThreadRealtimeBemItemPresentationType;
+    readonly [key: string]: unknown;
+};
+
+export type V2InlineVisualizationThreadRealtimeBemItemPresentationType = "inlineVisualization";
 
 export type V2ThreadRealtimeClosedNotification = {
     readonly "reason"?: string | null;
@@ -7314,9 +8942,73 @@ export type V2ThreadRealtimeInitialItem = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadRealtimeItem = V2RealtimeSessionStartedThreadRealtimeItem | V2TranscriptSegmentThreadRealtimeItem | V2BemItemPromotedThreadRealtimeItem | V2RealtimeSessionClosedThreadRealtimeItem;
+
+export type V2RealtimeSessionStartedThreadRealtimeItem = {
+    readonly "type": V2RealtimeSessionStartedThreadRealtimeItemType;
+    readonly [key: string]: unknown;
+};
+
+export type V2RealtimeSessionStartedThreadRealtimeItemType = "realtimeSessionStarted";
+
+export type V2TranscriptSegmentThreadRealtimeItem = {
+    readonly "role": V2ThreadRealtimeTranscriptRole;
+    readonly "text": string;
+    readonly "type": V2TranscriptSegmentThreadRealtimeItemType;
+    readonly [key: string]: unknown;
+};
+
+export type V2TranscriptSegmentThreadRealtimeItemType = "transcriptSegment";
+
+export type V2BemItemPromotedThreadRealtimeItem = {
+    readonly "item_id": string;
+    readonly "presentation": V2ThreadRealtimeBemItemPresentation;
+    readonly "turn_id": string;
+    readonly "type": V2BemItemPromotedThreadRealtimeItemType;
+    readonly [key: string]: unknown;
+};
+
+export type V2BemItemPromotedThreadRealtimeItemType = "bemItemPromoted";
+
+export type V2RealtimeSessionClosedThreadRealtimeItem = {
+    readonly "outcome": V2ThreadRealtimeSessionOutcome;
+    readonly "type": V2RealtimeSessionClosedThreadRealtimeItemType;
+    readonly [key: string]: unknown;
+};
+
+export type V2RealtimeSessionClosedThreadRealtimeItemType = "realtimeSessionClosed";
+
 export type V2ThreadRealtimeItemAddedNotification = {
     readonly "item": unknown;
     readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeItemCompletedNotification = {
+    readonly "item": V2ThreadRealtimeItem;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeItemStartedNotification = {
+    readonly "item": V2ThreadRealtimeItem;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeItemTranscriptDeltaNotification = {
+    readonly "delta": string;
+    readonly "itemId": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeListVoicesParams = {
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeListVoicesResponse = {
+    readonly "voices": V2RealtimeVoicesList;
     readonly [key: string]: unknown;
 };
 
@@ -7329,6 +9021,51 @@ export type V2ThreadRealtimeOutputAudioDeltaNotification = {
 export type V2ThreadRealtimeSdpNotification = {
     readonly "sdp": string;
     readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeSessionOutcome = "ended" | "failed";
+
+export type V2ThreadRealtimeStartParams = {
+    readonly "clientManagedHandoffs"?: boolean | null;
+    readonly "codexResponseHandoffChannelPrefixes"?: V2ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes;
+    readonly "codexResponseHandoffMode"?: V2ThreadRealtimeStartParamsCodexResponseHandoffMode;
+    readonly "codexResponseItemPrefix"?: string | null;
+    readonly "codexResponsesAsItems"?: boolean | null;
+    readonly "delegationAckFiller"?: boolean | null;
+    readonly "flushTranscriptTailOnSessionEnd"?: boolean | null;
+    readonly "includeStartupContext"?: boolean | null;
+    readonly "initialItems"?: V2ThreadRealtimeStartParamsInitialItems;
+    readonly "model"?: string | null;
+    readonly "outputModality": V2ThreadRealtimeStartParamsOutputModality;
+    readonly "prompt"?: string | null;
+    readonly "realtimeEndInstructions"?: string | null;
+    readonly "realtimeSessionId"?: string | null;
+    readonly "realtimeStartInstructions"?: string | null;
+    readonly "threadId": string;
+    readonly "transport"?: V2ThreadRealtimeStartParamsTransport;
+    readonly "version"?: V2ThreadRealtimeStartParamsVersion;
+    readonly "voice"?: V2ThreadRealtimeStartParamsVoice;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeStartParamsCodexResponseHandoffChannelPrefixes = {
+    readonly [key: string]: unknown;
+} | null;
+
+export type V2ThreadRealtimeStartParamsCodexResponseHandoffMode = V2CodexResponseHandoffMode | null;
+
+export type V2ThreadRealtimeStartParamsInitialItems = ReadonlyArray<V2ThreadRealtimeInitialItem> | null;
+
+export type V2ThreadRealtimeStartParamsOutputModality = V2RealtimeOutputModality;
+
+export type V2ThreadRealtimeStartParamsTransport = V2ThreadRealtimeStartTransport | null;
+
+export type V2ThreadRealtimeStartParamsVersion = V2RealtimeConversationVersion | null;
+
+export type V2ThreadRealtimeStartParamsVoice = V2RealtimeVoice | null;
+
+export type V2ThreadRealtimeStartResponse = {
     readonly [key: string]: unknown;
 };
 
@@ -7364,6 +9101,15 @@ export type V2ThreadRealtimeStartedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadRealtimeStopParams = {
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRealtimeStopResponse = {
+    readonly [key: string]: unknown;
+};
+
 export type V2ThreadRealtimeTranscriptDeltaNotification = {
     readonly "delta": string;
     readonly "role": string;
@@ -7377,6 +9123,8 @@ export type V2ThreadRealtimeTranscriptDoneNotification = {
     readonly "threadId": string;
     readonly [key: string]: unknown;
 };
+
+export type V2ThreadRealtimeTranscriptRole = "user" | "assistant";
 
 export type V2ThreadResumeInitialTurnsPageParams = {
     readonly "itemsView"?: V2ThreadResumeInitialTurnsPageParamsItemsView;
@@ -7396,9 +9144,15 @@ export type V2ThreadResumeParams = {
     readonly "config"?: V2ThreadResumeParamsConfig;
     readonly "cwd"?: string | null;
     readonly "developerInstructions"?: string | null;
+    readonly "excludeTurns"?: boolean;
+    readonly "history"?: V2ThreadResumeParamsHistory;
+    readonly "initialTurnsPage"?: V2ThreadResumeParamsInitialTurnsPage;
     readonly "model"?: string | null;
     readonly "modelProvider"?: string | null;
+    readonly "path"?: string | null;
+    readonly "permissions"?: string | null;
     readonly "personality"?: V2ThreadResumeParamsPersonality;
+    readonly "runtimeWorkspaceRoots"?: V2ThreadResumeParamsRuntimeWorkspaceRoots;
     readonly "sandbox"?: V2ThreadResumeParamsSandbox;
     readonly "serviceTier"?: string | null;
     readonly "threadId": string;
@@ -7413,31 +9167,66 @@ export type V2ThreadResumeParamsConfig = {
     readonly [key: string]: unknown;
 } | null;
 
+export type V2ThreadResumeParamsHistory = ReadonlyArray<V2ResponseItem> | null;
+
+export type V2ThreadResumeParamsInitialTurnsPage = V2ThreadResumeInitialTurnsPageParams | null;
+
 export type V2ThreadResumeParamsPersonality = V2Personality | null;
+
+export type V2ThreadResumeParamsRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf> | null;
 
 export type V2ThreadResumeParamsSandbox = V2SandboxMode | null;
 
 export type V2ThreadResumeResponse = {
+    readonly "activePermissionProfile"?: V2ThreadResumeResponseActivePermissionProfile;
     readonly "approvalPolicy": V2AskForApproval;
     readonly "approvalsReviewer": V2ThreadResumeResponseApprovalsReviewer;
     readonly "cwd": V2AbsolutePathBuf;
+    readonly "initialTurnsPage"?: V2ThreadResumeResponseInitialTurnsPage;
     readonly "instructionSources"?: V2ThreadResumeResponseInstructionSources;
+    readonly "itemsBackwardsCursor"?: string | null;
     readonly "model": string;
     readonly "modelProvider": string;
+    readonly "multiAgentMode"?: V2ThreadResumeResponseMultiAgentMode;
     readonly "reasoningEffort"?: V2ThreadResumeResponseReasoningEffort;
+    readonly "runtimeWorkspaceRoots"?: V2ThreadResumeResponseRuntimeWorkspaceRoots;
     readonly "sandbox": V2ThreadResumeResponseSandbox;
     readonly "serviceTier"?: string | null;
     readonly "thread": V2Thread;
+    readonly "turnsBackwardsCursor"?: string | null;
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadResumeResponseActivePermissionProfile = V2ActivePermissionProfile | null;
+
 export type V2ThreadResumeResponseApprovalsReviewer = V2ApprovalsReviewer;
+
+export type V2ThreadResumeResponseInitialTurnsPage = V2TurnsPage | null;
 
 export type V2ThreadResumeResponseInstructionSources = ReadonlyArray<V2LegacyAppPathString>;
 
+export type V2ThreadResumeResponseMultiAgentMode = V2MultiAgentMode;
+
 export type V2ThreadResumeResponseReasoningEffort = V2ReasoningEffort | null;
 
+export type V2ThreadResumeResponseRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf>;
+
 export type V2ThreadResumeResponseSandbox = V2SandboxPolicy;
+
+export type V2ThreadRevertParams = {
+    readonly "beforeTurnId": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRevertResponse = {
+    readonly "itemsBackwardsCursor"?: string | null;
+    readonly "thread": V2ThreadRevertResponseThread;
+    readonly "turnsBackwardsCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadRevertResponseThread = V2Thread;
 
 export type V2ThreadRevertedNotification = {
     readonly "threadId": string;
@@ -7457,6 +9246,59 @@ export type V2ThreadRollbackResponse = {
 
 export type V2ThreadRollbackResponseThread = V2Thread;
 
+export type V2ThreadSearchOccurrence = {
+    readonly "itemId": string;
+    readonly "snippet": string;
+    readonly "snippetMatchRange": V2ThreadSearchOccurrenceSnippetMatchRange;
+    readonly "turnCursor": string;
+    readonly "turnId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadSearchOccurrenceSnippetMatchRange = V2ThreadSearchTextRange;
+
+export type V2ThreadSearchOccurrencesParams = {
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "searchTerm": string;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadSearchOccurrencesResponse = {
+    readonly "data": V2ThreadSearchOccurrencesResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadSearchOccurrencesResponseData = ReadonlyArray<V2ThreadSearchOccurrence>;
+
+export type V2ThreadSearchParams = {
+    readonly "archived"?: boolean | null;
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "searchTerm": string;
+    readonly "sortDirection"?: V2ThreadSearchParamsSortDirection;
+    readonly "sortKey"?: V2ThreadSearchParamsSortKey;
+    readonly "sourceKinds"?: V2ThreadSearchParamsSourceKinds;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadSearchParamsSortDirection = V2SortDirection | null;
+
+export type V2ThreadSearchParamsSortKey = V2ThreadSearchSortKey | null;
+
+export type V2ThreadSearchParamsSourceKinds = ReadonlyArray<V2ThreadSourceKind> | null;
+
+export type V2ThreadSearchResponse = {
+    readonly "backwardsCursor"?: string | null;
+    readonly "data": V2ThreadSearchResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadSearchResponseData = ReadonlyArray<V2ThreadSearchResult>;
+
 export type V2ThreadSearchResult = {
     readonly "snippet": string;
     readonly "thread": V2Thread;
@@ -7464,6 +9306,12 @@ export type V2ThreadSearchResult = {
 };
 
 export type V2ThreadSearchSortKey = "created_at" | "updated_at" | "recency_at";
+
+export type V2ThreadSearchTextRange = {
+    readonly "end": number;
+    readonly "start": number;
+    readonly [key: string]: unknown;
+};
 
 export type V2ThreadSection = {
     readonly "appearance"?: V2ThreadSectionAppearance2;
@@ -7560,6 +9408,7 @@ export type V2ThreadSettings = {
     readonly "effort"?: V2ThreadSettingsEffort;
     readonly "model": string;
     readonly "modelProvider": string;
+    readonly "multiAgentMode"?: V2ThreadSettingsMultiAgentMode;
     readonly "personality"?: V2ThreadSettingsPersonality;
     readonly "sandboxPolicy": V2SandboxPolicy;
     readonly "serviceTier"?: string | null;
@@ -7571,9 +9420,48 @@ export type V2ThreadSettingsActivePermissionProfile = V2ActivePermissionProfile 
 
 export type V2ThreadSettingsEffort = V2ReasoningEffort | null;
 
+export type V2ThreadSettingsMultiAgentMode = V2MultiAgentMode;
+
 export type V2ThreadSettingsPersonality = V2Personality | null;
 
 export type V2ThreadSettingsSummary = V2ReasoningSummary | null;
+
+export type V2ThreadSettingsUpdateParams = {
+    readonly "approvalPolicy"?: V2ThreadSettingsUpdateParamsApprovalPolicy;
+    readonly "approvalsReviewer"?: V2ThreadSettingsUpdateParamsApprovalsReviewer;
+    readonly "collaborationMode"?: V2ThreadSettingsUpdateParamsCollaborationMode;
+    readonly "cwd"?: string | null;
+    readonly "effort"?: V2ThreadSettingsUpdateParamsEffort;
+    readonly "model"?: string | null;
+    readonly "multiAgentMode"?: V2ThreadSettingsUpdateParamsMultiAgentMode;
+    readonly "permissions"?: string | null;
+    readonly "personality"?: V2ThreadSettingsUpdateParamsPersonality;
+    readonly "sandboxPolicy"?: V2ThreadSettingsUpdateParamsSandboxPolicy;
+    readonly "serviceTier"?: string | null;
+    readonly "summary"?: V2ThreadSettingsUpdateParamsSummary;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadSettingsUpdateParamsApprovalPolicy = V2AskForApproval | null;
+
+export type V2ThreadSettingsUpdateParamsApprovalsReviewer = V2ApprovalsReviewer | null;
+
+export type V2ThreadSettingsUpdateParamsCollaborationMode = V2CollaborationMode | null;
+
+export type V2ThreadSettingsUpdateParamsEffort = V2ReasoningEffort | null;
+
+export type V2ThreadSettingsUpdateParamsMultiAgentMode = V2MultiAgentMode | null;
+
+export type V2ThreadSettingsUpdateParamsPersonality = V2Personality | null;
+
+export type V2ThreadSettingsUpdateParamsSandboxPolicy = V2SandboxPolicy | null;
+
+export type V2ThreadSettingsUpdateParamsSummary = V2ReasoningSummary | null;
+
+export type V2ThreadSettingsUpdateResponse = {
+    readonly [key: string]: unknown;
+};
 
 export type V2ThreadSettingsUpdatedNotification = {
     readonly "threadId": string;
@@ -7584,6 +9472,7 @@ export type V2ThreadSettingsUpdatedNotification = {
 export type V2ThreadShellCommandParams = {
     readonly "command": string;
     readonly "threadId": string;
+    readonly "timeoutMs"?: number | null;
     readonly [key: string]: unknown;
 };
 
@@ -7598,17 +9487,28 @@ export type V2ThreadSource = string;
 export type V2ThreadSourceKind = "cli" | "vscode" | "exec" | "appServer" | "subAgent" | "subAgentReview" | "subAgentCompact" | "subAgentThreadSpawn" | "subAgentOther" | "unknown";
 
 export type V2ThreadStartParams = {
+    readonly "allowProviderModelFallback"?: boolean;
     readonly "approvalPolicy"?: V2ThreadStartParamsApprovalPolicy;
     readonly "approvalsReviewer"?: V2ThreadStartParamsApprovalsReviewer;
     readonly "baseInstructions"?: string | null;
     readonly "config"?: V2ThreadStartParamsConfig;
     readonly "cwd"?: string | null;
     readonly "developerInstructions"?: string | null;
+    readonly "dynamicTools"?: V2ThreadStartParamsDynamicTools;
+    readonly "environments"?: V2ThreadStartParamsEnvironments;
     readonly "ephemeral"?: boolean | null;
+    readonly "experimentalRawEvents"?: boolean;
+    readonly "historyMode"?: V2ThreadStartParamsHistoryMode;
+    readonly "mockExperimentalField"?: string | null;
     readonly "model"?: string | null;
     readonly "modelProvider"?: string | null;
+    readonly "multiAgentMode"?: V2ThreadStartParamsMultiAgentMode;
+    readonly "permissions"?: string | null;
     readonly "personality"?: V2ThreadStartParamsPersonality;
+    readonly "projectId"?: string | null;
+    readonly "runtimeWorkspaceRoots"?: V2ThreadStartParamsRuntimeWorkspaceRoots;
     readonly "sandbox"?: V2ThreadStartParamsSandbox;
+    readonly "selectedCapabilityRoots"?: V2ThreadStartParamsSelectedCapabilityRoots;
     readonly "serviceName"?: string | null;
     readonly "serviceTier"?: string | null;
     readonly "sessionStartSource"?: V2ThreadStartParamsSessionStartSource;
@@ -7624,33 +9524,54 @@ export type V2ThreadStartParamsConfig = {
     readonly [key: string]: unknown;
 } | null;
 
+export type V2ThreadStartParamsDynamicTools = ReadonlyArray<V2DynamicToolSpec> | null;
+
+export type V2ThreadStartParamsEnvironments = ReadonlyArray<V2TurnEnvironmentParams> | null;
+
+export type V2ThreadStartParamsHistoryMode = V2ThreadHistoryMode | null;
+
+export type V2ThreadStartParamsMultiAgentMode = V2MultiAgentMode | null;
+
 export type V2ThreadStartParamsPersonality = V2Personality | null;
 
+export type V2ThreadStartParamsRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf> | null;
+
 export type V2ThreadStartParamsSandbox = V2SandboxMode | null;
+
+export type V2ThreadStartParamsSelectedCapabilityRoots = ReadonlyArray<V2SelectedCapabilityRoot> | null;
 
 export type V2ThreadStartParamsSessionStartSource = V2ThreadStartSource | null;
 
 export type V2ThreadStartParamsThreadSource = V2ThreadSource | null;
 
 export type V2ThreadStartResponse = {
+    readonly "activePermissionProfile"?: V2ThreadStartResponseActivePermissionProfile;
     readonly "approvalPolicy": V2AskForApproval;
     readonly "approvalsReviewer": V2ThreadStartResponseApprovalsReviewer;
     readonly "cwd": V2AbsolutePathBuf;
     readonly "instructionSources"?: V2ThreadStartResponseInstructionSources;
     readonly "model": string;
     readonly "modelProvider": string;
+    readonly "multiAgentMode"?: V2ThreadStartResponseMultiAgentMode;
     readonly "reasoningEffort"?: V2ThreadStartResponseReasoningEffort;
+    readonly "runtimeWorkspaceRoots"?: V2ThreadStartResponseRuntimeWorkspaceRoots;
     readonly "sandbox": V2ThreadStartResponseSandbox;
     readonly "serviceTier"?: string | null;
     readonly "thread": V2Thread;
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadStartResponseActivePermissionProfile = V2ActivePermissionProfile | null;
+
 export type V2ThreadStartResponseApprovalsReviewer = V2ApprovalsReviewer;
 
 export type V2ThreadStartResponseInstructionSources = ReadonlyArray<V2LegacyAppPathString>;
 
+export type V2ThreadStartResponseMultiAgentMode = V2MultiAgentMode;
+
 export type V2ThreadStartResponseReasoningEffort = V2ReasoningEffort | null;
+
+export type V2ThreadStartResponseRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf>;
 
 export type V2ThreadStartResponseSandbox = V2SandboxPolicy;
 
@@ -7700,6 +9621,69 @@ export type V2ThreadStatusChangedNotification = {
     readonly [key: string]: unknown;
 };
 
+export type V2ThreadTimelineEntry = V2ItemThreadTimelineEntry | V2RealtimeThreadTimelineEntry | V2TurnStartedThreadTimelineEntry | V2TurnCompletedThreadTimelineEntry;
+
+export type V2ItemThreadTimelineEntry = {
+    readonly "item": V2ThreadItem;
+    readonly "position": number;
+    readonly "turnId": string;
+    readonly "type": V2ItemThreadTimelineEntryType;
+    readonly [key: string]: unknown;
+};
+
+export type V2ItemThreadTimelineEntryType = "item";
+
+export type V2RealtimeThreadTimelineEntry = {
+    readonly "item": V2ThreadRealtimeItem;
+    readonly "position": number;
+    readonly "type": V2RealtimeThreadTimelineEntryType;
+    readonly [key: string]: unknown;
+};
+
+export type V2RealtimeThreadTimelineEntryType = "realtime";
+
+export type V2TurnStartedThreadTimelineEntry = {
+    readonly "position": number;
+    readonly "started_at"?: number | null;
+    readonly "turn_id": string;
+    readonly "type": V2TurnStartedThreadTimelineEntryType;
+    readonly [key: string]: unknown;
+};
+
+export type V2TurnStartedThreadTimelineEntryType = "turnStarted";
+
+export type V2TurnCompletedThreadTimelineEntry = {
+    readonly "completed_at"?: number | null;
+    readonly "duration_ms"?: number | null;
+    readonly "error"?: V2TurnCompletedThreadTimelineEntryError;
+    readonly "position": number;
+    readonly "started_at"?: number | null;
+    readonly "status": V2TurnStatus;
+    readonly "turn_id": string;
+    readonly "type": V2TurnCompletedThreadTimelineEntryType;
+    readonly [key: string]: unknown;
+};
+
+export type V2TurnCompletedThreadTimelineEntryError = V2TurnError | null;
+
+export type V2TurnCompletedThreadTimelineEntryType = "turnCompleted";
+
+export type V2ThreadTimelineListParams = {
+    readonly "cursor"?: string | null;
+    readonly "limit"?: number | null;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadTimelineListResponse = {
+    readonly "activeRealtimeSessionAtPageStart"?: string | null;
+    readonly "data": V2ThreadTimelineListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadTimelineListResponseData = ReadonlyArray<V2ThreadTimelineEntry>;
+
 export type V2ThreadTokenUsage = {
     readonly "last": V2TokenUsageBreakdown;
     readonly "modelContextWindow"?: number | null;
@@ -7713,6 +9697,28 @@ export type V2ThreadTokenUsageUpdatedNotification = {
     readonly "turnId": string;
     readonly [key: string]: unknown;
 };
+
+export type V2ThreadTurnsListParams = {
+    readonly "cursor"?: string | null;
+    readonly "itemsView"?: V2ThreadTurnsListParamsItemsView;
+    readonly "limit"?: number | null;
+    readonly "sortDirection"?: V2ThreadTurnsListParamsSortDirection;
+    readonly "threadId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadTurnsListParamsItemsView = V2TurnItemsView | null;
+
+export type V2ThreadTurnsListParamsSortDirection = V2SortDirection | null;
+
+export type V2ThreadTurnsListResponse = {
+    readonly "backwardsCursor"?: string | null;
+    readonly "data": V2ThreadTurnsListResponseData;
+    readonly "nextCursor"?: string | null;
+    readonly [key: string]: unknown;
+};
+
+export type V2ThreadTurnsListResponseData = ReadonlyArray<V2Turn>;
 
 export type V2ThreadUnarchiveParams = {
     readonly "threadId": string;
@@ -7839,10 +9845,13 @@ export type V2TurnError = {
     readonly "additionalDetails"?: string | null;
     readonly "codexErrorInfo"?: V2TurnErrorCodexErrorInfo;
     readonly "message": string;
+    readonly "misalignment"?: V2TurnErrorMisalignment;
     readonly [key: string]: unknown;
 };
 
 export type V2TurnErrorCodexErrorInfo = V2CodexErrorInfo | null;
+
+export type V2TurnErrorMisalignment = V2MisalignmentErrorDetails | null;
 
 export type V2TurnInterruptParams = {
     readonly "threadId": string;
@@ -7887,36 +9896,94 @@ export type V2TurnPlanUpdatedNotification = {
 
 export type V2TurnPlanUpdatedNotificationPlan = ReadonlyArray<V2TurnPlanStep>;
 
+export type V2TurnSettingsUpdateParams = {
+    readonly "approvalsReviewer"?: V2TurnSettingsUpdateParamsApprovalsReviewer;
+    readonly "effort"?: V2TurnSettingsUpdateParamsEffort;
+    readonly "model"?: string | null;
+    readonly "serviceTier"?: string | null;
+    readonly "summary"?: V2TurnSettingsUpdateParamsSummary;
+    readonly "threadId": string;
+    readonly "turnId": string;
+};
+
+export type V2TurnSettingsUpdateParamsApprovalsReviewer = V2ApprovalsReviewer | null;
+
+export type V2TurnSettingsUpdateParamsEffort = V2ReasoningEffort | null;
+
+export type V2TurnSettingsUpdateParamsSummary = V2ReasoningSummary | null;
+
+export type V2TurnSettingsUpdateResponse = {
+    readonly "status": V2TurnSettingsUpdateStatus;
+    readonly [key: string]: unknown;
+};
+
+export type V2TurnSettingsUpdateStatus = V2TurnSettingsUpdateStatusOneOf1 | V2TurnSettingsUpdateStatusOneOf2;
+
+export type V2TurnSettingsUpdateStatusOneOf1 = "applied";
+
+export type V2TurnSettingsUpdateStatusOneOf2 = "targetUnavailable";
+
 export type V2TurnStartParams = {
+    readonly "additionalContext"?: V2TurnStartParamsAdditionalContext;
     readonly "approvalPolicy"?: V2TurnStartParamsApprovalPolicy;
     readonly "approvalsReviewer"?: V2TurnStartParamsApprovalsReviewer;
     readonly "clientUserMessageId"?: string | null;
+    readonly "collaborationMode"?: V2TurnStartParamsCollaborationMode;
     readonly "cwd"?: string | null;
+    readonly "cyberAccessProgram"?: V2TurnStartParamsCyberAccessProgram;
     readonly "effort"?: V2TurnStartParamsEffort;
+    readonly "environments"?: V2TurnStartParamsEnvironments;
     readonly "input": V2TurnStartParamsInput;
     readonly "model"?: string | null;
+    readonly "multiAgentMode"?: V2TurnStartParamsMultiAgentMode;
     readonly "outputSchema"?: unknown;
+    readonly "permissions"?: string | null;
     readonly "personality"?: V2TurnStartParamsPersonality;
+    readonly "responsesapiClientMetadata"?: V2TurnStartParamsResponsesapiClientMetadata;
+    readonly "runtimeWorkspaceRoots"?: V2TurnStartParamsRuntimeWorkspaceRoots;
     readonly "sandboxPolicy"?: V2TurnStartParamsSandboxPolicy;
     readonly "serviceTier"?: string | null;
+    readonly "serviceTierForTurn"?: string | null;
     readonly "summary"?: V2TurnStartParamsSummary;
     readonly "threadId": string;
+    readonly "toolOutput"?: V2TurnStartParamsToolOutput;
+    readonly "turnTrigger"?: string | null;
     readonly [key: string]: unknown;
 };
+
+export type V2TurnStartParamsAdditionalContext = {
+    readonly [key: string]: unknown;
+} | null;
 
 export type V2TurnStartParamsApprovalPolicy = V2AskForApproval | null;
 
 export type V2TurnStartParamsApprovalsReviewer = V2ApprovalsReviewer | null;
 
+export type V2TurnStartParamsCollaborationMode = V2CollaborationMode | null;
+
+export type V2TurnStartParamsCyberAccessProgram = V2CyberAccessProgram | null;
+
 export type V2TurnStartParamsEffort = V2ReasoningEffort | null;
+
+export type V2TurnStartParamsEnvironments = ReadonlyArray<V2TurnEnvironmentParams> | null;
 
 export type V2TurnStartParamsInput = ReadonlyArray<V2UserInput>;
 
+export type V2TurnStartParamsMultiAgentMode = V2MultiAgentMode | null;
+
 export type V2TurnStartParamsPersonality = V2Personality | null;
+
+export type V2TurnStartParamsResponsesapiClientMetadata = {
+    readonly [key: string]: unknown;
+} | null;
+
+export type V2TurnStartParamsRuntimeWorkspaceRoots = ReadonlyArray<V2AbsolutePathBuf> | null;
 
 export type V2TurnStartParamsSandboxPolicy = V2SandboxPolicy | null;
 
 export type V2TurnStartParamsSummary = V2ReasoningSummary | null;
+
+export type V2TurnStartParamsToolOutput = V2TurnToolOutput | null;
 
 export type V2TurnStartResponse = {
     readonly "turn": V2Turn;
@@ -7932,17 +9999,34 @@ export type V2TurnStartedNotification = {
 export type V2TurnStatus = "completed" | "interrupted" | "failed" | "inProgress";
 
 export type V2TurnSteerParams = {
+    readonly "additionalContext"?: V2TurnSteerParamsAdditionalContext;
     readonly "clientUserMessageId"?: string | null;
     readonly "expectedTurnId": string;
     readonly "input": V2TurnSteerParamsInput;
+    readonly "responsesapiClientMetadata"?: V2TurnSteerParamsResponsesapiClientMetadata;
     readonly "threadId": string;
     readonly [key: string]: unknown;
 };
 
+export type V2TurnSteerParamsAdditionalContext = {
+    readonly [key: string]: unknown;
+} | null;
+
 export type V2TurnSteerParamsInput = ReadonlyArray<V2UserInput>;
+
+export type V2TurnSteerParamsResponsesapiClientMetadata = {
+    readonly [key: string]: unknown;
+} | null;
 
 export type V2TurnSteerResponse = {
     readonly "turnId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2TurnToolOutput = {
+    readonly "name": string;
+    readonly "namespace"?: string | null;
+    readonly "output": V2FunctionCallOutputBody;
     readonly [key: string]: unknown;
 };
 
@@ -8023,6 +10107,90 @@ export type V2MentionUserInput = {
 };
 
 export type V2MentionUserInputType = "mention";
+
+export type V2UserVerificationCancellationReason = "userCancelled" | "interrupted";
+
+export type V2UserVerificationDeleteParams = Record<string, never>;
+
+export type V2UserVerificationDeleteResponse = {
+    readonly [key: string]: unknown;
+};
+
+export type V2UserVerificationEnrollParams = Record<string, never>;
+
+export type V2UserVerificationEnrollResponse = {
+    readonly "credentialId": string;
+    readonly [key: string]: unknown;
+};
+
+export type V2UserVerificationErrorDetails = V2InvalidRequestUserVerificationErrorDetails | V2UnavailableUserVerificationErrorDetails | V2CancelledUserVerificationErrorDetails | V2FailedUserVerificationErrorDetails;
+
+export type V2InvalidRequestUserVerificationErrorDetails = {
+    readonly "reason": V2UserVerificationInvalidRequestReason;
+    readonly "type": V2InvalidRequestUserVerificationErrorDetailsType;
+};
+
+export type V2InvalidRequestUserVerificationErrorDetailsType = "invalidRequest";
+
+export type V2UnavailableUserVerificationErrorDetails = {
+    readonly "reason": V2UserVerificationUnavailableReason;
+    readonly "type": V2UnavailableUserVerificationErrorDetailsType;
+};
+
+export type V2UnavailableUserVerificationErrorDetailsType = "unavailable";
+
+export type V2CancelledUserVerificationErrorDetails = {
+    readonly "reason": V2UserVerificationCancellationReason;
+    readonly "type": V2CancelledUserVerificationErrorDetailsType;
+};
+
+export type V2CancelledUserVerificationErrorDetailsType = "cancelled";
+
+export type V2FailedUserVerificationErrorDetails = {
+    readonly "reason": V2UserVerificationFailureReason;
+    readonly "type": V2FailedUserVerificationErrorDetailsType;
+};
+
+export type V2FailedUserVerificationErrorDetailsType = "failed";
+
+export type V2UserVerificationFailureReason = "authenticationFailed" | "timeout" | "providerError" | "serviceError";
+
+export type V2UserVerificationInvalidRequestReason = "invalidParams";
+
+export type V2UserVerificationProof = {
+    readonly "credentialId": string;
+    readonly "signature": string;
+};
+
+export type V2UserVerificationRpcError = {
+    readonly "code": number;
+    readonly "data": V2UserVerificationErrorDetails;
+    readonly "message": string;
+};
+
+export type V2UserVerificationStatusParams = Record<string, never>;
+
+export type V2UserVerificationStatusResponse = {
+    readonly "credentialId"?: string | null;
+    readonly "unavailableMessage"?: string | null;
+    readonly "unavailableReason"?: V2UserVerificationStatusResponseUnavailableReason;
+    readonly [key: string]: unknown;
+};
+
+export type V2UserVerificationStatusResponseUnavailableReason = V2UserVerificationUnavailableReason | null;
+
+export type V2UserVerificationUnavailableReason = "credentialMissing" | "biometricsUnavailable" | "providerUnavailable";
+
+export type V2UserVerificationVerifyParams = {
+    readonly "challenge": string;
+    readonly "description": string;
+    readonly "title": string;
+};
+
+export type V2UserVerificationVerifyResponse = {
+    readonly "proof": V2UserVerificationProof;
+    readonly [key: string]: unknown;
+};
 
 export type V2Verbosity = "low" | "medium" | "high";
 
@@ -8145,30 +10313,61 @@ export type V2WriteStatus = "ok" | "okOverridden";
 
 export interface ClientRequestMap {
     readonly "initialize": { readonly params: RootInitializeParams; readonly response: RootInitializeResponse; readonly paramsRequired: true; };
+    readonly "server/diagnostics": { readonly params: V2ServerDiagnosticsParams; readonly response: V2ServerDiagnosticsResponse; readonly paramsRequired: true; };
+    readonly "userVerification/status": { readonly params: V2UserVerificationStatusParams; readonly response: V2UserVerificationStatusResponse; readonly paramsRequired: true; };
+    readonly "userVerification/enroll": { readonly params: V2UserVerificationEnrollParams; readonly response: V2UserVerificationEnrollResponse; readonly paramsRequired: true; };
+    readonly "userVerification/delete": { readonly params: V2UserVerificationDeleteParams; readonly response: V2UserVerificationDeleteResponse; readonly paramsRequired: true; };
+    readonly "userVerification/verify": { readonly params: V2UserVerificationVerifyParams; readonly response: V2UserVerificationVerifyResponse; readonly paramsRequired: true; };
     readonly "thread/start": { readonly params: V2ThreadStartParams; readonly response: V2ThreadStartResponse; readonly paramsRequired: true; };
     readonly "thread/resume": { readonly params: V2ThreadResumeParams; readonly response: V2ThreadResumeResponse; readonly paramsRequired: true; };
     readonly "thread/fork": { readonly params: V2ThreadForkParams; readonly response: V2ThreadForkResponse; readonly paramsRequired: true; };
     readonly "thread/archive": { readonly params: V2ThreadArchiveParams; readonly response: V2ThreadArchiveResponse; readonly paramsRequired: true; };
     readonly "thread/delete": { readonly params: V2ThreadDeleteParams; readonly response: V2ThreadDeleteResponse; readonly paramsRequired: true; };
     readonly "thread/unsubscribe": { readonly params: V2ThreadUnsubscribeParams; readonly response: V2ThreadUnsubscribeResponse; readonly paramsRequired: true; };
+    readonly "thread/increment_elicitation": { readonly params: V2ThreadIncrementElicitationParams; readonly response: V2ThreadIncrementElicitationResponse; readonly paramsRequired: true; };
+    readonly "thread/decrement_elicitation": { readonly params: V2ThreadDecrementElicitationParams; readonly response: V2ThreadDecrementElicitationResponse; readonly paramsRequired: true; };
     readonly "thread/name/set": { readonly params: V2ThreadSetNameParams; readonly response: V2ThreadSetNameResponse; readonly paramsRequired: true; };
     readonly "thread/goal/set": { readonly params: V2ThreadGoalSetParams; readonly response: V2ThreadGoalSetResponse; readonly paramsRequired: true; };
     readonly "thread/goal/get": { readonly params: V2ThreadGoalGetParams; readonly response: V2ThreadGoalGetResponse; readonly paramsRequired: true; };
     readonly "thread/goal/clear": { readonly params: V2ThreadGoalClearParams; readonly response: V2ThreadGoalClearResponse; readonly paramsRequired: true; };
+    readonly "thread/queue/add": { readonly params: V2ThreadQueueAddParams; readonly response: V2ThreadQueueAddResponse; readonly paramsRequired: true; };
+    readonly "thread/queue/list": { readonly params: V2ThreadQueueListParams; readonly response: V2ThreadQueueListResponse; readonly paramsRequired: true; };
+    readonly "thread/queue/update": { readonly params: V2ThreadQueueUpdateParams; readonly response: V2ThreadQueueUpdateResponse; readonly paramsRequired: true; };
+    readonly "thread/queue/delete": { readonly params: V2ThreadQueueDeleteParams; readonly response: V2ThreadQueueDeleteResponse; readonly paramsRequired: true; };
+    readonly "thread/queue/reorder": { readonly params: V2ThreadQueueReorderParams; readonly response: V2ThreadQueueReorderResponse; readonly paramsRequired: true; };
+    readonly "thread/queue/start": { readonly params: V2ThreadQueueStartParams; readonly response: V2ThreadQueueStartResponse; readonly paramsRequired: true; };
     readonly "thread/metadata/update": { readonly params: V2ThreadMetadataUpdateParams; readonly response: V2ThreadMetadataUpdateResponse; readonly paramsRequired: true; };
     readonly "thread/section/move": { readonly params: V2ThreadSectionMoveParams; readonly response: V2ThreadSectionMoveResponse; readonly paramsRequired: true; };
+    readonly "thread/settings/update": { readonly params: V2ThreadSettingsUpdateParams; readonly response: V2ThreadSettingsUpdateResponse; readonly paramsRequired: true; };
+    readonly "thread/memoryMode/set": { readonly params: V2ThreadMemoryModeSetParams; readonly response: V2ThreadMemoryModeSetResponse; readonly paramsRequired: true; };
+    readonly "memory/reset": { readonly params: unknown; readonly response: V2MemoryResetResponse; readonly paramsRequired: false; };
     readonly "thread/unarchive": { readonly params: V2ThreadUnarchiveParams; readonly response: V2ThreadUnarchiveResponse; readonly paramsRequired: true; };
     readonly "thread/compact/start": { readonly params: V2ThreadCompactStartParams; readonly response: V2ThreadCompactStartResponse; readonly paramsRequired: true; };
     readonly "thread/shellCommand": { readonly params: V2ThreadShellCommandParams; readonly response: V2ThreadShellCommandResponse; readonly paramsRequired: true; };
     readonly "thread/approveGuardianDeniedAction": { readonly params: V2ThreadApproveGuardianDeniedActionParams; readonly response: V2ThreadApproveGuardianDeniedActionResponse; readonly paramsRequired: true; };
+    readonly "thread/backgroundTerminals/clean": { readonly params: V2ThreadBackgroundTerminalsCleanParams; readonly response: V2ThreadBackgroundTerminalsCleanResponse; readonly paramsRequired: true; };
+    readonly "thread/backgroundTerminals/list": { readonly params: V2ThreadBackgroundTerminalsListParams; readonly response: V2ThreadBackgroundTerminalsListResponse; readonly paramsRequired: true; };
+    readonly "thread/backgroundTerminals/terminate": { readonly params: V2ThreadBackgroundTerminalsTerminateParams; readonly response: V2ThreadBackgroundTerminalsTerminateResponse; readonly paramsRequired: true; };
     readonly "thread/rollback": { readonly params: V2ThreadRollbackParams; readonly response: V2ThreadRollbackResponse; readonly paramsRequired: true; };
+    readonly "thread/revert": { readonly params: V2ThreadRevertParams; readonly response: V2ThreadRevertResponse; readonly paramsRequired: true; };
     readonly "thread/list": { readonly params: V2ThreadListParams; readonly response: V2ThreadListResponse; readonly paramsRequired: true; };
+    readonly "project/list": { readonly params: V2ProjectListParams; readonly response: V2ProjectListResponse; readonly paramsRequired: true; };
+    readonly "project/read": { readonly params: V2ProjectReadParams; readonly response: V2ProjectReadResponse; readonly paramsRequired: true; };
+    readonly "project/create": { readonly params: V2ProjectCreateParams; readonly response: V2ProjectCreateResponse; readonly paramsRequired: true; };
+    readonly "project/import": { readonly params: V2ProjectImportParams; readonly response: V2ProjectImportResponse; readonly paramsRequired: true; };
+    readonly "project/update": { readonly params: V2ProjectUpdateParams; readonly response: V2ProjectUpdateResponse; readonly paramsRequired: true; };
+    readonly "project/move": { readonly params: V2ProjectMoveParams; readonly response: V2ProjectMoveResponse; readonly paramsRequired: true; };
+    readonly "project/delete": { readonly params: V2ProjectDeleteParams; readonly response: V2ProjectDeleteResponse; readonly paramsRequired: true; };
     readonly "threadSection/list": { readonly params: V2ThreadSectionListParams; readonly response: V2ThreadSectionListResponse; readonly paramsRequired: true; };
     readonly "threadSection/create": { readonly params: V2ThreadSectionCreateParams; readonly response: V2ThreadSectionCreateResponse; readonly paramsRequired: true; };
     readonly "threadSection/update": { readonly params: V2ThreadSectionUpdateParams; readonly response: V2ThreadSectionUpdateResponse; readonly paramsRequired: true; };
     readonly "threadSection/delete": { readonly params: V2ThreadSectionDeleteParams; readonly response: V2ThreadSectionDeleteResponse; readonly paramsRequired: true; };
+    readonly "thread/search": { readonly params: V2ThreadSearchParams; readonly response: V2ThreadSearchResponse; readonly paramsRequired: true; };
+    readonly "thread/searchOccurrences": { readonly params: V2ThreadSearchOccurrencesParams; readonly response: V2ThreadSearchOccurrencesResponse; readonly paramsRequired: true; };
     readonly "thread/loaded/list": { readonly params: V2ThreadLoadedListParams; readonly response: V2ThreadLoadedListResponse; readonly paramsRequired: true; };
     readonly "thread/read": { readonly params: V2ThreadReadParams; readonly response: V2ThreadReadResponse; readonly paramsRequired: true; };
+    readonly "thread/turns/list": { readonly params: V2ThreadTurnsListParams; readonly response: V2ThreadTurnsListResponse; readonly paramsRequired: true; };
+    readonly "thread/items/list": { readonly params: V2ThreadItemsListParams; readonly response: V2ThreadItemsListResponse; readonly paramsRequired: true; };
     readonly "thread/inject_items": { readonly params: V2ThreadInjectItemsParams; readonly response: V2ThreadInjectItemsResponse; readonly paramsRequired: true; };
     readonly "skills/list": { readonly params: V2SkillsListParams; readonly response: V2SkillsListResponse; readonly paramsRequired: true; };
     readonly "skills/extraRoots/set": { readonly params: V2SkillsExtraRootsSetParams; readonly response: V2SkillsExtraRootsSetResponse; readonly paramsRequired: true; };
@@ -8177,7 +10376,9 @@ export interface ClientRequestMap {
     readonly "marketplace/remove": { readonly params: V2MarketplaceRemoveParams; readonly response: V2MarketplaceRemoveResponse; readonly paramsRequired: true; };
     readonly "marketplace/upgrade": { readonly params: V2MarketplaceUpgradeParams; readonly response: V2MarketplaceUpgradeResponse; readonly paramsRequired: true; };
     readonly "plugin/list": { readonly params: V2PluginListParams; readonly response: V2PluginListResponse; readonly paramsRequired: true; };
+    readonly "plugin/search": { readonly params: V2PluginSearchParams; readonly response: V2PluginSearchResponse; readonly paramsRequired: true; };
     readonly "plugin/installed": { readonly params: V2PluginInstalledParams; readonly response: V2PluginInstalledResponse; readonly paramsRequired: true; };
+    readonly "plugin/reconcile": { readonly params: V2PluginReconcileParams; readonly response: V2PluginReconcileResponse; readonly paramsRequired: true; };
     readonly "plugin/read": { readonly params: V2PluginReadParams; readonly response: V2PluginReadResponse; readonly paramsRequired: true; };
     readonly "plugin/skill/read": { readonly params: V2PluginSkillReadParams; readonly response: V2PluginSkillReadResponse; readonly paramsRequired: true; };
     readonly "plugin/share/save": { readonly params: V2PluginShareSaveParams; readonly response: V2PluginShareSaveResponse; readonly paramsRequired: true; };
@@ -8201,22 +10402,46 @@ export interface ClientRequestMap {
     readonly "plugin/install": { readonly params: V2PluginInstallParams; readonly response: V2PluginInstallResponse; readonly paramsRequired: true; };
     readonly "plugin/uninstall": { readonly params: V2PluginUninstallParams; readonly response: V2PluginUninstallResponse; readonly paramsRequired: true; };
     readonly "turn/start": { readonly params: V2TurnStartParams; readonly response: V2TurnStartResponse; readonly paramsRequired: true; };
+    readonly "turn/settings/update": { readonly params: V2TurnSettingsUpdateParams; readonly response: V2TurnSettingsUpdateResponse; readonly paramsRequired: true; };
     readonly "turn/steer": { readonly params: V2TurnSteerParams; readonly response: V2TurnSteerResponse; readonly paramsRequired: true; };
     readonly "turn/interrupt": { readonly params: V2TurnInterruptParams; readonly response: V2TurnInterruptResponse; readonly paramsRequired: true; };
+    readonly "thread/realtime/start": { readonly params: V2ThreadRealtimeStartParams; readonly response: V2ThreadRealtimeStartResponse; readonly paramsRequired: true; };
+    readonly "thread/realtime/appendAudio": { readonly params: V2ThreadRealtimeAppendAudioParams; readonly response: V2ThreadRealtimeAppendAudioResponse; readonly paramsRequired: true; };
+    readonly "thread/realtime/appendText": { readonly params: V2ThreadRealtimeAppendTextParams; readonly response: V2ThreadRealtimeAppendTextResponse; readonly paramsRequired: true; };
+    readonly "thread/realtime/appendSpeech": { readonly params: V2ThreadRealtimeAppendSpeechParams; readonly response: V2ThreadRealtimeAppendSpeechResponse; readonly paramsRequired: true; };
+    readonly "thread/realtime/stop": { readonly params: V2ThreadRealtimeStopParams; readonly response: V2ThreadRealtimeStopResponse; readonly paramsRequired: true; };
+    readonly "thread/timeline/list": { readonly params: V2ThreadTimelineListParams; readonly response: V2ThreadTimelineListResponse; readonly paramsRequired: true; };
+    readonly "thread/realtime/listVoices": { readonly params: V2ThreadRealtimeListVoicesParams; readonly response: V2ThreadRealtimeListVoicesResponse; readonly paramsRequired: true; };
     readonly "review/start": { readonly params: V2ReviewStartParams; readonly response: V2ReviewStartResponse; readonly paramsRequired: true; };
     readonly "model/list": { readonly params: V2ModelListParams; readonly response: V2ModelListResponse; readonly paramsRequired: true; };
     readonly "modelProvider/capabilities/read": { readonly params: V2ModelProviderCapabilitiesReadParams; readonly response: V2ModelProviderCapabilitiesReadResponse; readonly paramsRequired: true; };
     readonly "experimentalFeature/list": { readonly params: V2ExperimentalFeatureListParams; readonly response: V2ExperimentalFeatureListResponse; readonly paramsRequired: true; };
     readonly "permissionProfile/list": { readonly params: V2PermissionProfileListParams; readonly response: V2PermissionProfileListResponse; readonly paramsRequired: true; };
     readonly "experimentalFeature/enablement/set": { readonly params: V2ExperimentalFeatureEnablementSetParams; readonly response: V2ExperimentalFeatureEnablementSetResponse; readonly paramsRequired: true; };
+    readonly "remoteControl/enable": { readonly params: unknown; readonly response: V2RemoteControlEnableResponse; readonly paramsRequired: false; };
+    readonly "remoteControl/disable": { readonly params: unknown; readonly response: V2RemoteControlDisableResponse; readonly paramsRequired: false; };
+    readonly "remoteControl/status/read": { readonly params: unknown; readonly response: V2RemoteControlStatusReadResponse; readonly paramsRequired: false; };
+    readonly "remoteControl/pairing/start": { readonly params: V2RemoteControlPairingStartParams; readonly response: V2RemoteControlPairingStartResponse; readonly paramsRequired: true; };
+    readonly "remoteControl/pairing/status": { readonly params: V2RemoteControlPairingStatusParams; readonly response: V2RemoteControlPairingStatusResponse; readonly paramsRequired: true; };
+    readonly "remoteControl/client/list": { readonly params: V2RemoteControlClientsListParams; readonly response: V2RemoteControlClientsListResponse; readonly paramsRequired: true; };
+    readonly "remoteControl/client/revoke": { readonly params: V2RemoteControlClientsRevokeParams; readonly response: V2RemoteControlClientsRevokeResponse; readonly paramsRequired: true; };
+    readonly "collaborationMode/list": { readonly params: V2CollaborationModeListParams; readonly response: V2CollaborationModeListResponse; readonly paramsRequired: true; };
+    readonly "mock/experimentalMethod": { readonly params: V2MockExperimentalMethodParams; readonly response: V2MockExperimentalMethodResponse; readonly paramsRequired: true; };
+    readonly "environment/add": { readonly params: V2EnvironmentAddParams; readonly response: V2EnvironmentAddResponse; readonly paramsRequired: true; };
+    readonly "environment/info": { readonly params: V2EnvironmentInfoParams; readonly response: V2EnvironmentInfoResponse; readonly paramsRequired: true; };
+    readonly "environment/status": { readonly params: V2EnvironmentStatusParams; readonly response: V2EnvironmentStatusResponse; readonly paramsRequired: true; };
     readonly "mcpServer/oauth/login": { readonly params: V2McpServerOauthLoginParams; readonly response: V2McpServerOauthLoginResponse; readonly paramsRequired: true; };
     readonly "config/mcpServer/reload": { readonly params: unknown; readonly response: V2McpServerRefreshResponse; readonly paramsRequired: false; };
     readonly "mcpServerStatus/list": { readonly params: V2ListMcpServerStatusParams; readonly response: V2ListMcpServerStatusResponse; readonly paramsRequired: true; };
     readonly "mcpServer/resource/read": { readonly params: V2McpResourceReadParams; readonly response: V2McpResourceReadResponse; readonly paramsRequired: true; };
+    readonly "mcpServer/event/stream/start": { readonly params: V2McpServerEventStreamStartParams; readonly response: V2McpServerEventStreamStartResponse; readonly paramsRequired: true; };
+    readonly "mcpServer/event/stream/stop": { readonly params: V2McpServerEventStreamStopParams; readonly response: V2McpServerEventStreamStopResponse; readonly paramsRequired: true; };
     readonly "mcpServer/tool/call": { readonly params: V2McpServerToolCallParams; readonly response: V2McpServerToolCallResponse; readonly paramsRequired: true; };
     readonly "windowsSandbox/setupStart": { readonly params: V2WindowsSandboxSetupStartParams; readonly response: V2WindowsSandboxSetupStartResponse; readonly paramsRequired: true; };
     readonly "windowsSandbox/readiness": { readonly params: unknown; readonly response: V2WindowsSandboxReadinessResponse; readonly paramsRequired: false; };
     readonly "account/login/start": { readonly params: V2LoginAccountParams; readonly response: V2LoginAccountResponse; readonly paramsRequired: true; };
+    readonly "account/bedrock/discover": { readonly params: V2BedrockDiscoverParams; readonly response: V2BedrockDiscoverResponse; readonly paramsRequired: true; };
+    readonly "account/bedrock/setup": { readonly params: V2BedrockSetupParams; readonly response: V2BedrockSetupResponse; readonly paramsRequired: true; };
     readonly "account/login/cancel": { readonly params: V2CancelLoginAccountParams; readonly response: V2CancelLoginAccountResponse; readonly paramsRequired: true; };
     readonly "account/logout": { readonly params: unknown; readonly response: V2LogoutAccountResponse; readonly paramsRequired: false; };
     readonly "account/rateLimits/read": { readonly params: unknown; readonly response: V2GetAccountRateLimitsResponse; readonly paramsRequired: false; };
@@ -8229,6 +10454,10 @@ export interface ClientRequestMap {
     readonly "command/exec/write": { readonly params: V2CommandExecWriteParams; readonly response: V2CommandExecWriteResponse; readonly paramsRequired: true; };
     readonly "command/exec/terminate": { readonly params: V2CommandExecTerminateParams; readonly response: V2CommandExecTerminateResponse; readonly paramsRequired: true; };
     readonly "command/exec/resize": { readonly params: V2CommandExecResizeParams; readonly response: V2CommandExecResizeResponse; readonly paramsRequired: true; };
+    readonly "process/spawn": { readonly params: V2ProcessSpawnParams; readonly response: V2ProcessSpawnResponse; readonly paramsRequired: true; };
+    readonly "process/writeStdin": { readonly params: V2ProcessWriteStdinParams; readonly response: V2ProcessWriteStdinResponse; readonly paramsRequired: true; };
+    readonly "process/kill": { readonly params: V2ProcessKillParams; readonly response: V2ProcessKillResponse; readonly paramsRequired: true; };
+    readonly "process/resizePty": { readonly params: V2ProcessResizePtyParams; readonly response: V2ProcessResizePtyResponse; readonly paramsRequired: true; };
     readonly "config/read": { readonly params: V2ConfigReadParams; readonly response: V2ConfigReadResponse; readonly paramsRequired: true; };
     readonly "externalAgentConfig/detect": { readonly params: V2ExternalAgentConfigDetectParams; readonly response: V2ExternalAgentConfigDetectResponse; readonly paramsRequired: true; };
     readonly "externalAgentConfig/import": { readonly params: V2ExternalAgentConfigImportParams; readonly response: V2ExternalAgentConfigImportResponse; readonly paramsRequired: true; };
@@ -8239,6 +10468,9 @@ export interface ClientRequestMap {
     readonly "configRequirements/read": { readonly params: unknown; readonly response: V2ConfigRequirementsReadResponse; readonly paramsRequired: false; };
     readonly "account/read": { readonly params: V2GetAccountParams; readonly response: V2GetAccountResponse; readonly paramsRequired: true; };
     readonly "fuzzyFileSearch": { readonly params: RootFuzzyFileSearchParams; readonly response: RootFuzzyFileSearchResponse; readonly paramsRequired: true; };
+    readonly "fuzzyFileSearch/sessionStart": { readonly params: RootFuzzyFileSearchSessionStartParams; readonly response: RootFuzzyFileSearchSessionStartResponse; readonly paramsRequired: true; };
+    readonly "fuzzyFileSearch/sessionUpdate": { readonly params: RootFuzzyFileSearchSessionUpdateParams; readonly response: RootFuzzyFileSearchSessionUpdateResponse; readonly paramsRequired: true; };
+    readonly "fuzzyFileSearch/sessionStop": { readonly params: RootFuzzyFileSearchSessionStopParams; readonly response: RootFuzzyFileSearchSessionStopResponse; readonly paramsRequired: true; };
 }
 
 export interface ServerRequestMap {
@@ -8250,6 +10482,7 @@ export interface ServerRequestMap {
     readonly "item/tool/call": { readonly params: RootDynamicToolCallParams; readonly response: RootDynamicToolCallResponse; readonly paramsRequired: true; };
     readonly "account/chatgptAuthTokens/refresh": { readonly params: RootChatgptAuthTokensRefreshParams; readonly response: RootChatgptAuthTokensRefreshResponse; readonly paramsRequired: true; };
     readonly "attestation/generate": { readonly params: RootAttestationGenerateParams; readonly response: RootAttestationGenerateResponse; readonly paramsRequired: true; };
+    readonly "currentTime/read": { readonly params: RootCurrentTimeReadParams; readonly response: RootCurrentTimeReadResponse; readonly paramsRequired: true; };
     readonly "applyPatchApproval": { readonly params: RootApplyPatchApprovalParams; readonly response: RootApplyPatchApprovalResponse; readonly paramsRequired: true; };
     readonly "execCommandApproval": { readonly params: RootExecCommandApprovalParams; readonly response: RootExecCommandApprovalResponse; readonly paramsRequired: true; };
 }
@@ -8316,6 +10549,8 @@ export interface ServerNotificationMap {
     readonly "thread/compacted": { readonly params: V2ContextCompactedNotification; readonly paramsRequired: true; };
     readonly "model/rerouted": { readonly params: V2ModelReroutedNotification; readonly paramsRequired: true; };
     readonly "model/verification": { readonly params: V2ModelVerificationNotification; readonly paramsRequired: true; };
+    readonly "modelProvider/authRecoveryStarted": { readonly params: V2AuthRecoveryNotification; readonly paramsRequired: true; };
+    readonly "modelProvider/authRecoveryCompleted": { readonly params: V2AuthRecoveryNotification; readonly paramsRequired: true; };
     readonly "turn/moderationMetadata": { readonly params: V2TurnModerationMetadataNotification; readonly paramsRequired: true; };
     readonly "model/safetyBuffering/updated": { readonly params: V2ModelSafetyBufferingUpdatedNotification; readonly paramsRequired: true; };
     readonly "warning": { readonly params: V2WarningNotification; readonly paramsRequired: true; };
@@ -8326,6 +10561,9 @@ export interface ServerNotificationMap {
     readonly "fuzzyFileSearch/sessionCompleted": { readonly params: RootFuzzyFileSearchSessionCompletedNotification; readonly paramsRequired: true; };
     readonly "thread/realtime/started": { readonly params: V2ThreadRealtimeStartedNotification; readonly paramsRequired: true; };
     readonly "thread/realtime/itemAdded": { readonly params: V2ThreadRealtimeItemAddedNotification; readonly paramsRequired: true; };
+    readonly "thread/realtime/item/started": { readonly params: V2ThreadRealtimeItemStartedNotification; readonly paramsRequired: true; };
+    readonly "thread/realtime/item/transcript/delta": { readonly params: V2ThreadRealtimeItemTranscriptDeltaNotification; readonly paramsRequired: true; };
+    readonly "thread/realtime/item/completed": { readonly params: V2ThreadRealtimeItemCompletedNotification; readonly paramsRequired: true; };
     readonly "thread/realtime/transcript/delta": { readonly params: V2ThreadRealtimeTranscriptDeltaNotification; readonly paramsRequired: true; };
     readonly "thread/realtime/transcript/done": { readonly params: V2ThreadRealtimeTranscriptDoneNotification; readonly paramsRequired: true; };
     readonly "thread/realtime/outputAudio/delta": { readonly params: V2ThreadRealtimeOutputAudioDeltaNotification; readonly paramsRequired: true; };
@@ -8339,30 +10577,61 @@ export interface ServerNotificationMap {
 
 export const clientRequestOperations = {
     "initialize": {paramsRequired: true, paramsType: "RootInitializeParams", responseType: "RootInitializeResponse"},
+    "server/diagnostics": {paramsRequired: true, paramsType: "V2ServerDiagnosticsParams", responseType: "V2ServerDiagnosticsResponse"},
+    "userVerification/status": {paramsRequired: true, paramsType: "V2UserVerificationStatusParams", responseType: "V2UserVerificationStatusResponse"},
+    "userVerification/enroll": {paramsRequired: true, paramsType: "V2UserVerificationEnrollParams", responseType: "V2UserVerificationEnrollResponse"},
+    "userVerification/delete": {paramsRequired: true, paramsType: "V2UserVerificationDeleteParams", responseType: "V2UserVerificationDeleteResponse"},
+    "userVerification/verify": {paramsRequired: true, paramsType: "V2UserVerificationVerifyParams", responseType: "V2UserVerificationVerifyResponse"},
     "thread/start": {paramsRequired: true, paramsType: "V2ThreadStartParams", responseType: "V2ThreadStartResponse"},
     "thread/resume": {paramsRequired: true, paramsType: "V2ThreadResumeParams", responseType: "V2ThreadResumeResponse"},
     "thread/fork": {paramsRequired: true, paramsType: "V2ThreadForkParams", responseType: "V2ThreadForkResponse"},
     "thread/archive": {paramsRequired: true, paramsType: "V2ThreadArchiveParams", responseType: "V2ThreadArchiveResponse"},
     "thread/delete": {paramsRequired: true, paramsType: "V2ThreadDeleteParams", responseType: "V2ThreadDeleteResponse"},
     "thread/unsubscribe": {paramsRequired: true, paramsType: "V2ThreadUnsubscribeParams", responseType: "V2ThreadUnsubscribeResponse"},
+    "thread/increment_elicitation": {paramsRequired: true, paramsType: "V2ThreadIncrementElicitationParams", responseType: "V2ThreadIncrementElicitationResponse"},
+    "thread/decrement_elicitation": {paramsRequired: true, paramsType: "V2ThreadDecrementElicitationParams", responseType: "V2ThreadDecrementElicitationResponse"},
     "thread/name/set": {paramsRequired: true, paramsType: "V2ThreadSetNameParams", responseType: "V2ThreadSetNameResponse"},
     "thread/goal/set": {paramsRequired: true, paramsType: "V2ThreadGoalSetParams", responseType: "V2ThreadGoalSetResponse"},
     "thread/goal/get": {paramsRequired: true, paramsType: "V2ThreadGoalGetParams", responseType: "V2ThreadGoalGetResponse"},
     "thread/goal/clear": {paramsRequired: true, paramsType: "V2ThreadGoalClearParams", responseType: "V2ThreadGoalClearResponse"},
+    "thread/queue/add": {paramsRequired: true, paramsType: "V2ThreadQueueAddParams", responseType: "V2ThreadQueueAddResponse"},
+    "thread/queue/list": {paramsRequired: true, paramsType: "V2ThreadQueueListParams", responseType: "V2ThreadQueueListResponse"},
+    "thread/queue/update": {paramsRequired: true, paramsType: "V2ThreadQueueUpdateParams", responseType: "V2ThreadQueueUpdateResponse"},
+    "thread/queue/delete": {paramsRequired: true, paramsType: "V2ThreadQueueDeleteParams", responseType: "V2ThreadQueueDeleteResponse"},
+    "thread/queue/reorder": {paramsRequired: true, paramsType: "V2ThreadQueueReorderParams", responseType: "V2ThreadQueueReorderResponse"},
+    "thread/queue/start": {paramsRequired: true, paramsType: "V2ThreadQueueStartParams", responseType: "V2ThreadQueueStartResponse"},
     "thread/metadata/update": {paramsRequired: true, paramsType: "V2ThreadMetadataUpdateParams", responseType: "V2ThreadMetadataUpdateResponse"},
     "thread/section/move": {paramsRequired: true, paramsType: "V2ThreadSectionMoveParams", responseType: "V2ThreadSectionMoveResponse"},
+    "thread/settings/update": {paramsRequired: true, paramsType: "V2ThreadSettingsUpdateParams", responseType: "V2ThreadSettingsUpdateResponse"},
+    "thread/memoryMode/set": {paramsRequired: true, paramsType: "V2ThreadMemoryModeSetParams", responseType: "V2ThreadMemoryModeSetResponse"},
+    "memory/reset": {paramsRequired: false, paramsType: "unknown", responseType: "V2MemoryResetResponse"},
     "thread/unarchive": {paramsRequired: true, paramsType: "V2ThreadUnarchiveParams", responseType: "V2ThreadUnarchiveResponse"},
     "thread/compact/start": {paramsRequired: true, paramsType: "V2ThreadCompactStartParams", responseType: "V2ThreadCompactStartResponse"},
     "thread/shellCommand": {paramsRequired: true, paramsType: "V2ThreadShellCommandParams", responseType: "V2ThreadShellCommandResponse"},
     "thread/approveGuardianDeniedAction": {paramsRequired: true, paramsType: "V2ThreadApproveGuardianDeniedActionParams", responseType: "V2ThreadApproveGuardianDeniedActionResponse"},
+    "thread/backgroundTerminals/clean": {paramsRequired: true, paramsType: "V2ThreadBackgroundTerminalsCleanParams", responseType: "V2ThreadBackgroundTerminalsCleanResponse"},
+    "thread/backgroundTerminals/list": {paramsRequired: true, paramsType: "V2ThreadBackgroundTerminalsListParams", responseType: "V2ThreadBackgroundTerminalsListResponse"},
+    "thread/backgroundTerminals/terminate": {paramsRequired: true, paramsType: "V2ThreadBackgroundTerminalsTerminateParams", responseType: "V2ThreadBackgroundTerminalsTerminateResponse"},
     "thread/rollback": {paramsRequired: true, paramsType: "V2ThreadRollbackParams", responseType: "V2ThreadRollbackResponse"},
+    "thread/revert": {paramsRequired: true, paramsType: "V2ThreadRevertParams", responseType: "V2ThreadRevertResponse"},
     "thread/list": {paramsRequired: true, paramsType: "V2ThreadListParams", responseType: "V2ThreadListResponse"},
+    "project/list": {paramsRequired: true, paramsType: "V2ProjectListParams", responseType: "V2ProjectListResponse"},
+    "project/read": {paramsRequired: true, paramsType: "V2ProjectReadParams", responseType: "V2ProjectReadResponse"},
+    "project/create": {paramsRequired: true, paramsType: "V2ProjectCreateParams", responseType: "V2ProjectCreateResponse"},
+    "project/import": {paramsRequired: true, paramsType: "V2ProjectImportParams", responseType: "V2ProjectImportResponse"},
+    "project/update": {paramsRequired: true, paramsType: "V2ProjectUpdateParams", responseType: "V2ProjectUpdateResponse"},
+    "project/move": {paramsRequired: true, paramsType: "V2ProjectMoveParams", responseType: "V2ProjectMoveResponse"},
+    "project/delete": {paramsRequired: true, paramsType: "V2ProjectDeleteParams", responseType: "V2ProjectDeleteResponse"},
     "threadSection/list": {paramsRequired: true, paramsType: "V2ThreadSectionListParams", responseType: "V2ThreadSectionListResponse"},
     "threadSection/create": {paramsRequired: true, paramsType: "V2ThreadSectionCreateParams", responseType: "V2ThreadSectionCreateResponse"},
     "threadSection/update": {paramsRequired: true, paramsType: "V2ThreadSectionUpdateParams", responseType: "V2ThreadSectionUpdateResponse"},
     "threadSection/delete": {paramsRequired: true, paramsType: "V2ThreadSectionDeleteParams", responseType: "V2ThreadSectionDeleteResponse"},
+    "thread/search": {paramsRequired: true, paramsType: "V2ThreadSearchParams", responseType: "V2ThreadSearchResponse"},
+    "thread/searchOccurrences": {paramsRequired: true, paramsType: "V2ThreadSearchOccurrencesParams", responseType: "V2ThreadSearchOccurrencesResponse"},
     "thread/loaded/list": {paramsRequired: true, paramsType: "V2ThreadLoadedListParams", responseType: "V2ThreadLoadedListResponse"},
     "thread/read": {paramsRequired: true, paramsType: "V2ThreadReadParams", responseType: "V2ThreadReadResponse"},
+    "thread/turns/list": {paramsRequired: true, paramsType: "V2ThreadTurnsListParams", responseType: "V2ThreadTurnsListResponse"},
+    "thread/items/list": {paramsRequired: true, paramsType: "V2ThreadItemsListParams", responseType: "V2ThreadItemsListResponse"},
     "thread/inject_items": {paramsRequired: true, paramsType: "V2ThreadInjectItemsParams", responseType: "V2ThreadInjectItemsResponse"},
     "skills/list": {paramsRequired: true, paramsType: "V2SkillsListParams", responseType: "V2SkillsListResponse"},
     "skills/extraRoots/set": {paramsRequired: true, paramsType: "V2SkillsExtraRootsSetParams", responseType: "V2SkillsExtraRootsSetResponse"},
@@ -8371,7 +10640,9 @@ export const clientRequestOperations = {
     "marketplace/remove": {paramsRequired: true, paramsType: "V2MarketplaceRemoveParams", responseType: "V2MarketplaceRemoveResponse"},
     "marketplace/upgrade": {paramsRequired: true, paramsType: "V2MarketplaceUpgradeParams", responseType: "V2MarketplaceUpgradeResponse"},
     "plugin/list": {paramsRequired: true, paramsType: "V2PluginListParams", responseType: "V2PluginListResponse"},
+    "plugin/search": {paramsRequired: true, paramsType: "V2PluginSearchParams", responseType: "V2PluginSearchResponse"},
     "plugin/installed": {paramsRequired: true, paramsType: "V2PluginInstalledParams", responseType: "V2PluginInstalledResponse"},
+    "plugin/reconcile": {paramsRequired: true, paramsType: "V2PluginReconcileParams", responseType: "V2PluginReconcileResponse"},
     "plugin/read": {paramsRequired: true, paramsType: "V2PluginReadParams", responseType: "V2PluginReadResponse"},
     "plugin/skill/read": {paramsRequired: true, paramsType: "V2PluginSkillReadParams", responseType: "V2PluginSkillReadResponse"},
     "plugin/share/save": {paramsRequired: true, paramsType: "V2PluginShareSaveParams", responseType: "V2PluginShareSaveResponse"},
@@ -8395,22 +10666,46 @@ export const clientRequestOperations = {
     "plugin/install": {paramsRequired: true, paramsType: "V2PluginInstallParams", responseType: "V2PluginInstallResponse"},
     "plugin/uninstall": {paramsRequired: true, paramsType: "V2PluginUninstallParams", responseType: "V2PluginUninstallResponse"},
     "turn/start": {paramsRequired: true, paramsType: "V2TurnStartParams", responseType: "V2TurnStartResponse"},
+    "turn/settings/update": {paramsRequired: true, paramsType: "V2TurnSettingsUpdateParams", responseType: "V2TurnSettingsUpdateResponse"},
     "turn/steer": {paramsRequired: true, paramsType: "V2TurnSteerParams", responseType: "V2TurnSteerResponse"},
     "turn/interrupt": {paramsRequired: true, paramsType: "V2TurnInterruptParams", responseType: "V2TurnInterruptResponse"},
+    "thread/realtime/start": {paramsRequired: true, paramsType: "V2ThreadRealtimeStartParams", responseType: "V2ThreadRealtimeStartResponse"},
+    "thread/realtime/appendAudio": {paramsRequired: true, paramsType: "V2ThreadRealtimeAppendAudioParams", responseType: "V2ThreadRealtimeAppendAudioResponse"},
+    "thread/realtime/appendText": {paramsRequired: true, paramsType: "V2ThreadRealtimeAppendTextParams", responseType: "V2ThreadRealtimeAppendTextResponse"},
+    "thread/realtime/appendSpeech": {paramsRequired: true, paramsType: "V2ThreadRealtimeAppendSpeechParams", responseType: "V2ThreadRealtimeAppendSpeechResponse"},
+    "thread/realtime/stop": {paramsRequired: true, paramsType: "V2ThreadRealtimeStopParams", responseType: "V2ThreadRealtimeStopResponse"},
+    "thread/timeline/list": {paramsRequired: true, paramsType: "V2ThreadTimelineListParams", responseType: "V2ThreadTimelineListResponse"},
+    "thread/realtime/listVoices": {paramsRequired: true, paramsType: "V2ThreadRealtimeListVoicesParams", responseType: "V2ThreadRealtimeListVoicesResponse"},
     "review/start": {paramsRequired: true, paramsType: "V2ReviewStartParams", responseType: "V2ReviewStartResponse"},
     "model/list": {paramsRequired: true, paramsType: "V2ModelListParams", responseType: "V2ModelListResponse"},
     "modelProvider/capabilities/read": {paramsRequired: true, paramsType: "V2ModelProviderCapabilitiesReadParams", responseType: "V2ModelProviderCapabilitiesReadResponse"},
     "experimentalFeature/list": {paramsRequired: true, paramsType: "V2ExperimentalFeatureListParams", responseType: "V2ExperimentalFeatureListResponse"},
     "permissionProfile/list": {paramsRequired: true, paramsType: "V2PermissionProfileListParams", responseType: "V2PermissionProfileListResponse"},
     "experimentalFeature/enablement/set": {paramsRequired: true, paramsType: "V2ExperimentalFeatureEnablementSetParams", responseType: "V2ExperimentalFeatureEnablementSetResponse"},
+    "remoteControl/enable": {paramsRequired: false, paramsType: "unknown", responseType: "V2RemoteControlEnableResponse"},
+    "remoteControl/disable": {paramsRequired: false, paramsType: "unknown", responseType: "V2RemoteControlDisableResponse"},
+    "remoteControl/status/read": {paramsRequired: false, paramsType: "unknown", responseType: "V2RemoteControlStatusReadResponse"},
+    "remoteControl/pairing/start": {paramsRequired: true, paramsType: "V2RemoteControlPairingStartParams", responseType: "V2RemoteControlPairingStartResponse"},
+    "remoteControl/pairing/status": {paramsRequired: true, paramsType: "V2RemoteControlPairingStatusParams", responseType: "V2RemoteControlPairingStatusResponse"},
+    "remoteControl/client/list": {paramsRequired: true, paramsType: "V2RemoteControlClientsListParams", responseType: "V2RemoteControlClientsListResponse"},
+    "remoteControl/client/revoke": {paramsRequired: true, paramsType: "V2RemoteControlClientsRevokeParams", responseType: "V2RemoteControlClientsRevokeResponse"},
+    "collaborationMode/list": {paramsRequired: true, paramsType: "V2CollaborationModeListParams", responseType: "V2CollaborationModeListResponse"},
+    "mock/experimentalMethod": {paramsRequired: true, paramsType: "V2MockExperimentalMethodParams", responseType: "V2MockExperimentalMethodResponse"},
+    "environment/add": {paramsRequired: true, paramsType: "V2EnvironmentAddParams", responseType: "V2EnvironmentAddResponse"},
+    "environment/info": {paramsRequired: true, paramsType: "V2EnvironmentInfoParams", responseType: "V2EnvironmentInfoResponse"},
+    "environment/status": {paramsRequired: true, paramsType: "V2EnvironmentStatusParams", responseType: "V2EnvironmentStatusResponse"},
     "mcpServer/oauth/login": {paramsRequired: true, paramsType: "V2McpServerOauthLoginParams", responseType: "V2McpServerOauthLoginResponse"},
     "config/mcpServer/reload": {paramsRequired: false, paramsType: "unknown", responseType: "V2McpServerRefreshResponse"},
     "mcpServerStatus/list": {paramsRequired: true, paramsType: "V2ListMcpServerStatusParams", responseType: "V2ListMcpServerStatusResponse"},
     "mcpServer/resource/read": {paramsRequired: true, paramsType: "V2McpResourceReadParams", responseType: "V2McpResourceReadResponse"},
+    "mcpServer/event/stream/start": {paramsRequired: true, paramsType: "V2McpServerEventStreamStartParams", responseType: "V2McpServerEventStreamStartResponse"},
+    "mcpServer/event/stream/stop": {paramsRequired: true, paramsType: "V2McpServerEventStreamStopParams", responseType: "V2McpServerEventStreamStopResponse"},
     "mcpServer/tool/call": {paramsRequired: true, paramsType: "V2McpServerToolCallParams", responseType: "V2McpServerToolCallResponse"},
     "windowsSandbox/setupStart": {paramsRequired: true, paramsType: "V2WindowsSandboxSetupStartParams", responseType: "V2WindowsSandboxSetupStartResponse"},
     "windowsSandbox/readiness": {paramsRequired: false, paramsType: "unknown", responseType: "V2WindowsSandboxReadinessResponse"},
     "account/login/start": {paramsRequired: true, paramsType: "V2LoginAccountParams", responseType: "V2LoginAccountResponse"},
+    "account/bedrock/discover": {paramsRequired: true, paramsType: "V2BedrockDiscoverParams", responseType: "V2BedrockDiscoverResponse"},
+    "account/bedrock/setup": {paramsRequired: true, paramsType: "V2BedrockSetupParams", responseType: "V2BedrockSetupResponse"},
     "account/login/cancel": {paramsRequired: true, paramsType: "V2CancelLoginAccountParams", responseType: "V2CancelLoginAccountResponse"},
     "account/logout": {paramsRequired: false, paramsType: "unknown", responseType: "V2LogoutAccountResponse"},
     "account/rateLimits/read": {paramsRequired: false, paramsType: "unknown", responseType: "V2GetAccountRateLimitsResponse"},
@@ -8423,6 +10718,10 @@ export const clientRequestOperations = {
     "command/exec/write": {paramsRequired: true, paramsType: "V2CommandExecWriteParams", responseType: "V2CommandExecWriteResponse"},
     "command/exec/terminate": {paramsRequired: true, paramsType: "V2CommandExecTerminateParams", responseType: "V2CommandExecTerminateResponse"},
     "command/exec/resize": {paramsRequired: true, paramsType: "V2CommandExecResizeParams", responseType: "V2CommandExecResizeResponse"},
+    "process/spawn": {paramsRequired: true, paramsType: "V2ProcessSpawnParams", responseType: "V2ProcessSpawnResponse"},
+    "process/writeStdin": {paramsRequired: true, paramsType: "V2ProcessWriteStdinParams", responseType: "V2ProcessWriteStdinResponse"},
+    "process/kill": {paramsRequired: true, paramsType: "V2ProcessKillParams", responseType: "V2ProcessKillResponse"},
+    "process/resizePty": {paramsRequired: true, paramsType: "V2ProcessResizePtyParams", responseType: "V2ProcessResizePtyResponse"},
     "config/read": {paramsRequired: true, paramsType: "V2ConfigReadParams", responseType: "V2ConfigReadResponse"},
     "externalAgentConfig/detect": {paramsRequired: true, paramsType: "V2ExternalAgentConfigDetectParams", responseType: "V2ExternalAgentConfigDetectResponse"},
     "externalAgentConfig/import": {paramsRequired: true, paramsType: "V2ExternalAgentConfigImportParams", responseType: "V2ExternalAgentConfigImportResponse"},
@@ -8433,6 +10732,9 @@ export const clientRequestOperations = {
     "configRequirements/read": {paramsRequired: false, paramsType: "unknown", responseType: "V2ConfigRequirementsReadResponse"},
     "account/read": {paramsRequired: true, paramsType: "V2GetAccountParams", responseType: "V2GetAccountResponse"},
     "fuzzyFileSearch": {paramsRequired: true, paramsType: "RootFuzzyFileSearchParams", responseType: "RootFuzzyFileSearchResponse"},
+    "fuzzyFileSearch/sessionStart": {paramsRequired: true, paramsType: "RootFuzzyFileSearchSessionStartParams", responseType: "RootFuzzyFileSearchSessionStartResponse"},
+    "fuzzyFileSearch/sessionUpdate": {paramsRequired: true, paramsType: "RootFuzzyFileSearchSessionUpdateParams", responseType: "RootFuzzyFileSearchSessionUpdateResponse"},
+    "fuzzyFileSearch/sessionStop": {paramsRequired: true, paramsType: "RootFuzzyFileSearchSessionStopParams", responseType: "RootFuzzyFileSearchSessionStopResponse"},
 } as const;
 
 export const serverRequestOperations = {
@@ -8444,6 +10746,7 @@ export const serverRequestOperations = {
     "item/tool/call": {paramsRequired: true, paramsType: "RootDynamicToolCallParams", responseType: "RootDynamicToolCallResponse"},
     "account/chatgptAuthTokens/refresh": {paramsRequired: true, paramsType: "RootChatgptAuthTokensRefreshParams", responseType: "RootChatgptAuthTokensRefreshResponse"},
     "attestation/generate": {paramsRequired: true, paramsType: "RootAttestationGenerateParams", responseType: "RootAttestationGenerateResponse"},
+    "currentTime/read": {paramsRequired: true, paramsType: "RootCurrentTimeReadParams", responseType: "RootCurrentTimeReadResponse"},
     "applyPatchApproval": {paramsRequired: true, paramsType: "RootApplyPatchApprovalParams", responseType: "RootApplyPatchApprovalResponse"},
     "execCommandApproval": {paramsRequired: true, paramsType: "RootExecCommandApprovalParams", responseType: "RootExecCommandApprovalResponse"},
 } as const;
@@ -8510,6 +10813,8 @@ export const serverNotificationOperations = {
     "thread/compacted": {paramsRequired: true, paramsType: "V2ContextCompactedNotification"},
     "model/rerouted": {paramsRequired: true, paramsType: "V2ModelReroutedNotification"},
     "model/verification": {paramsRequired: true, paramsType: "V2ModelVerificationNotification"},
+    "modelProvider/authRecoveryStarted": {paramsRequired: true, paramsType: "V2AuthRecoveryNotification"},
+    "modelProvider/authRecoveryCompleted": {paramsRequired: true, paramsType: "V2AuthRecoveryNotification"},
     "turn/moderationMetadata": {paramsRequired: true, paramsType: "V2TurnModerationMetadataNotification"},
     "model/safetyBuffering/updated": {paramsRequired: true, paramsType: "V2ModelSafetyBufferingUpdatedNotification"},
     "warning": {paramsRequired: true, paramsType: "V2WarningNotification"},
@@ -8520,6 +10825,9 @@ export const serverNotificationOperations = {
     "fuzzyFileSearch/sessionCompleted": {paramsRequired: true, paramsType: "RootFuzzyFileSearchSessionCompletedNotification"},
     "thread/realtime/started": {paramsRequired: true, paramsType: "V2ThreadRealtimeStartedNotification"},
     "thread/realtime/itemAdded": {paramsRequired: true, paramsType: "V2ThreadRealtimeItemAddedNotification"},
+    "thread/realtime/item/started": {paramsRequired: true, paramsType: "V2ThreadRealtimeItemStartedNotification"},
+    "thread/realtime/item/transcript/delta": {paramsRequired: true, paramsType: "V2ThreadRealtimeItemTranscriptDeltaNotification"},
+    "thread/realtime/item/completed": {paramsRequired: true, paramsType: "V2ThreadRealtimeItemCompletedNotification"},
     "thread/realtime/transcript/delta": {paramsRequired: true, paramsType: "V2ThreadRealtimeTranscriptDeltaNotification"},
     "thread/realtime/transcript/done": {paramsRequired: true, paramsType: "V2ThreadRealtimeTranscriptDoneNotification"},
     "thread/realtime/outputAudio/delta": {paramsRequired: true, paramsType: "V2ThreadRealtimeOutputAudioDeltaNotification"},

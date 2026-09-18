@@ -4,16 +4,15 @@ Framework-neutral TypeScript frontend SDK for the AISuite `codex-bridge`.
 
 The generated protocol declarations come from the same pinned Codex schema
 and Rust operation bindings as AISuite's C++ views. Regenerate both outputs in
-one invocation:
+one pinned invocation:
 
 ```sh
-node tools/generate-codex-protocol.mjs \
-  /path/to/codex_app_server_protocol.schemas.json \
-  /path/to/app-server-protocol/src/protocol/common.rs \
-  src/ai/openai/codex/protocol/generated/ProtocolTypes.h \
-  src/ai/openai/codex/protocol/generated/manifest.json \
-  packages/codex-frontend/src/protocol/generated.ts
+tools/regenerate-codex-protocol.sh
 ```
+
+The release script fetches the exact pinned Codex revision, extracts that
+release's experimental schema, and regenerates both language surfaces. CI runs
+the same command with `--check` and fails on any drift.
 
 `npm test --prefix packages/codex-frontend` builds the declarations and proves
 that the checked-in C++ and TypeScript type names, operation bindings,

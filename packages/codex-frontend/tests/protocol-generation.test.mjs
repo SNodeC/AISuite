@@ -80,6 +80,11 @@ test("TypeScript and C++ outputs identify the same protocol sources", () => {
     assert.equal(protocolGeneration.schemaSha256, manifest.schemaSha256);
     assert.equal(protocolGeneration.protocolSourceSha256, sourceHash);
     assert.equal(protocolGeneration.protocolSourceSha256, manifest.protocolSourceSha256);
+    assert.equal(protocolGeneration.codexRelease, manifest.codexRelease);
+    assert.equal(protocolGeneration.codexRevision, manifest.codexRevision);
+    assert.equal(protocolGeneration.experimentalApi, manifest.experimentalApi);
+    assert.match(protocolGeneration.codexRevision, /^[a-f0-9]{40}$/);
+    assert.equal(protocolGeneration.experimentalApi, true);
 });
 
 test("TypeScript and C++ expose the same generated type graph", () => {

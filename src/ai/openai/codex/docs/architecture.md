@@ -903,14 +903,18 @@ The two installed executables are:
   and human or JSONL presentation.
 
 The generated protocol header is produced by
-`tools/generate-codex-protocol.mjs`. Its adjacent manifest records the exact
-schema inputs and generated surface. The currently imported schema generates
-1,920 datatypes, including 81 canonical root types, 585 canonical v2 types, 95
-client requests, 10 app-server requests, one client notification, and 76
-app-server notifications. This is complete coverage of the imported schema,
-not a hand-selected method subset. Each facade retains native JSON through
-`getRaw()`, and the bridge also preserves a raw JSON path for forward
-compatibility.
+`tools/regenerate-codex-protocol.sh`, which pins and verifies one exact Codex
+release, extracts that release's experimental schema, and invokes
+`tools/generate-codex-protocol.mjs` for both language surfaces. Its adjacent
+manifest records the release, revision, experimental flag, source hashes, and
+generated surface. The currently imported schema generates 2,413 datatypes,
+including 90 canonical root types, 748 canonical v2 types, 159 client
+requests, 11 app-server requests, one client notification, and 81 app-server
+notifications. This is complete coverage of the imported public experimental
+schema, not a hand-selected method subset. Each facade retains native JSON
+through `getRaw()`, and the bridge also preserves a raw JSON path for forward
+compatibility. CI reruns the pinned generator and rejects any checked-artifact
+drift.
 
 ### Important public APIs
 

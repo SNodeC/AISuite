@@ -17,6 +17,9 @@ const schema = JSON.parse(schemaText);
 const schemaSha256 = crypto.createHash("sha256").update(schemaText).digest("hex");
 const protocolSourceText = fs.readFileSync(protocolSourcePath, "utf8");
 const protocolSourceSha256 = crypto.createHash("sha256").update(protocolSourceText).digest("hex");
+const protocolRevision = process.env.CODEX_PROTOCOL_REVISION ?? "";
+const protocolRelease = process.env.CODEX_PROTOCOL_RELEASE ?? "";
+const experimentalApi = process.env.CODEX_PROTOCOL_EXPERIMENTAL === "1";
 
 function sourceLabel(value) {
     const marker = "/codex-rs/";
@@ -528,7 +531,7 @@ function typescriptOperationMetadata(name, operations) {
 
 const rootDefinitions = definitions.filter((entry) => entry.ns === "root");
 const v2Definitions = definitions.filter((entry) => entry.ns === "v2");
-let output = `/*\n * Generated from Codex app-server protocol exports. DO NOT EDIT.\n * Schema SHA-256: ${schemaSha256}\n * Protocol source SHA-256: ${protocolSourceSha256}\n * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT\n */\n\n`;
+let output = `/*\n * Generated from Codex app-server protocol exports. DO NOT EDIT.\n * Codex release: ${protocolRelease || "unspecified"}\n * Codex revision: ${protocolRevision || "unspecified"}\n * Experimental API: ${experimentalApi}\n * Schema SHA-256: ${schemaSha256}\n * Protocol source SHA-256: ${protocolSourceSha256}\n * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT\n */\n\n`;
 output += `#ifndef AI_OPENAI_CODEX_GENERATED_PROTOCOLTYPES_H\n#define AI_OPENAI_CODEX_GENERATED_PROTOCOLTYPES_H\n\n`;
 output += `#include <algorithm>\n#include <cstddef>\n#include <cstdint>\n#include <optional>\n#include <string>\n#include <string_view>\n#include <type_traits>\n#include <utility>\n#include <vector>\n#include <nlohmann/json.hpp>\n\n`;
 output += `namespace ai::openai::codex::generated {\n\n`;
@@ -555,6 +558,9 @@ output += "\n#endif\n";
 
 fs.writeFileSync(outputPath, output);
 const manifest = {
+    codexRelease: protocolRelease,
+    codexRevision: protocolRevision,
+    experimentalApi,
     schema: sourceLabel(schemaPath),
     schemaSha256,
     protocolSource: sourceLabel(protocolSourcePath),
@@ -570,8 +576,11 @@ const manifest = {
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 
 if (typescriptOutputPath) {
-    let typescript = `/*\n * Generated from Codex app-server protocol exports. DO NOT EDIT.\n * Schema SHA-256: ${schemaSha256}\n * Protocol source SHA-256: ${protocolSourceSha256}\n * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT\n */\n\n`;
+    let typescript = `/*\n * Generated from Codex app-server protocol exports. DO NOT EDIT.\n * Codex release: ${protocolRelease || "unspecified"}\n * Codex revision: ${protocolRevision || "unspecified"}\n * Experimental API: ${experimentalApi}\n * Schema SHA-256: ${schemaSha256}\n * Protocol source SHA-256: ${protocolSourceSha256}\n * SPDX-License-Identifier: LGPL-3.0-or-later OR MIT\n */\n\n`;
     typescript += `export const protocolGeneration = {\n`;
+    typescript += `    codexRelease: ${JSON.stringify(protocolRelease)},\n`;
+    typescript += `    codexRevision: ${JSON.stringify(protocolRevision)},\n`;
+    typescript += `    experimentalApi: ${experimentalApi},\n`;
     typescript += `    schemaSha256: ${JSON.stringify(schemaSha256)},\n`;
     typescript += `    protocolSourceSha256: ${JSON.stringify(protocolSourceSha256)},\n`;
     typescript += `    generatedTypes: ${definitions.length},\n`;

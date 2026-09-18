@@ -39,7 +39,9 @@ jobs:
             openssl \
             pkg-config \
             procps \
-            python3
+            python3 \
+            nodejs \
+            zstd
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           getent group snodec >/dev/null || groupadd --system snodec
 
@@ -59,6 +61,9 @@ jobs:
           cmake --version
           ninja --version
           nproc
+
+      - name: Verify pinned Codex protocol generation
+        run: tools/regenerate-codex-protocol.sh --check
 
       - name: Prepare pinned SNode.C dependency
         run: |
