@@ -12,6 +12,9 @@ include(CMakePackageConfigHelpers)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
 option(AISUITE_BUILD_CODEX_TESTS "Build the focused codex tests" OFF)
+option(AISUITE_ENABLE_ANTHROPIC
+       "Build native Anthropic and Codex model compatibility support" ON
+)
 
 option(AISUITE_ENABLE_ASAN "Build AISuite with AddressSanitizer" OFF)
 
@@ -67,11 +70,11 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
                    "${AISUITE_NLOHMANN_JSON_INCLUDE_DIR}"
     )
 endif()
-set(AISUITE_SNODEC_COMPONENTS core)
-if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX_TESTS)
-    list(APPEND AISUITE_SNODEC_COMPONENTS net-un-stream-legacy
-         net-in-stream-legacy net-in6-stream-legacy)
-endif()
+# These transports are dependencies of the always-built Codex library, not
+# merely of the apps/tests. Native streaming HTTP also uses IPv4 plain TCP.
+set(AISUITE_SNODEC_COMPONENTS
+    core net-un-stream-legacy net-in-stream-legacy net-in6-stream-legacy
+)
 
 find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
 
@@ -155,6 +158,15 @@ if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
     )
 endif()
 
+add_subdirectory(src/ai/agent)
+add_subdirectory(src/ai/model)
+if(AISUITE_ENABLE_ANTHROPIC)
+    find_package(OpenSSL REQUIRED)
+    find_package(snodec 2.0 CONFIG REQUIRED
+                 COMPONENTS http-client http-server net-in-stream-tls)
+    add_subdirectory(src/ai/http)
+    add_subdirectory(src/ai/providers/anthropic)
+endif()
 add_subdirectory(src/ai/openai/codex)
 
 if(AISUITE_BUILD_APPS)
@@ -166,6 +178,9 @@ if(AISUITE_BUILD_CODEX_TESTS)
     include(CTest)
     enable_testing()
     add_subdirectory(tests/codex)
+    if(AISUITE_ENABLE_ANTHROPIC)
+        add_subdirectory(tests/model)
+    endif()
 endif()
 
 configure_package_config_file(

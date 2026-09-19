@@ -1,3 +1,7 @@
+> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md).
+> In this existing document, “provider” refers to an app-server transport unless
+> explicitly called a **model provider**. Codex no longer implies OpenAI inference.
+
 # codex / codex-bridge Architecture
 
 > **Implementation provenance:** This architecture and its initial implementation
