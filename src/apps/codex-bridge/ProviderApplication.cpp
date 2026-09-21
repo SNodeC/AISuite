@@ -169,12 +169,13 @@ namespace apps::codex_bridge {
             }
 
             bool start() final {
-                connect();
+                flow_ = connect();
                 return true;
             }
 
             void stop() noexcept final {
-                stopClient();
+                if (flow_)
+                    static_cast<void>(flow_->terminateFlow());
                 endpoint_.stop();
             }
 
@@ -183,20 +184,22 @@ namespace apps::codex_bridge {
             }
 
         protected:
+            using FlowHandle = std::shared_ptr<core::socket::stream::ClientFlowController>;
+
             codex::provider::WebSocketAppServer& endpoint() noexcept {
                 return endpoint_;
             }
 
         private:
-            virtual void connect() = 0;
-            virtual void stopClient() noexcept = 0;
+            virtual FlowHandle connect() = 0;
 
             codex::provider::WebSocketAppServer endpoint_;
+            FlowHandle flow_;
         };
 
         template <typename Client>
-        void connectClient(Client& client, std::string transport) {
-            client.connect([transport = std::move(transport)](const auto& address, core::socket::State state) {
+        auto connectClient(Client& client, std::string transport) {
+            return client.connect([transport = std::move(transport)](const auto& address, core::socket::State state) {
                 if (state == core::socket::State::OK) {
                     std::clog << "codex-bridge: app-server " << transport << " connected at " << address.toString() << '\n';
                 } else if (state != core::socket::State::DISABLED) {
@@ -204,11 +207,6 @@ namespace apps::codex_bridge {
                               << state.what() << '\n';
                 }
             });
-        }
-
-        template <typename Client>
-        void stopClient(Client& client) noexcept {
-            static_cast<void>(client.getFlowController()->terminateFlow());
         }
 
         class UnixRuntime final : public NetworkRuntimeBase {
@@ -229,12 +227,8 @@ namespace apps::codex_bridge {
             }
 
         private:
-            void connect() override {
-                connectClient(client_, "Unix WebSocket");
-            }
-
-            void stopClient() noexcept override {
-                apps::codex_bridge::stopClient(client_);
+            FlowHandle connect() override {
+                return connectClient(client_, "Unix WebSocket");
             }
 
             void configure() {
@@ -266,12 +260,8 @@ namespace apps::codex_bridge {
             }
 
         private:
-            void connect() override {
-                connectClient(client_, "IPv4 WebSocket");
-            }
-
-            void stopClient() noexcept override {
-                apps::codex_bridge::stopClient(client_);
+            FlowHandle connect() override {
+                return connectClient(client_, "IPv4 WebSocket");
             }
 
             void configure() {
@@ -303,12 +293,8 @@ namespace apps::codex_bridge {
             }
 
         private:
-            void connect() override {
-                connectClient(client_, "IPv6 WebSocket");
-            }
-
-            void stopClient() noexcept override {
-                apps::codex_bridge::stopClient(client_);
+            FlowHandle connect() override {
+                return connectClient(client_, "IPv6 WebSocket");
             }
 
             void configure() {

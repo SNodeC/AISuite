@@ -16,6 +16,7 @@
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
+#include "core/socket/stream/ClientFlowController.h"
 #include "net/config/ConfigInstance.h"
 #include "net/in/stream/legacy/SocketClient.h"
 #include "net/in6/stream/legacy/SocketClient.h"
@@ -71,8 +72,7 @@ int main(int argc, char* argv[]) {
 
         std::string activeTransport;
         std::function<void()> connectSelected;
-        std::function<void()> terminateSelected;
-        std::function<bool()> selectedFlowTerminated;
+        std::shared_ptr<core::socket::stream::ClientFlowController> selectedFlow;
         std::function<void()> requestReconnect;
         std::function<void()> requestQuit;
         std::function<void()> continueReconnect;
@@ -188,30 +188,27 @@ int main(int argc, char* argv[]) {
 
         const auto selectClient = [&](auto& configuredClient, std::string transport) {
             auto* const clientHandle = &configuredClient;
-            auto* const flow = configuredClient.getFlowController();
             activeTransport = std::move(transport);
-            connectSelected = [&, clientHandle, flow] {
-                clientHandle->connect([&, flow](const auto&, core::socket::State state) {
+            connectSelected = [&, clientHandle] {
+                selectedFlow = clientHandle->connect([&](const auto&, core::socket::State state) {
                     if (state == core::socket::State::OK || state == core::socket::State::DISABLED) {
                         return;
                     }
                     const std::string failure = "failed to connect using " + activeTransport + ": " + state.what();
-                    core::EventReceiver::atNextTick([&, flow, failure] {
-                        if (eventLoopRunning && !shutdownRequested && flow->isTerminated()) {
+                    core::EventReceiver::atNextTick([&, flow = selectedFlow, failure] {
+                        if (eventLoopRunning && !shutdownRequested && flow && flow == selectedFlow && flow->isTerminated()) {
                             presenter.error(failure);
                         }
                     });
                 });
             };
-            terminateSelected = [flow] { static_cast<void>(flow->terminateFlow()); };
-            selectedFlowTerminated = [flow] { return flow->isTerminated(); };
         };
 
         continueReconnect = [&] {
             if (!eventLoopRunning || shutdownRequested || !reconnectPending) {
                 return;
             }
-            if (!selectedFlowTerminated || !selectedFlowTerminated() || connection.attached()) {
+            if ((selectedFlow && !selectedFlow->isTerminated()) || connection.attached()) {
                 core::EventReceiver::atNextTick(continueReconnect);
                 return;
             }
@@ -219,7 +216,7 @@ int main(int argc, char* argv[]) {
             connectSelected();
         };
         requestReconnect = [&] {
-            if (!eventLoopRunning || shutdownRequested || !connectSelected || !terminateSelected) {
+            if (!eventLoopRunning || shutdownRequested || !connectSelected || !selectedFlow) {
                 presenter.error("configured frontend transport is unavailable");
                 return;
             }
@@ -229,7 +226,7 @@ int main(int argc, char* argv[]) {
             }
             reconnectPending = true;
             connection.disconnect("explicit frontend reconnect");
-            terminateSelected();
+            static_cast<void>(selectedFlow->terminateFlow());
             core::EventReceiver::atNextTick(continueReconnect);
         };
         requestQuit = [&] {
@@ -242,8 +239,8 @@ int main(int argc, char* argv[]) {
                 input->stop();
             }
             connection.shutdown();
-            if (terminateSelected) {
-                terminateSelected();
+            if (selectedFlow) {
+                static_cast<void>(selectedFlow->terminateFlow());
             }
             if (eventLoopRunning) {
                 core::SNodeC::stop();
@@ -339,8 +336,8 @@ int main(int argc, char* argv[]) {
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         webSocketBinding->shutdown();
 #endif
-        if (terminateSelected) {
-            terminateSelected();
+        if (selectedFlow) {
+            static_cast<void>(selectedFlow->terminateFlow());
         }
         connection.shutdown();
     } catch (const std::exception& exception) {

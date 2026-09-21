@@ -16,6 +16,7 @@
 #include "core/SNodeC.h"
 #include "core/socket/SocketAddress.h"
 #include "core/socket/State.h"
+#include "core/socket/stream/ClientFlowController.h"
 #include "core/timer/Timer.h"
 #include "net/in/SocketAddress.h"
 #include "net/in/stream/legacy/SocketClient.h"
@@ -209,8 +210,8 @@ namespace {
                 if (connection != nullptr) {
                     connection->shutdown();
                 }
-                if (terminateClient) {
-                    terminateClient();
+                if (clientFlow) {
+                    static_cast<void>(clientFlow->terminateFlow());
                 }
                 core::SNodeC::stop();
             });
@@ -220,7 +221,7 @@ namespace {
         Transport transport;
         frontend::CodexBridge* sdk = nullptr;
         client::ClientConnection* connection = nullptr;
-        std::function<void()> terminateClient;
+        std::shared_ptr<core::socket::stream::ClientFlowController> clientFlow;
         std::size_t providerRequests = 0;
         std::size_t expectedResponses = 0;
         std::size_t responses = 0;
@@ -410,9 +411,6 @@ namespace {
             static_cast<void>(certificate);
             static_cast<void>(key);
 #endif
-            scenario.terminateClient = [&configuredClient] {
-                static_cast<void>(configuredClient.getFlowController()->terminateFlow());
-            };
 
             server.listen(listenAddress, [&](const Address& bound, core::socket::State state) {
                 tests::codex::traceCommunication(name(transport),
@@ -424,7 +422,7 @@ namespace {
                     scenario.fail(std::string(name(transport)) + " listener failed: " + state.what());
                     return;
                 }
-                configuredClient.connect(
+                scenario.clientFlow = configuredClient.connect(
                     Address(connectHost, bound.getPort()), [&scenario](const Address&, core::socket::State connectState) {
                         tests::codex::traceCommunication(
                             name(scenario.transport), "client-connector", "lifecycle", "connect-result", {{"state", connectState.what()}});
@@ -441,7 +439,8 @@ namespace {
                 },
                 utils::Timeval({15, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({17, 0}));
-            static_cast<void>(configuredClient.getFlowController()->terminateFlow());
+            if (scenario.clientFlow)
+                static_cast<void>(scenario.clientFlow->terminateFlow());
             connection.shutdown();
             scenario.connection = nullptr;
         }
@@ -489,9 +488,6 @@ namespace {
             configuredClient.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
             server.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
             configuredClient.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
-            scenario.terminateClient = [&configuredClient] {
-                static_cast<void>(configuredClient.getFlowController()->terminateFlow());
-            };
 
             server.listen(path, [&](const net::un::SocketAddress&, core::socket::State state) {
                 tests::codex::traceCommunication(
@@ -500,13 +496,14 @@ namespace {
                     scenario.fail("Unix JSONL listener failed: " + state.what());
                     return;
                 }
-                configuredClient.connect(path, [&scenario](const net::un::SocketAddress&, core::socket::State connectState) {
-                    tests::codex::traceCommunication(
-                        "Unix JSONL", "client-connector", "lifecycle", "connect-result", {{"state", connectState.what()}});
-                    if (connectState != core::socket::State::OK) {
-                        scenario.fail("Unix JSONL connector failed: " + connectState.what());
-                    }
-                });
+                scenario.clientFlow =
+                    configuredClient.connect(path, [&scenario](const net::un::SocketAddress&, core::socket::State connectState) {
+                        tests::codex::traceCommunication(
+                            "Unix JSONL", "client-connector", "lifecycle", "connect-result", {{"state", connectState.what()}});
+                        if (connectState != core::socket::State::OK) {
+                            scenario.fail("Unix JSONL connector failed: " + connectState.what());
+                        }
+                    });
             });
             [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
                 [&scenario] {
@@ -515,7 +512,8 @@ namespace {
                 },
                 utils::Timeval({15, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({17, 0}));
-            static_cast<void>(configuredClient.getFlowController()->terminateFlow());
+            if (scenario.clientFlow)
+                static_cast<void>(scenario.clientFlow->terminateFlow());
             connection.shutdown();
             scenario.connection = nullptr;
         }

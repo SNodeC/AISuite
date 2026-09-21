@@ -126,9 +126,9 @@ namespace ai::http {
         class Operation final : public model::Operation {
         public:
             explicit Operation(std::shared_ptr<State> state)
-                : state_(std::move(state))
-                , client_("", std::shared_ptr<State>(state_)) {
-                auto* config = client_.getConfig();
+                : state_(std::move(state)) {
+                Client client("", std::shared_ptr<State>(state_));
+                auto* config = client.getConfig();
                 config->Remote::setHost(state_->address.host)->setPort(state_->address.port);
                 config->setRetry(false);
                 config->setReconnect(false);
@@ -141,7 +141,7 @@ namespace ai::http {
                     config->setCaCertAcceptUnknown(false);
                     // SNode.C verifies the certificate chain; check the peer identity
                     // before the HTTP context can send any credentials.
-                    client_.setOnConnected([state = state_](auto* connection) {
+                    client.setOnConnected([state = state_](auto* connection) {
                         SSL* ssl = connection->getSSL();
                         X509* certificate = ssl ? SSL_get1_peer_certificate(ssl) : nullptr;
                         in_addr ip{};
@@ -161,10 +161,10 @@ namespace ai::http {
                         }
                     });
                 }
-                client_.setOnDisconnect([state = state_](auto*) {
+                client.setOnDisconnect([state = state_](auto*) {
                     state->fail("provider transport disconnected");
                 });
-                client_.connect([state = state_](const auto&, const core::socket::State& status) {
+                flow_ = client.connect([state = state_](const auto&, const core::socket::State& status) {
                     if (status != core::socket::State::OK)
                         state->fail("provider connection failed: " + status.what());
                 });
@@ -177,12 +177,12 @@ namespace ai::http {
                 state_->receiver = {};
                 if (state_->context)
                     state_->context->close();
-                static_cast<void>(client_.getFlowController()->terminateFlow());
+                static_cast<void>(flow_->terminateFlow());
             }
 
         private:
             std::shared_ptr<State> state_;
-            Client client_;
+            typename Client::FlowHandle flow_;
         };
         class Client final : public StreamingClient {
         public:

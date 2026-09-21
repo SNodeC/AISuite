@@ -175,6 +175,7 @@ namespace ai::openai::codex::model {
         }
         std::shared_ptr<State> state;
         web::http::server::Server<net::in::stream::legacy::SocketServer> server;
+        decltype(server)::FlowHandle flow;
     };
     ResponsesService::ResponsesService(ai::model::Provider& provider)
         : impl_(std::make_unique<Impl>(provider)) {
@@ -187,7 +188,7 @@ namespace ai::openai::codex::model {
             ready("model endpoint must bind IPv4 loopback");
             return;
         }
-        impl_->server.listen(
+        impl_->flow = impl_->server.listen(
             [state = impl_->state, ready = std::move(ready)](const net::in::SocketAddress& address, const core::socket::State& result) {
                 if (!state->provider)
                     return;
@@ -201,7 +202,8 @@ namespace ai::openai::codex::model {
     }
     void ResponsesService::stop() noexcept {
         impl_->state->provider = nullptr;
-        static_cast<void>(impl_->server.getFlowController()->terminateFlow());
+        if (impl_->flow)
+            static_cast<void>(impl_->flow->terminateFlow());
         for (const auto& weak : impl_->state->sessions)
             if (auto session = weak.lock())
                 session->stop();

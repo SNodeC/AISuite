@@ -10,6 +10,7 @@
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
+#include "core/socket/stream/ClientFlowController.h"
 #include "core/timer/Timer.h"
 #include "express/Request.h"
 #include "express/Response.h"
@@ -135,8 +136,8 @@ namespace {
                 if (stopProvider) {
                     stopProvider();
                 }
-                if (terminateClient) {
-                    terminateClient();
+                if (clientFlow) {
+                    static_cast<void>(clientFlow->terminateFlow());
                 }
                 core::SNodeC::stop();
             });
@@ -145,7 +146,7 @@ namespace {
         tests::codex::TestHarness& test;
         Transport transport;
         std::function<void()> stopProvider;
-        std::function<void()> terminateClient;
+        std::shared_ptr<core::socket::stream::ClientFlowController> clientFlow;
         std::size_t rawOutbound = 0;
         std::size_t rawInbound = 0;
         std::size_t peerRequests = 0;
@@ -395,9 +396,6 @@ namespace {
             scenario.stopProvider = [&endpoint] {
                 endpoint.stop();
             };
-            scenario.terminateClient = [&httpClient] {
-                static_cast<void>(httpClient.getFlowController()->terminateFlow());
-            };
 
             startTransport(webApp, httpClient, scenario);
 
@@ -408,7 +406,8 @@ namespace {
                 },
                 utils::Timeval({5, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({7, 0}));
-            static_cast<void>(httpClient.getFlowController()->terminateFlow());
+            if (scenario.clientFlow)
+                static_cast<void>(scenario.clientFlow->terminateFlow());
             endpoint.stop();
         }
 
@@ -453,17 +452,18 @@ int main(int argc, char* argv[]) {
                                 scenario.fail(std::string(transportName(scenario.transport)) + " listener failed: " + state.what());
                                 return;
                             }
-                            httpClient.connect(path, [&scenario](const net::un::SocketAddress&, core::socket::State connectState) {
-                                tests::codex::traceCommunication(transportName(scenario.transport),
-                                                                  "provider-http-client",
-                                                                  "lifecycle",
-                                                                  "connect-result",
-                                                                  {{"state", connectState.what()}});
-                                if (connectState != core::socket::State::OK) {
-                                    scenario.fail(std::string(transportName(scenario.transport)) +
-                                                  " connector failed: " + connectState.what());
-                                }
-                            });
+                            scenario.clientFlow =
+                                httpClient.connect(path, [&scenario](const net::un::SocketAddress&, core::socket::State connectState) {
+                                    tests::codex::traceCommunication(transportName(scenario.transport),
+                                                                     "provider-http-client",
+                                                                     "lifecycle",
+                                                                     "connect-result",
+                                                                     {{"state", connectState.what()}});
+                                    if (connectState != core::socket::State::OK) {
+                                        scenario.fail(std::string(transportName(scenario.transport)) +
+                                                      " connector failed: " + connectState.what());
+                                    }
+                                });
                         });
                     });
             static_cast<void>(::unlink(path.c_str()));
@@ -484,18 +484,19 @@ int main(int argc, char* argv[]) {
                                                         " listener failed: " + state.what());
                                           return;
                                       }
-                                      httpClient.connect(net::in::SocketAddress("127.0.0.1", bound.getPort()),
-                                                         [&scenario](const net::in::SocketAddress&, core::socket::State connectState) {
-                                                             tests::codex::traceCommunication(transportName(scenario.transport),
-                                                                                               "provider-http-client",
-                                                                                               "lifecycle",
-                                                                                               "connect-result",
-                                                                                               {{"state", connectState.what()}});
-                                                             if (connectState != core::socket::State::OK) {
-                                                                 scenario.fail(std::string(transportName(scenario.transport)) +
-                                                                               " connector failed: " + connectState.what());
-                                                             }
-                                                         });
+                                      scenario.clientFlow =
+                                          httpClient.connect(net::in::SocketAddress("127.0.0.1", bound.getPort()),
+                                                             [&scenario](const net::in::SocketAddress&, core::socket::State connectState) {
+                                                                 tests::codex::traceCommunication(transportName(scenario.transport),
+                                                                                                  "provider-http-client",
+                                                                                                  "lifecycle",
+                                                                                                  "connect-result",
+                                                                                                  {{"state", connectState.what()}});
+                                                                 if (connectState != core::socket::State::OK) {
+                                                                     scenario.fail(std::string(transportName(scenario.transport)) +
+                                                                                   " connector failed: " + connectState.what());
+                                                                 }
+                                                             });
                                   });
                 });
         case Transport::Ipv6:
@@ -516,18 +517,19 @@ int main(int argc, char* argv[]) {
                                       httpClient.getConfig()
                                           ->net::config::ConfigInstance::template getSubCommand<web::http::client::ConfigHttpClient>()
                                           ->setHostHeader("[::1]:" + std::to_string(bound.getPort()));
-                                      httpClient.connect(net::in6::SocketAddress("::1", bound.getPort()),
-                                                         [&scenario](const net::in6::SocketAddress&, core::socket::State connectState) {
-                                                             tests::codex::traceCommunication(transportName(scenario.transport),
-                                                                                               "provider-http-client",
-                                                                                               "lifecycle",
-                                                                                               "connect-result",
-                                                                                               {{"state", connectState.what()}});
-                                                             if (connectState != core::socket::State::OK) {
-                                                                 scenario.fail(std::string(transportName(scenario.transport)) +
-                                                                               " connector failed: " + connectState.what());
-                                                             }
-                                                         });
+                                      scenario.clientFlow =
+                                          httpClient.connect(net::in6::SocketAddress("::1", bound.getPort()),
+                                                             [&scenario](const net::in6::SocketAddress&, core::socket::State connectState) {
+                                                                 tests::codex::traceCommunication(transportName(scenario.transport),
+                                                                                                  "provider-http-client",
+                                                                                                  "lifecycle",
+                                                                                                  "connect-result",
+                                                                                                  {{"state", connectState.what()}});
+                                                                 if (connectState != core::socket::State::OK) {
+                                                                     scenario.fail(std::string(transportName(scenario.transport)) +
+                                                                                   " connector failed: " + connectState.what());
+                                                                 }
+                                                             });
                                   });
                 });
     }
