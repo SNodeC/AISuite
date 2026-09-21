@@ -290,6 +290,27 @@ test("browser framing rejects binary, invalid, and oversized messages like C++",
     }
 });
 
+for (const [name, detail] of [
+    ["ASCII", "plain text"], ["two-byte", "é\u07ff"], ["three-byte", "漢\u0800"],
+    ["surrogate pair", "🧭"], ["lone high surrogate", "\ud800"], ["lone low surrogate", "\udc00"],
+]) {
+    const data = `{"kind":"bridge.diagnostic","detail":"${detail.repeat(64)}"}`;
+    const bytes = new TextEncoder().encode(data).length;
+    for (const maximumMessageBytes of [bytes - 1, bytes, bytes + 1, data.length * 3]) {
+        test(`inbound ${name} frame retains the exact ${maximumMessageBytes}-byte limit`, () => {
+            const harness = webSocketHarness({maximumMessageBytes});
+            const received = [];
+            harness.sdk.onBridgeEvent(message => received.push(message));
+            harness.socket.open();
+            harness.socket.message(data);
+            assert.deepEqual(received, bytes <= maximumMessageBytes ? [JSON.parse(data)] : []);
+            assert.deepEqual(harness.socket.closes, bytes <= maximumMessageBytes ? [] : [{
+                code: 1008, reason: "bridge message exceeds configured maximum",
+            }]);
+        });
+    }
+}
+
 test("valid JSON with an invalid bridge envelope reports one connection failure", () => {
     const failures = [];
     const harness = webSocketHarness({}, {

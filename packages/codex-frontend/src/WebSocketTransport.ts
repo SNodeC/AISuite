@@ -162,7 +162,9 @@ export class WebSocketTransport implements TransportEndpoint {
                 );
                 return;
             }
-            if (byteLength(event.data) > this.maximumMessageBytes) {
+            // UTF-8 needs at most three bytes per UTF-16 code unit (four per surrogate pair).
+            if (event.data.length * 3 > this.maximumMessageBytes
+                && byteLength(event.data) > this.maximumMessageBytes) {
                 this.closeWithStatus(
                     ClosePolicyViolation,
                     "bridge message exceeds configured maximum",
