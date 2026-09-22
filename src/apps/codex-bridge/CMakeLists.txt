@@ -10,7 +10,7 @@ target_compile_features(codex-bridge PRIVATE cxx_std_20)
 target_include_directories(codex-bridge PRIVATE ${PROJECT_SOURCE_DIR}/src)
 target_link_libraries(
     codex-bridge
-    PRIVATE AISuite::OpenAICodex snodec::core
+    PRIVATE AISuite::OpenAICodex AISuite::Agent snodec::core
             snodec::net-un-stream-legacy snodec::net-in-stream-legacy
             snodec::net-in6-stream-legacy
 )
@@ -58,3 +58,7 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
     endif()
 endif()
 install(TARGETS codex-bridge RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+if(AISUITE_ENABLE_ANTHROPIC)
+    target_link_libraries(codex-bridge PRIVATE AISuite::Anthropic)
+endif()

@@ -1,3 +1,7 @@
+> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md).
+> In this existing document, “provider” refers to an app-server transport unless
+> explicitly called a **model provider**. Codex no longer implies OpenAI inference.
+
 # codex / codex-bridge Architecture
 
 > **Implementation provenance:** This architecture and its initial implementation
@@ -473,10 +477,12 @@ add only genuinely Codex-specific sections, such as the WebSocket request path
 or controller preference.
 
 Native `ClientFlowController` policy owns initial retry, retry backoff,
-post-disconnect reconnect, and stale-cycle suppression. `ClientSession` does
-not implement another reconnect timer. An explicit `reconnect` command first
-terminates the selected flow, waits for its asynchronous completion boundary,
-and then starts a new connection cycle using the same configured instance.
+post-disconnect reconnect, and stale-cycle suppression. Each explicit `connect()`
+returns its own flow handle; the application retains the selected handle for
+cancellation. `ClientSession` does not implement another reconnect timer. An
+explicit `reconnect` disconnects the current context and terminates its flow,
+waits for detachment, then replaces the handle with a fresh `connect()` result
+from the same configured instance.
 
 TLS remains below the Codex protocol context. The same raw Codex context is
 used over plain and TLS stream clients, and the same Codex WebSocket subprotocol
@@ -583,8 +589,9 @@ once. Context destruction, WebSocket closure, configured reconnect, explicit
 reconnect, and application shutdown all converge through this lifecycle rather
 than independently mutating SDK state.
 
-Application shutdown terminates the selected `ClientFlowController` and lets
-SNode.C close active contexts. Dynamic replacement of a configured transport,
+Application shutdown terminates the selected flow and shuts down the active
+`ClientConnection`; flow termination alone does not close established contexts.
+Dynamic replacement of a configured transport,
 if introduced later, must use the `mqttbridge` pattern: terminate and await the
 old flow before constructing or activating the replacement. No current feature
 requires a process-global registry of client sessions.

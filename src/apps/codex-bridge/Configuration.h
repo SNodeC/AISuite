@@ -5,6 +5,7 @@
 #ifndef APPS_CODEX_BRIDGE_CONFIGURATION_H
 #define APPS_CODEX_BRIDGE_CONFIGURATION_H
 
+#include "ai/agent/Runtime.h"
 #include "ai/openai/codex/bridge/CodexBridge.h"
 #include "ai/openai/codex/provider/StdioAppServer.h"
 #include "utils/SubCommand.h"
@@ -39,8 +40,20 @@ namespace apps::codex_bridge {
         std::size_t maximumFrameBytes() const;
         std::string webSocketEndpoint() const;
         std::string webRoot() const;
+        ai::agent::Selection selection() const;
+        std::string anthropicKeyEnvironment() const;
+        std::string anthropicBaseUrl() const;
+        std::uint64_t maximumOutputTokens() const;
+        std::uint64_t modelContextWindow() const;
 
     private:
+        CLI::Option* agent_ = nullptr;
+        CLI::Option* modelProvider_ = nullptr;
+        CLI::Option* model_ = nullptr;
+        CLI::Option* anthropicKeyEnvironment_ = nullptr;
+        CLI::Option* anthropicBaseUrl_ = nullptr;
+        CLI::Option* maximumOutputTokens_ = nullptr;
+        CLI::Option* modelContextWindow_ = nullptr;
         CLI::Option* appServerExecutable_ = nullptr;
         CLI::Option* appServerTransport_ = nullptr;
         CLI::Option* codexHome_ = nullptr;

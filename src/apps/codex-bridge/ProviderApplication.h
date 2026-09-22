@@ -27,6 +27,7 @@ namespace apps::codex_bridge {
         ProviderApplication& operator=(const ProviderApplication&) = delete;
 
         bool start();
+        bool startupFailed() const noexcept;
         void stop() noexcept;
         pid_t appServerPid() const noexcept;
 

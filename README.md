@@ -6,8 +6,19 @@ multi-client bridge: app-server remains the semantic and persistence authority,
 while AISuite owns transport adaptation, controller routing, typed facades, and
 bounded telemetry.
 
+## Agent and model-provider selection
+
+The Codex runtime and model provider are independent. The new native Anthropic
+provider can back the existing Codex agent through a scoped local Responses
+adapter; the normal Codex/OpenAI path remains direct. See
+[configuration, architecture and integration tests](docs/agent-providers.md) and
+[the Codex 0.154.0 compatibility profile](docs/codex-responses-profile.md).
+
 ## Components
 
+- `AISuite::Agent`: common agent selection, coding-turn facade and lifecycle.
+- `AISuite::Model`: provider-neutral inference and streaming contracts.
+- `AISuite::Anthropic`: native Messages API provider.
 - `AISuite::OpenAICodex`: backend SDK, frontend proxy SDK, bridge routing, and
   provider/frontend transport adapters.
 - `@snodec/codex-frontend`: framework-neutral TypeScript frontend proxy and

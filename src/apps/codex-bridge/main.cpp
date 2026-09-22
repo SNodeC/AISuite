@@ -79,8 +79,7 @@ namespace {
 } // namespace
 
 int main(int argc, char* argv[]) {
-    apps::codex_bridge::Configuration* const configuration =
-        utils::Config::configRoot.newSubCommand<apps::codex_bridge::Configuration>();
+    apps::codex_bridge::Configuration* const configuration = utils::Config::configRoot.newSubCommand<apps::codex_bridge::Configuration>();
     core::SNodeC::init(argc, argv);
 
     std::string runtimeError;
@@ -90,7 +89,7 @@ int main(int argc, char* argv[]) {
     }
 
     int result = 1;
-    {
+    try {
         ai::openai::codex::bridge::CodexBridge bridge(configuration->bridgeOptions());
         apps::codex_bridge::ProviderApplication provider(bridge, *configuration);
         const std::size_t maximumFrameBytes = configuration->maximumFrameBytes();
@@ -269,10 +268,12 @@ int main(int argc, char* argv[]) {
 
         result = core::SNodeC::start();
         provider.stop();
-        if (appServerStartupFailed) {
+        if (appServerStartupFailed || provider.startupFailed()) {
             result = 1;
         }
+    } catch (const std::exception& e) {
+        std::cerr << "codex-bridge: " << e.what() << '\n';
+        return 1;
     }
-
     return result;
 }

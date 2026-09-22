@@ -15,6 +15,7 @@
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/socket/State.h"
+#include "core/socket/stream/ClientFlowController.h"
 #include "core/timer/Timer.h"
 #include "express/legacy/in/WebApp.h"
 #include "express/legacy/in6/WebApp.h"
@@ -218,8 +219,8 @@ namespace {
                 if (shutdownBinding) {
                     shutdownBinding();
                 }
-                if (terminateClient) {
-                    terminateClient();
+                if (clientFlow) {
+                    static_cast<void>(clientFlow->terminateFlow());
                 }
                 core::SNodeC::stop();
             });
@@ -230,7 +231,7 @@ namespace {
         frontend::CodexBridge* sdk = nullptr;
         client::ClientConnection* connection = nullptr;
         std::function<void()> shutdownBinding;
-        std::function<void()> terminateClient;
+        std::shared_ptr<core::socket::stream::ClientFlowController> clientFlow;
         std::size_t providerRequests = 0;
         std::size_t connected = 0;
         std::size_t disconnected = 0;
@@ -404,9 +405,6 @@ namespace {
             scenario.shutdownBinding = [binding] {
                 binding->shutdown();
             };
-            scenario.terminateClient = [&httpClient] {
-                static_cast<void>(httpClient.getFlowController()->terminateFlow());
-            };
 
             if constexpr (Encrypted) {
 #if defined(AISUITE_CODEX_TEST_WEBSOCKET_TLS)
@@ -436,13 +434,14 @@ namespace {
                         ->net::config::ConfigInstance::template getSubCommand<web::http::client::ConfigHttpClient>()
                         ->setHostHeader("[" + connectHost + "]:" + std::to_string(bound.getPort()));
                 }
-                httpClient.connect(Address(connectHost, bound.getPort()), [&scenario](const Address&, core::socket::State connectState) {
-                    tests::codex::traceCommunication(
-                        name(scenario.transport), "http-client", "lifecycle", "connect-result", {{"state", connectState.what()}});
-                    if (connectState != core::socket::State::OK) {
-                        scenario.fail(std::string(name(scenario.transport)) + " HTTP connector failed: " + connectState.what());
-                    }
-                });
+                scenario.clientFlow = httpClient.connect(
+                    Address(connectHost, bound.getPort()), [&scenario](const Address&, core::socket::State connectState) {
+                        tests::codex::traceCommunication(
+                            name(scenario.transport), "http-client", "lifecycle", "connect-result", {{"state", connectState.what()}});
+                        if (connectState != core::socket::State::OK) {
+                            scenario.fail(std::string(name(scenario.transport)) + " HTTP connector failed: " + connectState.what());
+                        }
+                    });
             });
 
             [[maybe_unused]] core::timer::Timer watchdog = core::timer::Timer::singleshotTimer(
@@ -452,7 +451,8 @@ namespace {
                 },
                 utils::Timeval({15, 0}));
             eventLoopResult = core::SNodeC::start(utils::Timeval({17, 0}));
-            static_cast<void>(httpClient.getFlowController()->terminateFlow());
+            if (scenario.clientFlow)
+                static_cast<void>(scenario.clientFlow->terminateFlow());
             binding->shutdown();
             connection.shutdown();
             scenario.connection = nullptr;

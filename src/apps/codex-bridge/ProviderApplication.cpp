@@ -4,11 +4,19 @@
 
 #include "apps/codex-bridge/ProviderApplication.h"
 
+#include "ai/agent/Runtime.h"
 #include "ai/openai/codex/bridge/CodexBridge.h"
-#include "ai/openai/codex/provider/StdioAppServer.h"
 #include "ai/openai/codex/protocol/RuntimePaths.h"
+#include "ai/openai/codex/provider/StdioAppServer.h"
 #include "apps/codex-bridge/Configuration.h"
 #include "core/SNodeC.h"
+#if defined(AISUITE_MODEL_PROVIDERS)
+#include "ai/http/StreamingClient.h"
+#include "ai/openai/codex/model/ProviderProfile.h"
+#include "ai/openai/codex/model/ResponsesService.h"
+#include "ai/providers/anthropic/AnthropicProvider.h"
+#endif
+#include <cstdlib>
 
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "ai/openai/codex/provider/WebSocketAppServer.h"
@@ -26,20 +34,23 @@ namespace apps::codex_bridge {
 
     namespace codex = ai::openai::codex;
 
-    class ProviderApplication::Runtime {
+    class ProviderApplication::Runtime : public ai::agent::Runtime {
     public:
         virtual ~Runtime() = default;
         virtual bool start() = 0;
         virtual void stop() noexcept = 0;
         virtual pid_t appServerPid() const noexcept = 0;
+        virtual bool failed() const noexcept {
+            return false;
+        }
     };
 
     namespace {
 
         class StdioRuntime final : public ProviderApplication::Runtime {
         public:
-            StdioRuntime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
-                : endpoint_(bridge, options(configuration)) {
+            StdioRuntime(codex::bridge::CodexBridge& bridge, codex::provider::StdioAppServerOptions configuration)
+                : endpoint_(bridge, options(std::move(configuration))) {
             }
 
             bool start() override {
@@ -55,8 +66,7 @@ namespace apps::codex_bridge {
             }
 
         private:
-            static codex::provider::StdioAppServerOptions options(const Configuration& configuration) {
-                auto result = configuration.stdioAppServerOptions();
+            static codex::provider::StdioAppServerOptions options(codex::provider::StdioAppServerOptions result) {
                 result.onExit = [](int status) {
                     std::cerr << "codex-bridge: app-server process terminated status=" << status << '\n';
                     core::SNodeC::stop();
@@ -67,6 +77,89 @@ namespace apps::codex_bridge {
             codex::provider::StdioAppServer endpoint_;
         };
 
+#if defined(AISUITE_MODEL_PROVIDERS)
+        class ModelRuntime final : public ProviderApplication::Runtime {
+        public:
+            ModelRuntime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
+                : bridge_(bridge)
+                , options_(configuration.stdioAppServerOptions())
+                , selection_(configuration.selection())
+                , http_(ai::http::makeStreamingClient())
+                , provider_(providerConfiguration(configuration), *http_)
+                , profile_(provider_.info(), configuration.modelContextWindow())
+                , service_(provider_) {
+                // Only the local bearer token crosses into the agent process. Do not
+                // give provider credentials to tools, child processes or Codex logs.
+                options_.environment.emplace_back(configuration.anthropicKeyEnvironment(), "");
+            }
+            bool start() override {
+                service_.listen([this](const std::string& error) {
+                    if (stopped_)
+                        return;
+                    try {
+                        if (!error.empty())
+                            throw std::runtime_error(error);
+                        profile_.configure(options_, selection_.model, service_.baseUrl(), service_.bearerToken());
+                        runtime_ = std::make_unique<StdioRuntime>(bridge_, std::move(options_));
+                        if (!runtime_->start())
+                            throw std::runtime_error("app-server startup failed");
+                    } catch (const std::exception& e) {
+                        failed_ = true;
+                        std::cerr << "codex-bridge: " << e.what() << '\n';
+                        stop();
+                        core::SNodeC::stop();
+                    }
+                });
+                return !failed_;
+            }
+            void stop() noexcept override {
+                stopped_ = true;
+                service_.stop();
+                if (runtime_)
+                    runtime_->stop();
+            }
+            pid_t appServerPid() const noexcept override {
+                return runtime_ ? runtime_->appServerPid() : -1;
+            }
+            bool failed() const noexcept override {
+                return failed_;
+            }
+
+        private:
+            static ai::providers::anthropic::Configuration providerConfiguration(const Configuration& configuration) {
+                const auto selected = configuration.selection();
+                if (selected.model.empty())
+                    throw std::invalid_argument("--model is required with --model-provider anthropic");
+                const auto keyName = configuration.anthropicKeyEnvironment();
+                if (keyName.empty() || keyName.find('=') != std::string::npos || keyName == "AISUITE_MODEL_TOKEN" ||
+                    keyName == "CODEX_HOME")
+                    throw std::invalid_argument("invalid Anthropic API key environment variable name");
+                const char* key = std::getenv(keyName.c_str());
+                if (!key || !*key)
+                    throw std::invalid_argument("Anthropic API key environment variable is missing: " + keyName);
+                ai::providers::anthropic::Configuration result;
+                result.apiKey = key;
+                result.baseUrl = configuration.anthropicBaseUrl();
+                result.models = {{selected.model, selected.model}};
+                result.maximumOutputTokens = configuration.maximumOutputTokens();
+                // No lossless Responses representation for signed thinking. Native
+                // callers can use it, but this Codex compatibility profile cannot.
+                result.thinkingBudgetTokens = 0;
+                return result;
+            }
+            codex::bridge::CodexBridge& bridge_;
+            codex::provider::StdioAppServerOptions options_;
+            ai::agent::Selection selection_;
+            std::unique_ptr<ai::http::StreamingClient> http_;
+            ai::providers::anthropic::AnthropicProvider provider_;
+            codex::model::ProviderProfile profile_;
+            codex::model::ResponsesService service_;
+            std::unique_ptr<StdioRuntime> runtime_;
+            bool failed_ = false;
+            bool stopped_ = false;
+        };
+#endif
+
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
         class NetworkRuntimeBase : public ProviderApplication::Runtime {
         public:
@@ -76,12 +169,13 @@ namespace apps::codex_bridge {
             }
 
             bool start() final {
-                connect();
+                flow_ = connect();
                 return true;
             }
 
             void stop() noexcept final {
-                stopClient();
+                if (flow_)
+                    static_cast<void>(flow_->terminateFlow());
                 endpoint_.stop();
             }
 
@@ -90,53 +184,51 @@ namespace apps::codex_bridge {
             }
 
         protected:
+            using FlowHandle = std::shared_ptr<core::socket::stream::ClientFlowController>;
+
             codex::provider::WebSocketAppServer& endpoint() noexcept {
                 return endpoint_;
             }
 
         private:
-            virtual void connect() = 0;
-            virtual void stopClient() noexcept = 0;
+            virtual FlowHandle connect() = 0;
 
             codex::provider::WebSocketAppServer endpoint_;
+            FlowHandle flow_;
         };
 
         template <typename Client>
-        void connectClient(Client& client, std::string transport) {
-            client.connect([transport = std::move(transport)](const auto& address, core::socket::State state) {
+        auto connectClient(Client& client, std::string transport) {
+            return client.connect([transport = std::move(transport)](const auto& address, core::socket::State state) {
                 if (state == core::socket::State::OK) {
                     std::clog << "codex-bridge: app-server " << transport << " connected at " << address.toString() << '\n';
                 } else if (state != core::socket::State::DISABLED) {
-                    std::cerr << "codex-bridge: app-server " << transport << " connect failed at " << address.toString()
-                              << ": " << state.what() << '\n';
+                    std::cerr << "codex-bridge: app-server " << transport << " connect failed at " << address.toString() << ": "
+                              << state.what() << '\n';
                 }
             });
-        }
-
-        template <typename Client>
-        void stopClient(Client& client) noexcept {
-            static_cast<void>(client.getFlowController()->terminateFlow());
         }
 
         class UnixRuntime final : public NetworkRuntimeBase {
         public:
             UnixRuntime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : NetworkRuntimeBase(bridge, configuration)
-                , client_("codex-bridge-app-server-unix",
-                          [this](const auto& request) { endpoint().beginUpgrade(request); },
-                          [this](const auto& request) { endpoint().httpDisconnected(request); },
-                          endpoint().state()) {
+                , client_(
+                      "codex-bridge-app-server-unix",
+                      [this](const auto& request) {
+                          endpoint().beginUpgrade(request);
+                      },
+                      [this](const auto& request) {
+                          endpoint().httpDisconnected(request);
+                      },
+                      endpoint().state()) {
                 client_.getConfig()->Remote::setSunPath(codex::protocol::defaultAppServerSocketPath());
                 configure();
             }
 
         private:
-            void connect() override {
-                connectClient(client_, "Unix WebSocket");
-            }
-
-            void stopClient() noexcept override {
-                apps::codex_bridge::stopClient(client_);
+            FlowHandle connect() override {
+                return connectClient(client_, "Unix WebSocket");
             }
 
             void configure() {
@@ -154,21 +246,22 @@ namespace apps::codex_bridge {
         public:
             IPv4Runtime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : NetworkRuntimeBase(bridge, configuration)
-                , client_("codex-bridge-app-server-websocket-ipv4",
-                          [this](const auto& request) { endpoint().beginUpgrade(request); },
-                          [this](const auto& request) { endpoint().httpDisconnected(request); },
-                          endpoint().state()) {
+                , client_(
+                      "codex-bridge-app-server-websocket-ipv4",
+                      [this](const auto& request) {
+                          endpoint().beginUpgrade(request);
+                      },
+                      [this](const auto& request) {
+                          endpoint().httpDisconnected(request);
+                      },
+                      endpoint().state()) {
                 client_.getConfig()->Remote::setHost("127.0.0.1")->setPort(4501);
                 configure();
             }
 
         private:
-            void connect() override {
-                connectClient(client_, "IPv4 WebSocket");
-            }
-
-            void stopClient() noexcept override {
-                apps::codex_bridge::stopClient(client_);
+            FlowHandle connect() override {
+                return connectClient(client_, "IPv4 WebSocket");
             }
 
             void configure() {
@@ -186,21 +279,22 @@ namespace apps::codex_bridge {
         public:
             IPv6Runtime(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
                 : NetworkRuntimeBase(bridge, configuration)
-                , client_("codex-bridge-app-server-websocket-ipv6",
-                          [this](const auto& request) { endpoint().beginUpgrade(request); },
-                          [this](const auto& request) { endpoint().httpDisconnected(request); },
-                          endpoint().state()) {
+                , client_(
+                      "codex-bridge-app-server-websocket-ipv6",
+                      [this](const auto& request) {
+                          endpoint().beginUpgrade(request);
+                      },
+                      [this](const auto& request) {
+                          endpoint().httpDisconnected(request);
+                      },
+                      endpoint().state()) {
                 client_.getConfig()->Remote::setHost("::1")->setPort(4501);
                 configure();
             }
 
         private:
-            void connect() override {
-                connectClient(client_, "IPv6 WebSocket");
-            }
-
-            void stopClient() noexcept override {
-                apps::codex_bridge::stopClient(client_);
+            FlowHandle connect() override {
+                return connectClient(client_, "IPv6 WebSocket");
             }
 
             void configure() {
@@ -217,36 +311,50 @@ namespace apps::codex_bridge {
 
     } // namespace
 
-    ProviderApplication::ProviderApplication(codex::bridge::CodexBridge& bridge,
-                                             const Configuration& configuration)
+    ProviderApplication::ProviderApplication(codex::bridge::CodexBridge& bridge, const Configuration& configuration)
         : bridge_(bridge) {
-        switch (configuration.appServerTransport()) {
-        case AppServerTransport::Stdio:
-            runtime_ = std::make_unique<StdioRuntime>(bridge, configuration);
-            break;
-#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-        case AppServerTransport::Unix:
-            runtime_ = std::make_unique<UnixRuntime>(bridge, configuration);
-            break;
-        case AppServerTransport::WebSocketIPv4:
-            runtime_ = std::make_unique<IPv4Runtime>(bridge, configuration);
-            break;
-        case AppServerTransport::WebSocketIPv6:
-            runtime_ = std::make_unique<IPv6Runtime>(bridge, configuration);
-            break;
+        if (configuration.selection().provider != "openai") {
+#if defined(AISUITE_MODEL_PROVIDERS)
+            if (configuration.appServerTransport() != AppServerTransport::Stdio)
+                throw std::invalid_argument("AISuite model providers require the owned stdio app-server runtime");
+            runtime_ = std::make_unique<ModelRuntime>(bridge, configuration);
 #else
-        case AppServerTransport::Unix:
-        case AppServerTransport::WebSocketIPv4:
-        case AppServerTransport::WebSocketIPv6:
-            throw std::runtime_error("selected app-server transport requires SNode.C WebSocket client support");
+            throw std::invalid_argument("Anthropic provider support is disabled in this build");
 #endif
-        }
-        bridge_.onProviderLifecycle([this](bool connected) { providerLifecycleChanged(connected); });
+        } else
+            switch (configuration.appServerTransport()) {
+                case AppServerTransport::Stdio:
+                    runtime_ = std::make_unique<StdioRuntime>(bridge, configuration.stdioAppServerOptions());
+                    break;
+#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
+                case AppServerTransport::Unix:
+                    runtime_ = std::make_unique<UnixRuntime>(bridge, configuration);
+                    break;
+                case AppServerTransport::WebSocketIPv4:
+                    runtime_ = std::make_unique<IPv4Runtime>(bridge, configuration);
+                    break;
+                case AppServerTransport::WebSocketIPv6:
+                    runtime_ = std::make_unique<IPv6Runtime>(bridge, configuration);
+                    break;
+#else
+                case AppServerTransport::Unix:
+                case AppServerTransport::WebSocketIPv4:
+                case AppServerTransport::WebSocketIPv6:
+                    throw std::runtime_error("selected app-server transport requires SNode.C WebSocket client support");
+#endif
+            }
+        bridge_.onProviderLifecycle([this](bool connected) {
+            providerLifecycleChanged(connected);
+        });
     }
 
     ProviderApplication::~ProviderApplication() {
         bridge_.onProviderLifecycle({});
         stop();
+    }
+
+    bool ProviderApplication::startupFailed() const noexcept {
+        return runtime_ && runtime_->failed();
     }
 
     bool ProviderApplication::start() {
@@ -274,8 +382,8 @@ namespace apps::codex_bridge {
         });
         bridge_.initialize(parameters, [this](Initialize::Response& response) {
             if (!response) {
-                std::cerr << "codex-bridge: app-server initialize failed: "
-                          << response.jsonRpcErrorMessage().value_or("unknown error") << '\n';
+                std::cerr << "codex-bridge: app-server initialize failed: " << response.jsonRpcErrorMessage().value_or("unknown error")
+                          << '\n';
                 core::SNodeC::stop();
                 return;
             }

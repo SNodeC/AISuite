@@ -4,6 +4,7 @@ add_library(
     bridge/CodexBridge.cpp
     bridge/CodexBridge.h
     bridge/Endpoint.h
+    frontend/CodexAgent.cpp
     frontend/CodexBridge.cpp
     frontend/CodexBridge.h
     frontend/client/ClientConnection.cpp
@@ -29,6 +30,13 @@ add_library(
     provider/StdioAppServer.h
 )
 add_library(AISuite::OpenAICodex ALIAS ai-openai-codex)
+if(AISUITE_ENABLE_ANTHROPIC)
+    target_sources(ai-openai-codex PRIVATE model/ResponsesAdapter.cpp
+                   model/ResponsesService.cpp model/ProviderProfile.cpp)
+    target_link_libraries(ai-openai-codex PUBLIC AISuite::Model
+                          PRIVATE snodec::http-server OpenSSL::Crypto)
+    target_compile_definitions(ai-openai-codex PUBLIC AISUITE_MODEL_PROVIDERS=1)
+endif()
 set_target_properties(ai-openai-codex PROPERTIES EXPORT_NAME OpenAICodex)
 target_include_directories(
     ai-openai-codex
@@ -39,7 +47,7 @@ target_include_directories(
 target_compile_features(ai-openai-codex PUBLIC cxx_std_20)
 target_link_libraries(
     ai-openai-codex
-    PUBLIC nlohmann_json::nlohmann_json snodec::core
+    PUBLIC AISuite::Agent nlohmann_json::nlohmann_json snodec::core
     PRIVATE snodec::net-un-stream-legacy snodec::net-in-stream-legacy
             snodec::net-in6-stream-legacy
 )
