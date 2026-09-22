@@ -65,17 +65,15 @@ jobs:
       - name: Verify pinned Codex protocol generation
         run: tools/regenerate-codex-protocol.sh --check
 
-      - name: Prepare pinned SNode.C dependency
+      - name: Prepare SNode.C master dependency
         run: |
           git init ../snodec
           git -C ../snodec remote add origin https://github.com/SNodeC/snode.c.git
-          git -C ../snodec fetch --depth 1 origin \
-            1aee7995823218cd25ee62f082677b195e32ce6e
-          git -C ../snodec checkout --detach \
-            1aee7995823218cd25ee62f082677b195e32ce6e
+          git -C ../snodec fetch --depth 1 origin master
+          git -C ../snodec checkout --detach FETCH_HEAD
           git -C ../snodec rev-parse HEAD
 
-      - name: Build and install pinned SNode.C dependency
+      - name: Build and install SNode.C dependency
         run: |
           cmake -S ../snodec -B ../snodec-build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
