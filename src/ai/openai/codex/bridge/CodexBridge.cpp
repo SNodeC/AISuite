@@ -492,6 +492,8 @@ namespace ai::openai::codex::bridge {
             std::string_view{"plugin/read"},
             std::string_view{"plugin/share/list"},
             std::string_view{"plugin/skill/read"},
+            std::string_view{"project/list"},
+            std::string_view{"project/read"},
             std::string_view{"skills/list"},
             std::string_view{"thread/goal/get"},
             std::string_view{"thread/list"},

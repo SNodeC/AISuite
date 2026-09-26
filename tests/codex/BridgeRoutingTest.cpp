@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -69,10 +70,108 @@ namespace {
     nlohmann::json envelope(nlohmann::json payload) {
         return {{"kind", "appserver"}, {"payload", std::move(payload)}};
     }
+
+    void projectAndSectionRouting(tests::codex::TestHarness& test) {
+        using Json = nlohmann::json;
+        for (const bool observersMayRead : {true, false}) {
+            bridge::CodexBridgeOptions options;
+            options.observersMayRead = observersMayRead;
+            bridge::CodexBridge router(options);
+            Provider provider;
+            router.setAppServer(&provider);
+            router.appServerConnected();
+            router.setAppServerReady();
+            Frontend controller("project-controller"), observer("project-observer");
+            const auto controllerId = router.registerFrontend(controller);
+            const auto observerId = router.registerFrontend(observer);
+            const std::vector<std::pair<std::string, Json>> reads{
+                {"project/list", {{"cursor", "next-page"}, {"limit", 20}, {"sortKey", "position"}}},
+                {"project/read", {{"projectId", "project-a"}}},
+                {"threadSection/list", {{"cursor", "next-page"}, {"limit", 20}}},
+                {"thread/list", {{"projectId", "project-a"}, {"sectionId", "section-a"}, {"cursor", "next-page"}}},
+            };
+            for (const auto& [method, params] : reads) {
+                const auto before = provider.messages.size();
+                const Json request{{"jsonrpc", "2.0"}, {"id", 42}, {"method", method}, {"params", params}};
+                router.receiveFromFrontend(observerId, envelope(request));
+                test.expect(provider.messages.size() == before + (observersMayRead ? 1U : 0U), method + " obeys the observer-read switch");
+                if (!observersMayRead) {
+                    test.expect(observer.lastPayload() && observer.lastPayload()->value("id", 0) == 42 &&
+                                    observer.lastPayload()->contains("error") &&
+                                    observer.lastPayload()->at("error").value("code", 0) == -32001,
+                                method + " rejects disabled observer reads with the original id");
+                    continue;
+                }
+                if (provider.messages.size() != before + 1)
+                    continue;
+                const Json upstreamId = provider.messages.back().at("id");
+                Json expected = request;
+                expected["id"] = upstreamId;
+                test.expect(upstreamId != 42 && provider.messages.back() == expected,
+                            method + " preserves parameters and remaps only the request id");
+                // Both clients can use the same frontend id concurrently.
+                router.receiveFromFrontend(controllerId, envelope(request));
+                test.expect(provider.messages.size() == before + 2 && provider.messages.back().at("id") != upstreamId,
+                            method + " keeps controller/observer correlation distinct");
+                if (provider.messages.size() != before + 2)
+                    continue;
+                const Json controllerUpstreamId = provider.messages.back().at("id");
+                const auto controllerCount = controller.messages.size();
+                const Json result{{"data", Json::array()}, {"nextCursor", "page-2"}};
+                router.receiveFromAppServer({{"id", upstreamId}, {"result", result}});
+                test.expect(observer.lastPayload() && *observer.lastPayload() == Json{{"id", 42}, {"result", result}} &&
+                                controller.messages.size() == controllerCount,
+                            method + " returns the unchanged result only to its observer owner");
+                const auto observerCount = observer.messages.size();
+                const Json error{{"code", -32601}, {"message", "unsupported by this server"}};
+                router.receiveFromAppServer({{"id", controllerUpstreamId}, {"error", error}});
+                test.expect(controller.lastPayload() && *controller.lastPayload() == Json{{"id", 42}, {"error", error}} &&
+                                observer.messages.size() == observerCount,
+                            method + " returns provider errors only to their controller owner");
+            }
+            for (const char* method : {"project/create",
+                                       "project/import",
+                                       "project/update",
+                                       "project/move",
+                                       "project/delete",
+                                       "threadSection/create",
+                                       "threadSection/update",
+                                       "threadSection/delete",
+                                       "thread/metadata/update",
+                                       "thread/section/move",
+                                       "thread/start"}) {
+                const auto before = provider.messages.size();
+                const Json request{{"jsonrpc", "2.0"}, {"id", method}, {"method", method}, {"params", {{"projectId", "project-a"}}}};
+                router.receiveFromFrontend(observerId, envelope(request));
+                test.expect(provider.messages.size() == before && observer.lastPayload() && observer.lastPayload()->at("id") == method &&
+                                observer.lastPayload()->contains("error") && observer.lastPayload()->at("error").value("code", 0) == -32001,
+                            std::string(method) + " remains controller-only");
+                router.receiveFromFrontend(controllerId, envelope(request));
+                test.expect(provider.messages.size() == before + 1 && provider.messages.back().at("method") == method &&
+                                provider.messages.back().at("params") == request.at("params"),
+                            std::string(method) + " already uses generic controller forwarding");
+                if (provider.messages.size() == before + 1)
+                    router.receiveFromAppServer({{"id", provider.messages.back().at("id")}, {"result", Json::object()}});
+            }
+            for (const char* method : {"project/changed", "thread/project/updated"}) {
+                const Json notification{{"method", method}, {"params", {{"projectId", "project-a"}, {"threadId", "thread-a"}}}};
+                router.receiveFromAppServer(notification);
+                test.expect(controller.lastPayload() && observer.lastPayload() && *controller.lastPayload() == notification &&
+                                *observer.lastPayload() == notification,
+                            std::string(method) + " is broadcast unchanged to both roles");
+            }
+            const auto before = provider.messages.size();
+            router.receiveFromFrontend(observerId, envelope({{"jsonrpc", "2.0"}, {"method", "project/read"}, {"params", Json::object()}}));
+            router.receiveFromFrontend(observerId, envelope({{"jsonrpc", "2.0"}, {"id", 99}, {"method", "project/read/extra"}}));
+            test.expect(provider.messages.size() == before,
+                        "observers cannot send read-method notifications or bypass exact method matching");
+        }
+    }
 } // namespace
 
 int main() {
     tests::codex::TestHarness test;
+    projectAndSectionRouting(test);
     bridge::CodexBridge router;
     Provider provider;
     router.setAppServer(&provider);
