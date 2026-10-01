@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="430" viewBox="0 0 1280 430" role="img" aria-labelledby="title description">
+  <title id="title">AISuite: one agent session, multiple application frontends</title>
+  <desc id="description">Native Qt, browser and custom clients connect to the AISuite bridge. The bridge routes to Codex app-server, which owns tools and history. Codex connects directly to OpenAI or through the optional local Responses adapter to the Anthropic provider. Arrows show logical request direction; responses and events return through the same paths.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="m0 0 10 5-10 5z" fill="#458572"/></marker></defs>
+  <rect x="1" y="1" width="1278" height="428" rx="18" fill="#f5f9f8" stroke="#d2e2dd"/>
+  <g font-family="DejaVu Sans, sans-serif" fill="#172c36">
+    <text x="36" y="44" font-size="22" font-weight="700">One agent session. Multiple frontends.</text>
+    <g font-size="13" font-weight="700" fill="#546b72" letter-spacing="1.4">
+      <text x="36" y="94">APPLICATIONS</text><text x="335" y="94">ROUTING</text>
+      <text x="641" y="94">AGENT RUNTIME</text><text x="971" y="94">INFERENCE</text>
+    </g>
+    <g fill="#fff" stroke="#cbdcd6">
+      <rect x="36" y="117" width="225" height="66" rx="10"/>
+      <rect x="36" y="198" width="225" height="66" rx="10"/>
+      <rect x="36" y="279" width="225" height="66" rx="10"/>
+    </g>
+    <g font-size="19" font-weight="700"><text x="55" y="145">Native Qt</text><text x="55" y="226">Browser</text><text x="55" y="307">Custom clients</text></g>
+    <g font-size="14" fill="#52676f"><text x="55" y="167">CodexUI</text><text x="55" y="248">CodexWUI / TS SDK</text><text x="55" y="329">C++ / SNode.C applications</text></g>
+    <rect x="335" y="148" width="235" height="162" rx="12" fill="#173b36"/>
+    <text x="356" y="183" font-size="22" font-weight="700" fill="#fff">AISuite bridge</text>
+    <g font-size="16" fill="#cee9df"><text x="356" y="220">Controller / observers</text><text x="356" y="248">Request-ID routing</text><text x="356" y="276">Bounded transport</text></g>
+    <rect x="641" y="148" width="255" height="162" rx="12" fill="#e7eefb" stroke="#bdcce8"/>
+    <text x="661" y="183" font-size="22" font-weight="700">Codex app-server</text>
+    <g font-size="16" fill="#415c7e"><text x="661" y="220">Threads and turns</text><text x="661" y="248">Tools and approvals</text><text x="661" y="276">Persistent history</text></g>
+    <rect x="971" y="117" width="270" height="66" rx="10" fill="#fff" stroke="#cbdcd6"/>
+    <text x="989" y="145" font-size="19" font-weight="700">OpenAI</text><text x="989" y="167" font-size="14" fill="#52676f">Direct Codex path</text>
+    <rect x="971" y="221" width="270" height="124" rx="10" fill="#fff5e9" stroke="#dfc8a9"/>
+    <text x="989" y="249" font-size="17" font-weight="700">Local Responses adapter</text>
+    <text x="989" y="273" font-size="14" fill="#6c5b44">Optional · scoped compatibility</text>
+    <path d="M989 286h234" stroke="#dfc8a9"/>
+    <text x="989" y="313" font-size="16" font-weight="700">Native Anthropic provider</text>
+    <text x="989" y="333" font-size="14" fill="#6c5b44">Messages API</text>
+    <g fill="none" stroke="#458572" stroke-width="2" marker-end="url(#arrow)">
+      <path d="M261 150h32v79h42"/><path d="M261 231h74"/><path d="M261 312h32v-79h42"/>
+      <path d="M570 229h71"/><path d="M896 216h35v-66h40"/><path d="M896 243h35v27h40"/>
+    </g>
+    <text x="36" y="391" font-size="15" fill="#52676f">Logical request paths shown. Responses and events return to the connected frontends.</text>
+  </g>
+</svg>
