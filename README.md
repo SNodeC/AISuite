@@ -1,3 +1,5 @@
+<a name="project-overview"></a>
+
 <p align="center">
   <img src="docs/media/readme-hero.svg" alt="AISuite — Connect applications to coding agents." width="100%">
 </p>
@@ -17,13 +19,13 @@
 
 # AISuite
 
-**Agent integration, built for event-driven applications.** AISuite provides asynchronous C++ libraries, a multi-client Codex bridge and a framework-neutral TypeScript frontend SDK, built on [SNode.C](https://github.com/SNodeC/snode.c#readme).
+**Agent integration, built for event-driven applications.** AISuite provides asynchronous C++ libraries, a multi-client Codex bridge and a framework-neutral TypeScript frontend SDK, built on [SNode.C](https://github.com/SNodeC/snode.c#project-overview).
 
 Connect native applications, browser frontends and custom clients to a Codex app-server. Keep transport and routing in AISuite; keep conversations, tools, approvals and persistent history with the agent runtime.
 
 **Projects using AISuite:**
 
-- [CodexUI](https://github.com/SNodeC/CodexUI#readme)
+- [CodexUI](https://github.com/SNodeC/CodexUI#project-overview)
 
 ## What you can build
 
@@ -31,7 +33,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 | --- | --- | --- |
 | Run `codex-bridge` and connect a controller plus observers to one app-server session. | Link C++ targets into a SNode.C application and use typed, asynchronous agent or protocol APIs. | Use `@snodec/codex-frontend` over WebSocket without reproducing server-side routing. |
 
-For ready-made applications, see **[Codex(W)UI](https://github.com/SNodeC/CodexUI#readme)**: **CodexUI** for the native Qt workspace and **CodexWUI** for the browser, both using this bridge.
+For ready-made applications, see **[Codex(W)UI](https://github.com/SNodeC/CodexUI#project-overview)**: **CodexUI** for the native Qt workspace and **CodexWUI** for the browser, both using this bridge.
 
 ## Architecture
 
@@ -74,7 +76,7 @@ All carry the same bridge semantics. Transport selection does not create another
 ### Prerequisites
 
 - A C++20 toolchain and CMake 3.18+.
-- An installed [SNode.C](https://github.com/SNodeC/snode.c#readme) `master`/HEAD package satisfying the project's SNode.C 2.0 requirement.
+- An installed [SNode.C](https://github.com/SNodeC/snode.c#project-overview) `master`/HEAD package satisfying the project's SNode.C 2.0 requirement.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
 - A configured Codex executable to run an owned app-server; Node.js 22+ for the frontend SDK development workflow.
@@ -195,7 +197,7 @@ Regeneration requires fetching the pinned upstream source. Live provider checks 
 | Anthropic through Codex: supported semantics | [Compatibility profile](docs/codex-responses-profile.md) |
 | Controller/observer boundaries | [Read-operation policy](docs/codex-observer-policy.md) |
 | Browser/Node frontend integration | [TypeScript SDK](packages/codex-frontend/README.md) |
-| Native and browser consumers | [Codex(W)UI](https://github.com/SNodeC/CodexUI#readme) — CodexUI and CodexWUI |
+| Native and browser consumers | [Codex(W)UI](https://github.com/SNodeC/CodexUI#project-overview) — CodexUI and CodexWUI |
 
 When reporting a problem, include AISuite, SNode.C and Codex revisions, the transport, and a minimal reproduction. Remove credentials and private payloads from logs.
 
