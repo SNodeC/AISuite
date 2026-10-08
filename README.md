@@ -29,9 +29,9 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 ## What you can build
 
-| A shared agent workspace | A native integration | A browser frontend |
-| --- | --- | --- |
-| Run `codex-bridge` and connect a controller plus observers to one app-server session. | Link C++ targets into a SNode.C application and use typed, asynchronous agent or protocol APIs. | Use `@snodec/codex-frontend` over WebSocket without reproducing server-side routing. |
+- **Shared agent workspace:** run `codex-bridge` and connect a controller plus observers to one app-server session.
+- **Native integration:** link C++ targets into a SNode.C application and use typed, asynchronous agent or protocol APIs.
+- **Browser frontend:** use `@snodec/codex-frontend` over WebSocket without reproducing server-side routing.
 
 For ready-made applications, see **[Codex(W)UI](https://github.com/SNodeC/CodexUI#project-overview)**: **CodexUI** for the native Qt workspace and **CodexWUI** for the browser, both using this bridge.
 
@@ -49,15 +49,13 @@ Three boundaries keep the integration understandable:
 
 ## Libraries and applications
 
-| Component | Responsibility |
-| --- | --- |
-| `AISuite::OpenAICodex` | Typed backend and frontend SDKs, bridge routing, app-server and client transport adapters |
-| `AISuite::Agent` | Common agent selection, conversation/start-turn/interrupt facade and lifecycle contracts |
-| `AISuite::Model` | Provider-neutral inference, streaming, usage and cancellation contracts |
-| `AISuite::Anthropic` | Native Anthropic Messages API provider; optional at build time |
-| `@snodec/codex-frontend` | Framework-neutral TypeScript frontend proxy, connection lifecycle and generated protocol declarations |
-| `codex-bridge` | Multi-client bridge application; optional integrated HTTP/WebSocket listener |
-| `codex-bridge-client` | Interactive SNode.C frontend client |
+- `AISuite::OpenAICodex` — Typed backend and frontend SDKs, bridge routing, app-server and client transport adapters.
+- `AISuite::Agent` — Common agent selection, conversation/start-turn/interrupt facade and lifecycle contracts.
+- `AISuite::Model` — Provider-neutral inference, streaming, usage and cancellation contracts.
+- `AISuite::Anthropic` — Native Anthropic Messages API provider; optional at build time.
+- `@snodec/codex-frontend` — Framework-neutral TypeScript frontend proxy, connection lifecycle and generated protocol declarations.
+- `codex-bridge` — Multi-client bridge application; optional integrated HTTP/WebSocket listener.
+- `codex-bridge-client` — Interactive SNode.C frontend client.
 
 ### One schema, two typed frontends
 
@@ -75,7 +73,8 @@ All carry the same bridge semantics. Transport selection does not create another
 
 ### Prerequisites
 
-- A C++20 toolchain and CMake 3.18+.
+- A C++20 toolchain, CMake 3.18+, and a build tool such as Make.
+- Python 3 for the documented app-server integration tests.
 - An installed [SNode.C](https://github.com/SNodeC/snode.c#project-overview) `master`/HEAD package satisfying the project's SNode.C 2.0 requirement.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
@@ -88,6 +87,7 @@ Replace the SNode.C installation prefix:
 ```sh
 cmake -S . -B build \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr/local \
   -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix" \
   -DAISUITE_BUILD_APPS=ON \
   -DAISUITE_BUILD_CODEX_TESTS=ON
@@ -97,10 +97,13 @@ ctest --test-dir build -L codex --output-on-failure --parallel 14
 
 Set `-DAISUITE_ENABLE_ANTHROPIC=OFF` for the direct Codex/OpenAI path without the model-provider HTTP/TLS dependencies. Optional frontend transports are selected from available SNode.C components and can be configured with `AISUITE_ENABLE_CODEX_FRONTEND_TLS`, `AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET` and `AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM`.
 
+The example installs into `/usr/local` and needs administrator privileges. To use a writable non-system prefix instead, set `CMAKE_INSTALL_PREFIX` at configure time and omit `sudo`; configure consumers and runtime library lookup for that prefix.
+
 To make the libraries and applications available to consumers:
 
 ```sh
-cmake --install build
+sudo cmake --install build
+sudo ldconfig
 ```
 
 ## Run the bridge

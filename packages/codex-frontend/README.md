@@ -2,26 +2,19 @@
 
 Framework-neutral TypeScript frontend SDK for the AISuite `codex-bridge`.
 
-The generated protocol declarations come from the same pinned Codex schema
-and Rust operation bindings as AISuite's C++ views. Regenerate both outputs in
-one pinned invocation:
+The generated protocol declarations come from the same pinned Codex schema and Rust operation bindings as AISuite's C++ views. Regenerate both outputs in one pinned invocation:
 
 ```sh
 tools/regenerate-codex-protocol.sh
 ```
 
-The release script fetches the exact pinned Codex revision, extracts that
-release's experimental schema, and regenerates both language surfaces. CI runs
-the same command with `--check` and fails on any drift.
+The release script fetches the exact pinned Codex revision, extracts that release's experimental schema, and regenerates both language surfaces. CI runs the same command with `--check` and fails on any drift.
 
-`npm test --prefix packages/codex-frontend` builds the declarations and proves
-that the checked-in C++ and TypeScript type names, operation bindings,
-required-parameter flags, counts, and source hashes remain equal.
+`npm test --prefix packages/codex-frontend` builds the declarations and proves that the checked-in C++ and TypeScript type names, operation bindings, required-parameter flags, counts, and source hashes remain equal.
 
 ## Frontend proxy
 
-`CodexBridgeClient` mirrors the observable routing and lifecycle contract of
-AISuite's C++ frontend proxy while exposing generated method typing:
+`CodexBridgeClient` mirrors the observable routing and lifecycle contract of AISuite's C++ frontend proxy while exposing generated method typing:
 
 ```ts
 import {CodexBridgeClient} from "@snodec/codex-frontend";
@@ -38,11 +31,9 @@ const response = await client.requestPromise("thread/list", {
 });
 ```
 
-The proxy retains only pending JSON-RPC callbacks and bridge connection state.
-It does not retain threads, turns, items, settings, or other Codex-domain data.
+The proxy retains only pending JSON-RPC callbacks and bridge connection state. It does not retain threads, turns, items, settings, or other Codex-domain data.
 
-`ClientConnection` and `WebSocketTransport` provide the browser equivalent of
-the native client connection and WebSocket binding:
+`ClientConnection` and `WebSocketTransport` provide the browser equivalent of the native client connection and WebSocket binding:
 
 ```ts
 import {
@@ -59,9 +50,4 @@ const transport = new WebSocketTransport(
 );
 ```
 
-The transport negotiates the `codex` subprotocol, accepts JSON text messages,
-and applies the same 64 MiB default message bound as the C++ client. It does
-not reconnect automatically; application intent owns construction of a new
-transport after a completed detach. `ClientConnectionCallbacks.onDetached`
-reports that completion even when a socket failed before it became online;
-`onDisconnected` remains the online-to-offline lifecycle notification.
+The transport negotiates the `codex` subprotocol, accepts JSON text messages, and applies the same 64 MiB default message bound as the C++ client. It does not reconnect automatically; application intent owns construction of a new transport after a completed detach. `ClientConnectionCallbacks.onDetached` reports that completion even when a socket failed before it became online; `onDisconnected` remains the online-to-offline lifecycle notification.
