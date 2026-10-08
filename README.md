@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="#what-you-can-build">Use cases</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#build-from-source">Build</a> ·
-  <a href="#integrate">Integrate</a> ·
-  <a href="#documentation">Documentation</a>
+  <a href="#what-you-can-build" title="Use cases"><img src="docs/media/menu/use-cases-120.svg" alt="Use cases" width="120" height="24"></a>
+  <a href="#architecture" title="Architecture"><img src="docs/media/menu/architecture-120.svg" alt="Architecture" width="120" height="24"></a>
+  <a href="#build-from-source" title="Build"><img src="docs/media/menu/build-120.svg" alt="Build" width="120" height="24"></a>
+  <a href="#integrate" title="Integrate"><img src="docs/media/menu/integrate-120.svg" alt="Integrate" width="120" height="24"></a>
+  <a href="#documentation" title="Documentation"><img src="docs/media/menu/documentation-120.svg" alt="Documentation" width="120" height="24"></a>
 </p>
 
 # AISuite
