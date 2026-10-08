@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%20OR%20LGPL--3.0--or--later-347d70" alt="License: MIT or LGPL 3.0 or later"></a>
 </p>
 
-<p align="center">
+<p>
   <a href="#what-you-can-build" title="Use cases"><img src="docs/media/menu/use-cases-120.svg" alt="Use cases" width="120" height="24"></a>
   <a href="#architecture" title="Architecture"><img src="docs/media/menu/architecture-120.svg" alt="Architecture" width="120" height="24"></a>
   <a href="#build-from-source" title="Build"><img src="docs/media/menu/build-120.svg" alt="Build" width="120" height="24"></a>
