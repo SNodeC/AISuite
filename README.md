@@ -21,6 +21,10 @@
 
 Connect native applications, browser frontends and custom clients to a Codex app-server. Keep transport and routing in AISuite; keep conversations, tools, approvals and persistent history with the agent runtime.
 
+**Projects using AISuite:**
+
+- [CodexUI](https://github.com/SNodeC/CodexUI)
+
 ## What you can build
 
 | A shared agent workspace | A native integration | A browser frontend |
