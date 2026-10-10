@@ -201,9 +201,11 @@ The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ an
 
 Choose your route.
 
-**From source:** Follow the [build and installation guide](docs/build.md) for prerequisites, compilation and installation.
+<p>
+  <a href="docs/build.md" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="152" height="24"></a>
+</p>
 
-No binary packages are published through the shared distribution-package pipeline yet; build from source.
+The shared distribution-package pipeline does not publish AISuite binary packages yet; use the source build and installation guide.
 
 ## Releases
 
