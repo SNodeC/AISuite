@@ -140,9 +140,7 @@ The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#co
 
 Choose your route.
 
-| Route | How to install |
-| --- | --- |
-| **From source** | Prepare the prerequisites below, [build AISuite](#build-from-source), then install the build. |
+**From source** — Prepare the prerequisites below, [build AISuite](#build-from-source), then install the build.
 
 AISuite is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
 
