@@ -1,5 +1,11 @@
 # `@snodec/codex-frontend`
 
+<!-- snodec:begin back -->
+<p>
+  <a href="../../README.md#project-overview" title="AISuite"><img src="../../docs/media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
+</p>
+<!-- snodec:end back -->
+
 Framework-neutral TypeScript frontend SDK for the AISuite `codex-bridge`.
 
 The generated protocol declarations come from the same pinned Codex schema and Rust operation bindings as AISuite's C++ views. Regenerate both outputs in one pinned invocation:

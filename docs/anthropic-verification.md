@@ -1,5 +1,11 @@
 # Implementation and verification record
 
+<!-- snodec:begin back -->
+<p>
+  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
+</p>
+<!-- snodec:end back -->
+
 Date: 2026-09-19. Branch: `feature/agent-provider-anthropic`, based on clean `master` at `24b1d16c`. No upstream Codex files or CodexUI files were changed. Changes are staged on that branch. The attempted commit could not use the configured GPG signer because its agent/temporary files are outside the writable sandbox. No unsigned commit was substituted and the signing configuration was not changed.
 
 **Status: live Claude coding turn passed through the CodexUI-facing interface.** After socket/network access and a user-supplied credential became available, the production bridge and actual Codex 0.154.0 completed a coding turn against `claude-sonnet-5` over the native Anthropic HTTPS Messages API. The test uses the same frontend contract as CodexUI; interactive graphical CodexUI acceptance is still outstanding. No credential was written to repository files.

@@ -14,7 +14,7 @@
 <!-- snodec:end header -->
 
 <!-- snodec:begin status -->
-[![CI](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml/badge.svg)](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml) · [![Licence: MIT or LGPL 3.0 or later](https://img.shields.io/badge/Licence-MIT%20OR%20LGPL--3.0--or--later-334155?style=flat)](LICENSE)
+[![CI](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml/badge.svg)](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml) · [![License: MIT or LGPL 3.0 or later](https://img.shields.io/badge/License-MIT%20OR%20LGPL--3.0--or--later-334155?style=flat)](LICENSE)
 <!-- snodec:end status -->
 
 **Agent integration, built for event-driven applications.** AISuite provides asynchronous C++ libraries, a multi-client Codex bridge and a framework-neutral TypeScript frontend SDK, built on [SNode.C](https://github.com/SNodeC/snode.c#project-overview).
@@ -50,28 +50,82 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 ### Run the bridge
 
-With Codex available and configured for the account running the bridge:
+**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.154.0**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex-responses-profile.md).
+
+**Terminal 1:** start the bridge:
 
 ```sh
-codex-bridge
+codex-bridge --config-file /dev/null
 ```
 
-The default configuration uses the owned stdio app-server and a local Unix frontend socket. Additional listeners are configured separately.
+The default configuration uses the owned stdio app-server and a private Unix frontend socket: a valid, private `XDG_RUNTIME_DIR` plus `/codex-bridge.sock`, otherwise `/tmp/codex-bridge-<uid>/codex-bridge.sock`. Network listeners are disabled until explicitly enabled.
+
+**Terminal 2:** select the Unix client and the same socket. With a valid private `XDG_RUNTIME_DIR` (or with that variable unset), run:
+
+```sh
+BRIDGE_SOCKET="${XDG_RUNTIME_DIR:-/tmp/codex-bridge-$(id -u)}/codex-bridge.sock"
+codex-bridge-client --config-file /dev/null \
+  codex-bridge-client-unix --disabled=false \
+  remote --sun-path "$BRIDGE_SOCKET"
+```
+
+The interactive client's current Unix path default is `/tmp/codex-bridge.sock`, so this example selects the endpoint explicitly rather than implying the defaults match. If `XDG_RUNTIME_DIR` is not a private directory owned by you, use the fallback socket path shown above. Once connected and the provider is ready, enter `threads`; use `help` to inspect commands and `quit` to exit.
+
+**Expected result:** `connected using Unix JSONL`, followed by a `thread/list` JSON response after `threads`. An empty thread list is a valid result. This verifies transport, bridge routing and app-server readiness without creating a thread or making a paid model request. Provider-startup or protocol errors are failures, not successful empty responses.
 
 #### Serve a browser frontend
 
 With WebSocket support built, enable a loopback listener:
 
 ```sh
-codex-bridge codex-bridge-websocket-ipv4 --disabled=false \
+codex-bridge --config-file /dev/null codex-bridge-websocket-ipv4 --disabled=false \
   local --host 127.0.0.1 --port 8080
 ```
 
-The same listener serves a built CodexWUI at `/` and upgrades `/codex` with the `codex` WebSocket subprotocol. Install the web artifact using [CodexWUI's browser instructions](https://github.com/SNodeC/CodexUI/blob/master/web/README.md). The default static root is the configured install data directory's `codexui/web`; the `codex` configuration subcommand's `--bridge-web-root PATH` option overrides it. An empty root disables static delivery without disabling WebSocket. **No Node process is needed to serve the installed application.**
+The same listener serves a built CodexWUI at `/` and upgrades `/codex` with the `codex` WebSocket subprotocol. Install the web artifact using [CodexWUI](https://github.com/SNodeC/CodexUI#project-overview). The default static root is the configured install data directory's `codexui/web`; the `codex` configuration subcommand's `--bridge-web-root PATH` option overrides it. An empty root disables static delivery without disabling WebSocket. **No Node process is needed to serve the installed application.**
 
-> **Deployment boundary:** controller/observer roles are routing permissions, not user authentication or tenant isolation. Observer reads can include workspace files. Keep listeners private unless you provide an appropriate authenticated access boundary. Review the [observer policy](docs/codex-observer-policy.md) before sharing a session.
+> **Deployment boundary:** controller/observer roles are routing permissions, not user authentication or tenant isolation. Observer reads can include workspace files. Keep listeners private unless you provide an appropriate authenticated access boundary. Review [Configuration](#configuration) before sharing a session.
+
+### Integrate
+
+#### C++ / SNode.C
+
+```cmake
+find_package(AISuite CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
+```
+
+Public Codex headers live under `aisuite/ai/openai/codex`; the namespace is `ai::openai::codex`. Use the frontend proxy for the full Codex protocol or `frontend::CodexAgent` for the common conversation/start-turn/interrupt facade. The underlying Codex APIs remain accessible through `backend()`.
+
+Start with the [interactive client implementation](src/apps/codex-bridge-client) and [SDK architecture reference](src/ai/openai/codex/docs/architecture.md).
+
+#### TypeScript / browser
+
+Using the locally built frontend SDK:
+
+```ts
+import {
+  ClientConnection,
+  CodexBridgeClient,
+  WebSocketTransport,
+} from "@snodec/codex-frontend";
+
+const client = new CodexBridgeClient();
+const connection = new ClientConnection(client);
+const transport = new WebSocketTransport(connection, "ws://127.0.0.1:8080/codex");
+
+client.onServerNotification("thread/started", notification => {
+  console.log(notification.params?.thread);
+});
+```
+
+The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
 
 ## Capabilities
+
+### Agent runtime and model provider
+
+**Codex is the implemented agent runtime.** The normal OpenAI route stays direct; AISuite can also adapt an owned Codex app-server to its native Anthropic provider. That path supports the documented text-and-coding-tools profile, not a general Responses implementation or a Claude Code runtime. Images/audio, hosted search and thinking are outside that compatibility path. See the [provider guide](docs/agent-providers.md) and [compatibility profile](docs/codex-responses-profile.md) for configuration and limits.
 
 ### What you can build
 
@@ -105,7 +159,10 @@ All carry the same bridge semantics. Transport selection does not create another
 
 ## Architecture
 
-![Native, browser and custom clients connect to the AISuite bridge. The bridge routes to Codex app-server, which owns agent execution and history. Codex uses its direct OpenAI path or AISuite's optional local adapter to a native Anthropic provider.](docs/media/architecture.svg)
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/media/architecture-mobile.svg">
+  <img src="docs/media/architecture.svg" alt="Native, browser and custom clients connect to AISuite, then Codex app-server. Codex owns agent execution and history; inference uses OpenAI directly or the optional local Anthropic adapter.">
+</picture>
 
 Three boundaries keep the integration understandable:
 
@@ -114,6 +171,14 @@ Three boundaries keep the integration understandable:
 3. **Codex owns the agent session.** Threads, turns, tools, approvals and persistence remain upstream. A model provider handles inference, not agent lifecycle.
 
 “Stateless bridge” means **no retained Codex-domain state**—not an absence of connection state, pending requests or routing tables.
+
+## Configuration
+
+The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#configuration) separates the `codex` application section from named SNode.C transport instances. Inspect `codex-bridge codex --help` and the selected listener's `--help=expanded`; use `--write-config FILE` to save and exit, then `--config-file FILE` to load the settings. Protect exported files and logs.
+
+Controller/observer roles are routing permissions, **not authentication or tenant isolation**. Observers may read workspace files and receive broadcasts; disabling observer requests does not redact notifications. Keep Unix sockets private and network listeners on loopback unless an external authenticated access boundary protects them. See [access and control policy](src/ai/openai/codex/docs/architecture.md#access-boundary) for the actual flags.
+
+For browser listeners and static assets, see [Serve a browser frontend](#serve-a-browser-frontend). Build-time options belong in [Build from source](docs/build.md).
 
 ## Documentation
 
@@ -124,17 +189,15 @@ Three boundaries keep the integration understandable:
 | Bridge, SDKs, configuration and transport matrix | [Architecture](src/ai/openai/codex/docs/architecture.md) |
 | Agent and model-provider separation | [Providers](docs/agent-providers.md) |
 | Anthropic through Codex: supported semantics | [Compatibility profile](docs/codex-responses-profile.md) |
-| Controller/observer boundaries | [Read-operation policy](docs/codex-observer-policy.md) |
+| Controller/observer boundaries | [Access boundary](src/ai/openai/codex/docs/architecture.md#access-boundary) |
 | Browser/Node frontend integration | [TypeScript SDK](packages/codex-frontend/README.md) |
 | Native and browser consumers | [Codex(W)UI](https://github.com/SNodeC/CodexUI#project-overview) — CodexUI and CodexWUI |
 
 When reporting a problem, include AISuite, SNode.C and Codex revisions, the transport, and a minimal reproduction. Remove credentials and private payloads from logs.
 
-### Configuration
-
-The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#configuration) separates bridge-specific and client-specific settings from their SNode.C transport instances. For browser listeners and their static root, see [Serve a browser frontend](#serve-a-browser-frontend); review the [observer policy](docs/codex-observer-policy.md) before sharing a session. Compile-time options remain in [Build from source](docs/build.md).
-
 ## Platforms and packages
+
+The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ and a compatible SNode.C 2.0 installation. See the [build prerequisites](docs/build.md#prerequisites) for optional transport and provider components.
 
 ### Install
 
@@ -142,77 +205,15 @@ Choose your route.
 
 **From source:** Follow the [build and installation guide](docs/build.md) for prerequisites, compilation and installation.
 
-AISuite is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
+No binary packages are published through the shared distribution-package pipeline yet; build from source.
 
 ## Releases
 
-[Release history](https://github.com/SNodeC/AISuite/releases). The frontend SDK example below consumes local source, not a published npm release.
-
-## Integrate
-
-### C++ / SNode.C
-
-```cmake
-find_package(AISuite CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
-```
-
-Public Codex headers live under `aisuite/ai/openai/codex`; the namespace is `ai::openai::codex`. Use the frontend proxy for the full Codex protocol or `frontend::CodexAgent` for the common conversation/start-turn/interrupt facade. The underlying Codex APIs remain accessible through `backend()`.
-
-Start with the [interactive client implementation](src/apps/codex-bridge-client) and [SDK architecture reference](src/ai/openai/codex/docs/architecture.md).
-
-### TypeScript / browser
-
-Using the locally built frontend SDK:
-
-```ts
-import {
-  ClientConnection,
-  CodexBridgeClient,
-  WebSocketTransport,
-} from "@snodec/codex-frontend";
-
-const client = new CodexBridgeClient();
-const connection = new ClientConnection(client);
-const transport = new WebSocketTransport(connection, "ws://localhost:8080/codex");
-
-client.onServerNotification("thread/started", notification => {
-  console.log(notification.params?.thread);
-});
-```
-
-The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
-
-## Agent runtime ≠ model provider
-
-**Codex is currently the implemented agent runtime.** AISuite also supplies a native Anthropic model provider. A scoped local Responses adapter lets an owned Codex app-server use that provider without changing the frontend protocol. The normal OpenAI route remains direct.
-
-```sh
-# Supply ANTHROPIC_API_KEY through your environment/secret-management workflow.
-# Set CLAUDE_MODEL to an available model and ISOLATED_CODEX_HOME to a dedicated directory.
-codex-bridge codex --agent codex --model-provider anthropic \
-  --model "$CLAUDE_MODEL" --codex-home "$ISOLATED_CODEX_HOME"
-```
-
-This is a **documented text-and-coding-tools compatibility profile**, not a general-purpose Responses implementation or a Claude Code runtime. The Codex compatibility path disables thinking and does not support images/audio, hosted search or every Responses feature. Native provider capabilities and compatibility limits are documented separately in the [provider guide](docs/agent-providers.md) and [Codex compatibility profile](docs/codex-responses-profile.md).
-
-## Verification
-
-The test suites cover routing, framing, callback lifetime, provider behavior and frontend transports. GCC/Clang builds enable warning checks; an optional `AISUITE_ENABLE_ASAN` build enables AddressSanitizer.
-
-For the generated frontend contract:
-
-```sh
-npm ci --prefix packages/codex-frontend
-npm test --prefix packages/codex-frontend
-tools/regenerate-codex-protocol.sh --check
-```
-
-Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](docs/anthropic-verification.md).
+No GitHub release has been published yet. Build from the source checkout; future release notes will appear on the [releases page](https://github.com/SNodeC/AISuite/releases). The frontend SDK is consumed from source, not a published npm release.
 
 ## Contributing
 
-[Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation).
+[Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation). The [build and verification guide](docs/build.md#verification) covers the existing checks.
 
 <!-- snodec:begin ecosystem -->
 ## Ecosystem
@@ -221,9 +222,7 @@ Regeneration requires fetching the pinned upstream source. Live provider checks 
 <!-- snodec:end ecosystem -->
 
 <!-- snodec:begin footer -->
-## License
-
 Choose either [MIT](LICENSE-MIT) or [LGPL-3.0-or-later](LICENSE-LGPL-3.0-or-later). AISuite is an independent SNode.C-based project, not an official OpenAI or Anthropic SDK.
 
-Maintainer: [Volker Christian](https://github.com/VolkerChristian). [Organization](https://github.com/SNodeC) · [Contributing](https://github.com/SNodeC/.github/blob/main/CONTRIBUTING.md) · [Security](https://github.com/SNodeC/.github/blob/main/SECURITY.md)
+Maintainer: [Volker Christian](https://github.com/VolkerChristian). [Organization](https://github.com/SNodeC) · [Contributing](#contributing) · [Security](https://github.com/SNodeC/.github/blob/main/SECURITY.md)
 <!-- snodec:end footer -->
