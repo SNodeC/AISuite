@@ -60,16 +60,14 @@ codex-bridge --config-file /dev/null
 
 The default configuration uses the owned stdio app-server and a private Unix frontend socket: a valid, private `XDG_RUNTIME_DIR` plus `/codex-bridge.sock`, otherwise `/tmp/codex-bridge-<uid>/codex-bridge.sock`. Network listeners are disabled until explicitly enabled.
 
-**Terminal 2:** select the Unix client and the same socket. With a valid private `XDG_RUNTIME_DIR` (or with that variable unset), run:
+**Terminal 2:** select the Unix client, using the same user and runtime environment as the bridge:
 
 ```sh
-BRIDGE_SOCKET="${XDG_RUNTIME_DIR:-/tmp/codex-bridge-$(id -u)}/codex-bridge.sock"
 codex-bridge-client --config-file /dev/null \
-  codex-bridge-client-unix --disabled=false \
-  remote --sun-path "$BRIDGE_SOCKET"
+  codex-bridge-client-unix --disabled=false
 ```
 
-The interactive client's current Unix path default is `/tmp/codex-bridge.sock`, so this example selects the endpoint explicitly rather than implying the defaults match. If `XDG_RUNTIME_DIR` is not a private directory owned by you, use the fallback socket path shown above. Once connected and the provider is ready, enter `threads`; use `help` to inspect commands and `quit` to exit.
+The bridge and interactive client use the same private runtime socket default when launched by the same user with the same environment. Once connected and the provider is ready, enter `threads`; use `help` to inspect commands and `quit` to exit.
 
 **Expected result:** `connected using Unix JSONL`, followed by a `thread/list` JSON response after `threads`. An empty thread list is a valid result. This verifies transport, bridge routing and app-server readiness without creating a thread or making a paid model request. Provider-startup or protocol errors are failures, not successful empty responses.
 

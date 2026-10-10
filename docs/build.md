@@ -67,6 +67,6 @@ Regeneration requires fetching the pinned upstream source. Live provider checks 
 
 - **CMake component missing:** verify the complete SNode.C installation and enabled provider/transport components; use `CMAKE_PREFIX_PATH` for a custom prefix.
 - **Executable or shared library missing:** check installation, `PATH`, and runtime library lookup before debugging the protocol.
-- **Unix connection fails:** select exactly one client transport and the bridge's actual socket path; the current interactive client path default differs from the bridge's private runtime default.
+- **Unix connection fails:** select exactly one client transport and launch bridge and client as the same user with the same runtime environment. If the bridge uses a custom socket, configure the client's `codex-bridge-client-unix remote --sun-path PATH` to match.
 - **Provider not ready / protocol error:** inspect the configured Codex executable, operating-system user, authentication and pinned protocol compatibility. A socket connection alone is not app-server readiness.
 - **Observer write rejected:** claim an available controller role; changing an envelope's role does not grant permission. Review [access policy](../src/ai/openai/codex/docs/architecture.md#access-boundary).

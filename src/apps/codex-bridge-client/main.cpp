@@ -5,6 +5,7 @@
 #include "ai/openai/codex/frontend/CodexBridge.h"
 #include "ai/openai/codex/frontend/client/ClientConnection.h"
 #include "ai/openai/codex/frontend/client/StreamSocketContextFactory.h"
+#include "ai/openai/codex/protocol/RuntimePaths.h"
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "ai/openai/codex/frontend/client/WebSocketClient.h"
 #endif
@@ -114,7 +115,7 @@ int main(int argc, char* argv[]) {
 
         net::un::stream::legacy::SocketClient<StreamFactory, client::ClientConnection&, std::size_t> unixClient(
             "codex-bridge-client-unix", connection, std::size_t(maximumFrameBytes));
-        unixClient.getConfig()->Remote::setSunPath("/tmp/codex-bridge.sock");
+        unixClient.getConfig()->Remote::setSunPath(ai::openai::codex::protocol::defaultFrontendSocketPath());
         unixClient.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
         unixClient.getConfig()->Connection::setWriteTimeout(utils::Timeval({0, 0}));
         unixClient.getConfig()->Connection::setMaximumWriteQueueBytes(app::DefaultMaximumWriteQueueBytes);

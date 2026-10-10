@@ -1,3 +1,17 @@
+if(TARGET codex-bridge-client)
+    add_test(
+        NAME CodexClientRuntimePathTest
+        COMMAND
+            ${CMAKE_COMMAND} -DCLIENT=$<TARGET_FILE:codex-bridge-client>
+            -DTEST_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/client-runtime-path -P
+            ${CMAKE_CURRENT_SOURCE_DIR}/ClientRuntimePathTest.cmake
+    )
+    set_tests_properties(
+        CodexClientRuntimePathTest
+        PROPERTIES LABELS "codex;focused;configuration" TIMEOUT 30
+    )
+endif()
+
 add_executable(CodexJsonLineFramerTest JsonLineFramerTest.cpp)
 add_executable(CodexFrontendSdkTest FrontendSdkTest.cpp)
 add_executable(CodexBridgeRoutingTest BridgeRoutingTest.cpp)
