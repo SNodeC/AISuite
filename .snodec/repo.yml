@@ -7,7 +7,7 @@ ci:
   - nodejs
   - zstd
   deps:
-  - snode.c@dev
+  - snode.c@source
   cmake_options:
   - -DCMAKE_BUILD_TYPE=Debug
   - -DAISUITE_BUILD_CODEX_TESTS=ON
@@ -19,4 +19,3 @@ ci:
   ipv6: true
   runtime_dirs: true
   parallel: 2
-  sdk: true
