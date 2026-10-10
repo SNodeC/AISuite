@@ -1,17 +1,11 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
 # Agent runtimes and model providers
-
-<!-- snodec:begin back -->
-<p>
-  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
-</p>
-<!-- snodec:end back -->
 
 ## Architectural invariant
 

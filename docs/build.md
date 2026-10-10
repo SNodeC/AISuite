@@ -1,17 +1,11 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
 # Build and install AISuite from source
-
-<!-- snodec:begin back -->
-<p>
-  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
-</p>
-<!-- snodec:end back -->
 
 ## Prerequisites
 
@@ -24,7 +18,12 @@
 
 ## Configure, build and verify
 
-Replace the SNode.C installation prefix:
+Clone AISuite from GitHub (Git selects the repository default branch), then replace the SNode.C installation prefix:
+
+```sh
+git clone https://github.com/SNodeC/AISuite.git
+cd AISuite
+```
 
 ```sh
 cmake -S . -B build \
@@ -56,7 +55,7 @@ For frontend SDK development, see the [TypeScript SDK guide](../packages/codex-f
 
 Run `codex-bridge --help` and `codex-bridge-client --help` from the installed prefix. If they are not found, check `PATH`; if shared libraries cannot be loaded, check the prefix and runtime library lookup before continuing. Return to [First success](../README.md#first-success) to verify a real bridge connection.
 
-## Verification
+## Development checks
 
 The test suites cover routing, framing, callback lifetime, provider behavior and frontend transports. GCC/Clang builds enable warning checks; an optional `AISUITE_ENABLE_ASAN` build enables AddressSanitizer.
 
@@ -77,3 +76,7 @@ Regeneration requires fetching the pinned upstream source. Live provider checks 
 - **Unix connection fails:** select exactly one client transport and launch bridge and client as the same user with the same runtime environment. If the bridge uses a custom socket, configure the client's `codex-bridge-client-unix remote --sun-path PATH` to match.
 - **Provider not ready / protocol error:** inspect the configured Codex executable, operating-system user, authentication and pinned protocol compatibility. A socket connection alone is not app-server readiness.
 - **Observer write rejected:** claim an available controller role; changing an envelope's role does not grant permission. Review [access policy](../src/ai/openai/codex/docs/architecture.md#access-boundary).
+
+### Dependency version scope
+
+The documented development build uses dependency default-branch source and records the resolved revisions. `find_package(snodec 2.0)` is a CMake version floor, not a claim that every released 2.0 binary exposes all APIs required by the current AISuite/CodexUI source. Use the source-build route for this guide; compatibility with a particular signed release requires qualification of that exact dependency/application pair.

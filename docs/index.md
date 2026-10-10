@@ -1,7 +1,7 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
@@ -22,14 +22,21 @@
 
 Start with the [repository README](../README.md#quick-start) for a first working result. These guides own deeper build, configuration, deployment and development instructions.
 
-## Guides and references
+## User guides and references
 
 - [Build and install from source](build.md#page-overview)
 - [Bridge, SDKs and transports](../src/ai/openai/codex/docs/architecture.md#page-overview)
 - [Agent and model providers](agent-providers.md#page-overview)
-- [Anthropic verification record](anthropic-verification.md#page-overview)
 - [Controller/observer policy](codex-observer-policy.md#page-overview)
 - [Codex compatibility profile](codex-responses-profile.md#page-overview)
 - [TypeScript frontend SDK](../packages/codex-frontend/README.md#page-overview)
+
+## Design and engineering records
+
+These documents describe implementation decisions, qualification scope or historical evidence; they are not prerequisites for first use and do not establish that current builds passed every check.
+
+- [Anthropic verification record](anthropic-verification.md#page-overview)
+
+- [Observer verification](records/observer-verification.md#page-overview)
 
 [Repository](../README.md#project-overview) · [SNode.C organization](https://github.com/SNodeC)

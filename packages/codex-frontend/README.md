@@ -1,17 +1,11 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../../docs/media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../../docs/media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
 # `@snodec/codex-frontend`
-
-<!-- snodec:begin back -->
-<p>
-  <a href="../../README.md#project-overview" title="AISuite"><img src="../../docs/media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
-</p>
-<!-- snodec:end back -->
 
 Framework-neutral TypeScript frontend SDK for the AISuite `codex-bridge`.
 
@@ -64,3 +58,16 @@ const transport = new WebSocketTransport(
 ```
 
 The transport negotiates the `codex` subprotocol, accepts JSON text messages, and applies the same 64 MiB default message bound as the C++ client. It does not reconnect automatically; application intent owns construction of a new transport after a completed detach. `ClientConnectionCallbacks.onDetached` reports that completion even when a socket failed before it became online; `onDisconnected` remains the online-to-offline lifecycle notification.
+
+## Consume the SDK from source
+
+The package is `@snodec/codex-frontend`; `package.json` exports the compiled `dist/index.js` and `dist/index.d.ts`. This source-consumption route does not require a published npm release. From an AISuite checkout, build the SDK before linking it into a separate application:
+
+```sh
+npm ci --prefix packages/codex-frontend
+npm run build --prefix packages/codex-frontend
+cd /path/to/your/application
+npm install --save /absolute/path/to/AISuite/packages/codex-frontend
+```
+
+The consumer records a local `file:` dependency. Keep that checkout available and rebuild the SDK when changing its source; record its resolved Git revision with your application. Imports use the package export, not private source paths. CodexUI's [build guide](https://github.com/SNodeC/CodexUI#project-overview) documents its existing local checkout layout (Build → Browser frontend).

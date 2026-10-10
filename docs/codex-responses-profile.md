@@ -1,17 +1,11 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
 # Codex Responses compatibility profile: 0.154.0
-
-<!-- snodec:begin back -->
-<p>
-  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
-</p>
-<!-- snodec:end back -->
 
 Target: upstream `openai/codex` release **0.154.0**, commit `6b9826e3aa83b1a5947db50f4332cb9c65f1b340`, also pinned by AISuite's generated app-server protocol. A newer Codex release must be rechecked, not assumed compatible.
 

@@ -1,17 +1,11 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
 # Implementation and verification record
-
-<!-- snodec:begin back -->
-<p>
-  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
-</p>
-<!-- snodec:end back -->
 
 Date: 2026-09-19. Branch: `feature/agent-provider-anthropic`, based on clean `master` at `24b1d16c`. No upstream Codex files or CodexUI files were changed. Changes are staged on that branch. The attempted commit could not use the configured GPG signer because its agent/temporary files are outside the writable sandbox. No unsigned commit was substituted and the signing configuration was not changed.
 

@@ -14,16 +14,12 @@
 <!-- snodec:end header -->
 
 <!-- snodec:begin status -->
-[![CI](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml/badge.svg)](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml) · [![License: MIT or LGPL 3.0 or later](https://img.shields.io/badge/License-MIT%20OR%20LGPL--3.0--or--later-334155?style=flat)](LICENSE)
+[![CI](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml/badge.svg)](https://github.com/SNodeC/AISuite/actions/workflows/ci.yml) [![License: MIT or LGPL 3.0 or later](https://img.shields.io/badge/License-MIT%20OR%20LGPL--3.0--or--later-334155?style=flat)](LICENSE)
 <!-- snodec:end status -->
 
 **Agent integration, built for event-driven applications.** AISuite provides asynchronous C++ libraries, a multi-client Codex bridge and a framework-neutral TypeScript frontend SDK, built on [SNode.C](https://github.com/SNodeC/snode.c#project-overview).
 
 Connect native applications, browser frontends and custom clients to a Codex app-server. Keep transport and routing in AISuite; keep conversations, tools, approvals and persistent history with the agent runtime.
-
-**Projects using AISuite:**
-
-- [CodexUI](https://github.com/SNodeC/CodexUI#project-overview)
 
 <!-- snodec:begin menu -->
 <p>
@@ -195,11 +191,9 @@ When reporting a problem, include AISuite, SNode.C and Codex revisions, the tran
 
 ## Platforms and packages
 
-The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ and a compatible SNode.C 2.0 installation. See the [build prerequisites](docs/build.md#prerequisites) for optional transport and provider components.
+The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ and the SNode.C default-branch source installation described in the build guide. See the [build prerequisites](docs/build.md#prerequisites) for optional transport and provider components.
 
 ### Install
-
-Choose your route.
 
 <p>
   <a href="docs/build.md#page-overview" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="152" height="24"></a>
@@ -213,10 +207,12 @@ No GitHub release has been published yet. Build from the source checkout; future
 
 ## Contributing
 
-[Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation). The [build and verification guide](docs/build.md#verification) covers the existing checks.
+[Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation). The [build and verification guide](docs/build.md#development-checks) covers the existing checks.
 
 <!-- snodec:begin ecosystem -->
 ## Ecosystem
+
+**Frontend application:** [CodexUI](https://github.com/SNodeC/CodexUI#project-overview).
 
 [SNode.C organization](https://github.com/SNodeC) · Depends on [SNode.C](https://github.com/SNodeC/snode.c#project-overview) · Used by [CodexUI and CodexWUI](https://github.com/SNodeC/CodexUI#project-overview)
 <!-- snodec:end ecosystem -->
