@@ -1,10 +1,11 @@
-# Implementation and verification record
-
-<!-- snodec:begin back -->
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
-<!-- snodec:end back -->
+<!-- snodec:end page-header -->
+
+# Implementation and verification record
 
 Date: 2026-09-19. Branch: `feature/agent-provider-anthropic`, based on clean `master` at `24b1d16c`. No upstream Codex files or CodexUI files were changed. Changes are staged on that branch. The attempted commit could not use the configured GPG signer because its agent/temporary files are outside the writable sandbox. No unsigned commit was substituted and the signing configuration was not changed.
 
@@ -77,4 +78,4 @@ Production C++ changes: **+2685 / -102 lines (net +2583)**, including headers an
 
 Remaining acceptance is the same task in interactive CodexUI. The headless process test now demonstrates actual read/patch/test tools, tool results, continued live inference, streamed answer, changed file and successful turn completion over HTTPS. Negative TLS peer-identity cases and network disconnect/backpressure under load still merit dedicated host-level tests; a successful TLS request does not prove all failure paths.
 
-Deliberate limitations and usage are in [agent-providers.md](agent-providers.md) and [codex-responses-profile.md](codex-responses-profile.md). In particular, this is an owned-stdio, text/coding-tools profile with no compaction endpoint, deferred or hosted tools, structured output, or Codex reasoning translation. Unsupported semantics fail diagnostically. Future providers and native coding agents were not implemented.
+Deliberate limitations and usage are in [agent-providers.md](agent-providers.md#page-overview) and [codex-responses-profile.md](codex-responses-profile.md#page-overview). In particular, this is an owned-stdio, text/coding-tools profile with no compaction endpoint, deferred or hosted tools, structured output, or Codex reasoning translation. Unsupported semantics fail diagnostically. Future providers and native coding agents were not implemented.

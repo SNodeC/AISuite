@@ -1,14 +1,15 @@
-> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md).
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
+<p>
+  <a href="../../../../../README.md#project-overview" title="AISuite repository"><img src="../../../../../docs/media/page-banner.svg" alt="AISuite repository" width="100%"></a>
+</p>
+<!-- snodec:end page-header -->
+
+> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md#page-overview).
 > In this existing document, “provider” refers to an app-server transport unless
 > explicitly called a **model provider**. Codex no longer implies OpenAI inference.
 
 # codex / codex-bridge Architecture
-
-<!-- snodec:begin back -->
-<p>
-  <a href="../../../../../README.md#project-overview" title="AISuite"><img src="../../../../../docs/media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
-</p>
-<!-- snodec:end back -->
 
 > **Implementation provenance:** This architecture and its initial implementation
 > were created with Codex using GPT-5.6-Sol at high reasoning effort.
@@ -602,13 +603,13 @@ The app-server repository is a read-only schema source. AISuite must not modify 
 
 ### Configuration
 
-### Access boundary
+#### Access boundary
 
 The `codex` section exposes `--bridge-first-frontend-controller` (default `true`) and `--bridge-observer-reads` (default `true`). Set `codex --bridge-first-frontend-controller=false` to require an explicit claim rather than assigning the first frontend. Set `codex --bridge-observer-reads=false` to reject observer requests. Neither flag authenticates users, isolates tenants or filters broadcast notifications.
 
 Observers can see shared thread, account, configuration and workspace information, including approved filesystem reads. All connected frontends must therefore belong to the same trusted audience. The protocol has no bearer-token authentication layer. Preserve the private Unix runtime directory; bind network listeners to loopback or protect them with an external authenticated TLS boundary. Controller ownership is separate from the agent's approval/sandbox configuration.
 
-The [exact operation policy](../../../../../docs/codex-observer-policy.md) is a developer reference, not a deployment checklist.
+The [exact operation policy](../../../../../docs/codex-observer-policy.md#page-overview) is a developer reference, not a deployment checklist.
 
 ### Application and transport settings
 
@@ -772,6 +773,24 @@ Bridge messages are JSON objects. Native app-server JSON-RPC remains unchanged u
 
 `ProviderApplication` performs one `initialize`/`initialized` handshake for each provider generation and marks the shared backend SDK ready only after the handshake succeeds. Provider loss fails outstanding callbacks and transient routing ownership exactly once without fabricating retained Codex state.
 
+### Connect to an external app-server
+
+This mode requires AISuite's WebSocket provider components and the Codex compatibility profile described above. Run the two processes as the intended service user; configure that user's Codex authentication first. In terminal 1:
+
+```sh
+codex app-server --listen ws://127.0.0.1:4501
+```
+
+In terminal 2:
+
+```sh
+codex-bridge --app-server-transport websocket-ipv4 \
+  codex-bridge-app-server-websocket-ipv4 remote --host 127.0.0.1 --port 4501
+```
+
+`ProviderApplication.cpp` defines this provider instance. The bridge does not spawn or supervise the externally managed process; stop and restart it through its own supervisor. The normal Unix frontend remains available to [the bridge client](../../../../../README.md#first-success). Verify the initialize handshake and a `threads` response, not only TCP connection establishment. Keep the unencrypted provider listener on loopback; `--codex-home` applies only to a spawned stdio child and does not configure the external process's authentication.
+
+
 ### Frontend server and proxy implementation
 
 Raw frontend listeners use the production `StreamSocketContextFactory` and `StreamSocketContext`. They enforce bounded JSONL framing, register and unregister one frontend endpoint per physical connection, and forward complete bridge envelopes without semantic reduction.
@@ -882,7 +901,7 @@ Standard input is nonblocking and integrated with the SNode.C event loop. Explic
 
 `AISUITE_BUILD_CODEX_TESTS` registers only the focused `tests/codex` suite. There is no compatibility build switch or second Codex implementation in the canonical source tree.
 
-The library headers, `AISuite::OpenAICodex` target, `codex-bridge`, and `codex-bridge-client` are installable. The package configuration resolves the SNode.C components required by the exported static library. CI checks out and builds SNode.C `master`/HEAD, builds with parallelism eight, prepares the shared SNode.C runtime directories before parallel process tests, runs the focused tests, and verifies installation.
+The library headers, `AISuite::OpenAICodex` target, `codex-bridge`, and `codex-bridge-client` are installable. The package configuration resolves the SNode.C components required by the exported static library. CI checks out and builds SNode.C default branch/HEAD, builds with parallelism eight, prepares the shared SNode.C runtime directories before parallel process tests, runs the focused tests, and verifies installation.
 
 ### Completion audit result
 
@@ -1138,6 +1157,6 @@ The suite proves provider transport composition against deterministic native pro
 
 ### SNode.C dependency policy
 
-`codex` always builds against the current `master`/HEAD of the upstream SNode.C repository. The dependency must not be pinned to a particular commit in CMake, CI, or release automation. CI performs a shallow, single-branch clone of SNode.C `master` and records the resolved HEAD in its log for diagnostics without turning that observation into a dependency constraint.
+`codex` always builds against the current default-branch source of the upstream SNode.C repository. The dependency must not be pinned to a particular commit in CMake, CI, or release automation. CI performs a shallow, single-branch clone of SNode.C default branch and records the resolved HEAD in its log for diagnostics without turning that observation into a dependency constraint.
 
-The installed backend/frontend SDK target is `AISuite::OpenAICodex`. Its package configuration loads every SNode.C component referenced by the exported static library before importing the target. CI builds both applications and the focused codex suite against SNode.C `master`/HEAD, runs the registered focused tests, and verifies installation.
+The installed backend/frontend SDK target is `AISuite::OpenAICodex`. Its package configuration loads every SNode.C component referenced by the exported static library before importing the target. CI builds both applications and the focused codex suite against SNode.C default branch/HEAD, runs the registered focused tests, and verifies installation.

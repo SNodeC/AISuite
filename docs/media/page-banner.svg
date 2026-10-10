@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="80" viewBox="0 0 1280 80" role="img" aria-labelledby="page-banner-title page-banner-description">
+  <title id="page-banner-title">AISuite</title>
+  <desc id="page-banner-description">AISuite documentation. Compact identity banner derived from the repository README banner.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1">
+      <stop stop-color="#102a2d" />
+      <stop offset="1" stop-color="#12233b" />
+    </linearGradient>
+    <linearGradient id="accent">
+      <stop stop-color="#63d5a5" />
+      <stop offset="1" stop-color="#eac48c" />
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="80" rx="12" fill="url(#background)" />
+  <path d="M880 0v320M1000 0v320M1120 0v320M1240 0v320M850 80h430M850 160h430M850 240h430" stroke="#8dcdb9" stroke-opacity=".1" />
+  <g fill="none" stroke="#63d5a5" stroke-width="2.5" transform="translate(878.545 -6.4) scale(0.29)">
+    <path d="M915 82h43q14 0 14 14v51h42M915 160h99M915 238h43q14 0 14-14v-51h42M1082 160h58" />
+    <rect x="871" y="63" width="44" height="38" rx="9" fill="#1b3e43" />
+    <rect x="871" y="141" width="44" height="38" rx="9" fill="#1b3e43" />
+    <rect x="871" y="219" width="44" height="38" rx="9" fill="#1b3e43" />
+    <rect x="1014" y="126" width="68" height="68" rx="18" fill="#1b3e43" />
+    <path d="m1031 161 10 10 23-24" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="1140" y="126" width="68" height="68" rx="18" fill="#302f32" stroke="#eac48c" />
+    <path d="m1167 146-11 14 11 14m14-28 11 14-11 14" stroke="#eac48c" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+  <path d="M44 77h1192" stroke="url(#accent)" stroke-width="3" />
+  <text x="46" y="61.76" font-size="64" font-weight="700" fill="#fff" font-family="DejaVu Sans, sans-serif">AISuite</text>
+</svg>
