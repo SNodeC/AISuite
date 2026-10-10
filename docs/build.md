@@ -1,3 +1,10 @@
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
+<p>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+</p>
+<!-- snodec:end page-header -->
+
 # Build and install AISuite from source
 
 <!-- snodec:begin back -->
@@ -13,7 +20,7 @@
 - A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
-- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.154.0; [check compatibility](codex-responses-profile.md) before using another version. Node.js 22+ is needed for frontend SDK development.
+- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.154.0; [check compatibility](codex-responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
 
 ## Configure, build and verify
 
@@ -43,7 +50,7 @@ sudo cmake --install build
 sudo ldconfig
 ```
 
-For frontend SDK development, see the [TypeScript SDK guide](../packages/codex-frontend/README.md). For a first working bridge connection, return to [First success](../README.md#first-success).
+For frontend SDK development, see the [TypeScript SDK guide](../packages/codex-frontend/README.md#page-overview). For a first working bridge connection, return to [First success](../README.md#first-success).
 
 ## Verify the installation
 
@@ -61,7 +68,7 @@ npm test --prefix packages/codex-frontend
 tools/regenerate-codex-protocol.sh --check
 ```
 
-Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](anthropic-verification.md).
+Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](anthropic-verification.md#page-overview).
 
 ## Troubleshooting
 

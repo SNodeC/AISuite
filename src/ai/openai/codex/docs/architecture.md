@@ -1,4 +1,11 @@
-> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md).
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
+<p>
+  <a href="../../../../../README.md#project-overview" title="AISuite repository"><img src="../../../../../docs/media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+</p>
+<!-- snodec:end page-header -->
+
+> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md#page-overview).
 > In this existing document, “provider” refers to an app-server transport unless
 > explicitly called a **model provider**. Codex no longer implies OpenAI inference.
 
@@ -608,7 +615,7 @@ The `codex` section exposes `--bridge-first-frontend-controller` (default `true`
 
 Observers can see shared thread, account, configuration and workspace information, including approved filesystem reads. All connected frontends must therefore belong to the same trusted audience. The protocol has no bearer-token authentication layer. Preserve the private Unix runtime directory; bind network listeners to loopback or protect them with an external authenticated TLS boundary. Controller ownership is separate from the agent's approval/sandbox configuration.
 
-The [exact operation policy](../../../../../docs/codex-observer-policy.md) is a developer reference, not a deployment checklist.
+The [exact operation policy](../../../../../docs/codex-observer-policy.md#page-overview) is a developer reference, not a deployment checklist.
 
 ### Application and transport settings
 

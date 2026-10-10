@@ -1,3 +1,10 @@
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
+<p>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+</p>
+<!-- snodec:end page-header -->
+
 # Codex bridge observer policy
 
 <!-- snodec:begin back -->

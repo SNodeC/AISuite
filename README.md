@@ -29,7 +29,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 <p>
   <a href="#quick-start" title="Start"><img src="docs/media/menu/snodec-start-108.svg" alt="Start" width="108" height="24"></a>
   <a href="#install" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="108" height="24"></a>
-  <a href="docs/build.md" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="108" height="24"></a>
+  <a href="docs/build.md#page-overview" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="108" height="24"></a>
   <a href="#first-success" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="108" height="24"></a>
   <a href="#configuration" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="108" height="24"></a>
   <a href="#architecture" title="Architecture"><img src="docs/media/menu/snodec-architecture-108.svg" alt="Architecture" width="108" height="24"></a>
@@ -50,7 +50,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 ### Run the bridge
 
-**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.154.0**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex-responses-profile.md).
+**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.154.0**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex-responses-profile.md#page-overview).
 
 **Terminal 1:** start the bridge:
 
@@ -95,7 +95,7 @@ target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
 
 Public Codex headers live under `aisuite/ai/openai/codex`; the namespace is `ai::openai::codex`. Use the frontend proxy for the full Codex protocol or `frontend::CodexAgent` for the common conversation/start-turn/interrupt facade. The underlying Codex APIs remain accessible through `backend()`.
 
-Start with the [interactive client implementation](src/apps/codex-bridge-client) and [SDK architecture reference](src/ai/openai/codex/docs/architecture.md).
+Start with the [interactive client implementation](src/apps/codex-bridge-client) and [SDK architecture reference](src/ai/openai/codex/docs/architecture.md#page-overview).
 
 #### TypeScript / browser
 
@@ -117,13 +117,13 @@ client.onServerNotification("thread/started", notification => {
 });
 ```
 
-The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
+The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md#page-overview) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
 
 ## Capabilities
 
 ### Agent runtime and model provider
 
-**Codex is the implemented agent runtime.** The normal OpenAI route stays direct; AISuite can also adapt an owned Codex app-server to its native Anthropic provider. That path supports the documented text-and-coding-tools profile, not a general Responses implementation or a Claude Code runtime. Images/audio, hosted search and thinking are outside that compatibility path. See the [provider guide](docs/agent-providers.md) and [compatibility profile](docs/codex-responses-profile.md) for configuration and limits.
+**Codex is the implemented agent runtime.** The normal OpenAI route stays direct; AISuite can also adapt an owned Codex app-server to its native Anthropic provider. That path supports the documented text-and-coding-tools profile, not a general Responses implementation or a Claude Code runtime. Images/audio, hosted search and thinking are outside that compatibility path. See the [provider guide](docs/agent-providers.md#page-overview) and [compatibility profile](docs/codex-responses-profile.md#page-overview) for configuration and limits.
 
 ### What you can build
 
@@ -153,7 +153,7 @@ Generation checks and cross-language equality tests detect drift. Protocol cover
 
 The app-server side supports an owned **stdio JSONL** process or an externally managed app-server over **Unix, IPv4 or IPv6 WebSocket**. Frontend transports include Unix streams, TCP, optional TLS, HTTP/WebSocket and optional RFCOMM, depending on the installed SNode.C components and build options.
 
-All carry the same bridge semantics. Transport selection does not create another agent implementation. See the [transport and lifecycle reference](src/ai/openai/codex/docs/architecture.md).
+All carry the same bridge semantics. Transport selection does not create another agent implementation. See the [transport and lifecycle reference](src/ai/openai/codex/docs/architecture.md#page-overview).
 
 ## Architecture
 
@@ -176,19 +176,19 @@ The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#co
 
 Controller/observer roles are routing permissions, **not authentication or tenant isolation**. Observers may read workspace files and receive broadcasts; disabling observer requests does not redact notifications. Keep Unix sockets private and network listeners on loopback unless an external authenticated access boundary protects them. See [access and control policy](src/ai/openai/codex/docs/architecture.md#access-boundary) for the actual flags.
 
-For browser listeners and static assets, see [Serve a browser frontend](#serve-a-browser-frontend). Build-time options belong in [Build from source](docs/build.md).
+For browser listeners and static assets, see [Serve a browser frontend](#serve-a-browser-frontend). Build-time options belong in [Build from source](docs/build.md#page-overview).
 
 ## Documentation
 
-[Documentation index](docs/index.md) — bridge, provider and frontend SDK guides.
+[Documentation index](docs/index.md#page-overview) — bridge, provider and frontend SDK guides.
 
 | Topic | Reference |
 | --- | --- |
-| Bridge, SDKs, configuration and transport matrix | [Architecture](src/ai/openai/codex/docs/architecture.md) |
-| Agent and model-provider separation | [Providers](docs/agent-providers.md) |
-| Anthropic through Codex: supported semantics | [Compatibility profile](docs/codex-responses-profile.md) |
+| Bridge, SDKs, configuration and transport matrix | [Architecture](src/ai/openai/codex/docs/architecture.md#page-overview) |
+| Agent and model-provider separation | [Providers](docs/agent-providers.md#page-overview) |
+| Anthropic through Codex: supported semantics | [Compatibility profile](docs/codex-responses-profile.md#page-overview) |
 | Controller/observer boundaries | [Access boundary](src/ai/openai/codex/docs/architecture.md#access-boundary) |
-| Browser/Node frontend integration | [TypeScript SDK](packages/codex-frontend/README.md) |
+| Browser/Node frontend integration | [TypeScript SDK](packages/codex-frontend/README.md#page-overview) |
 | Native and browser consumers | [Codex(W)UI](https://github.com/SNodeC/CodexUI#project-overview) — CodexUI and CodexWUI |
 
 When reporting a problem, include AISuite, SNode.C and Codex revisions, the transport, and a minimal reproduction. Remove credentials and private payloads from logs.
@@ -202,7 +202,7 @@ The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ an
 Choose your route.
 
 <p>
-  <a href="docs/build.md" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="152" height="24"></a>
+  <a href="docs/build.md#page-overview" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="152" height="24"></a>
 </p>
 
 The shared distribution-package pipeline does not publish AISuite binary packages yet; use the source build and installation guide.

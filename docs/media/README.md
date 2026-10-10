@@ -1,3 +1,10 @@
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
+<p>
+  <a href="../../README.md#project-overview" title="AISuite repository"><img src="page-banner.svg" alt="AISuite documentation" width="100%"></a>
+</p>
+<!-- snodec:end page-header -->
+
 # Landing-page assets
 
 `readme-hero.svg` and `architecture.svg` are original, editable vector artwork for the repository landing page. The architecture graphic is a conceptual request-flow diagram, not a runtime trace or a screenshot. Bidirectional traffic and lifecycle details remain documented in the architecture reference.

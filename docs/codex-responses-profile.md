@@ -1,3 +1,10 @@
+<!-- snodec:begin page-header -->
+<a id="page-overview"></a>
+<p>
+  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite documentation" width="100%"></a>
+</p>
+<!-- snodec:end page-header -->
+
 # Codex Responses compatibility profile: 0.154.0
 
 <!-- snodec:begin back -->
