@@ -1,5 +1,13 @@
 # Codex bridge observer policy
 
+<!-- snodec:begin back -->
+<p>
+  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
+</p>
+<!-- snodec:end back -->
+
+For operator settings and trust boundaries, use [the runtime configuration reference](../src/ai/openai/codex/docs/architecture.md#access-boundary). This page specifies exact request classification and records implementation evidence.
+
 ## Boundary and compatibility
 
 The bridge owns the upstream initialization handshake and routes one initialized app-server connection to multiple frontends. The registered frontend role, not an envelope's claimed role, controls access. Controllers keep generic forwarding; observers may issue only exact-match approved requests when `observersMayRead` is enabled. Unknown methods, frontend notifications, and responses to another frontend's server request are not observer permissions.
@@ -63,7 +71,7 @@ The app-server remains responsible for operation availability, experimental capa
 
 Regression coverage includes exact matching, forged envelope roles, concurrent equal request IDs, numeric versus string IDs, response/error isolation, controller transfer, provider readiness and write rejection, disconnect/reconnect, abandoned requests, stale responses, and generic controller forwarding of future methods. The existing frontend SDK and transport suites remain separate compatibility gates. No app-server mutation or desktop restart is required for these checks.
 
-## Local verification of this extension
+## Implementation record: local verification of this extension
 
 Before extending the production table, the expanded routing suite rejected all 16 new reads as expected. After the extension, all 159 request classifications, 81 notification methods and 11 server-request methods passed. The existing 34 observer permissions and the controller path are retained.
 

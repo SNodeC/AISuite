@@ -1,5 +1,11 @@
 # Agent runtimes and model providers
 
+<!-- snodec:begin back -->
+<p>
+  <a href="../README.md#project-overview" title="AISuite"><img src="media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
+</p>
+<!-- snodec:end back -->
+
 ## Architectural invariant
 
 The agent owns conversations, tools, approvals and persistence. A model provider owns inference and provider credentials. Neither is the other's identity or data model. In particular, Codex still owns every thread and turn; AISuite does **not** maintain a competing conversation cache, replay database, or tool executor.
@@ -40,7 +46,8 @@ Build with `AISUITE_ENABLE_ANTHROPIC=ON` (default), using an installed SNode.C w
 Supply an API key only through the environment, and a model ID available to your Anthropic account. Do not put credentials in command-line arguments or config files checked into source control:
 
 ```sh
-# ANTHROPIC_API_KEY must already be exported by your secret-management workflow.
+# Supply ANTHROPIC_API_KEY through your environment/secret-management workflow.
+# Set CLAUDE_MODEL to an available model and ISOLATED_CODEX_HOME to a dedicated directory.
 codex-bridge codex --agent codex --model-provider anthropic \
   --model "$CLAUDE_MODEL" --codex-home "$ISOLATED_CODEX_HOME"
 ```

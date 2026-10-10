@@ -4,6 +4,12 @@
 
 # codex / codex-bridge Architecture
 
+<!-- snodec:begin back -->
+<p>
+  <a href="../../../../../README.md#project-overview" title="AISuite"><img src="../../../../../docs/media/menu/back-aisuite.svg" alt="AISuite" width="96" height="24"></a>
+</p>
+<!-- snodec:end back -->
+
 > **Implementation provenance:** This architecture and its initial implementation
 > were created with Codex using GPT-5.6-Sol at high reasoning effort.
 
@@ -14,7 +20,7 @@
 ## Runtime Shape
 
 ```text
-CodexUI / CodexWebUI / codex-bridge-client / SNode.C apps
+CodexUI / CodexWUI / codex-bridge-client / SNode.C apps
         |
         | slim bridge JSON protocol over SNode.C transports
         v
@@ -595,6 +601,16 @@ The complete set is generated deterministically from the app-server's exported p
 The app-server repository is a read-only schema source. AISuite must not modify or patch the OpenAI app-server to produce these datatypes.
 
 ### Configuration
+
+### Access boundary
+
+The `codex` section exposes `--bridge-first-frontend-controller` (default `true`) and `--bridge-observer-reads` (default `true`). Set `codex --bridge-first-frontend-controller=false` to require an explicit claim rather than assigning the first frontend. Set `codex --bridge-observer-reads=false` to reject observer requests. Neither flag authenticates users, isolates tenants or filters broadcast notifications.
+
+Observers can see shared thread, account, configuration and workspace information, including approved filesystem reads. All connected frontends must therefore belong to the same trusted audience. The protocol has no bearer-token authentication layer. Preserve the private Unix runtime directory; bind network listeners to loopback or protect them with an external authenticated TLS boundary. Controller ownership is separate from the agent's approval/sandbox configuration.
+
+The [exact operation policy](../../../../../docs/codex-observer-policy.md) is a developer reference, not a deployment checklist.
+
+### Application and transport settings
 
 Both applications use the existing SNode.C configuration subsystem whenever command-line options are required.
 
