@@ -28,10 +28,10 @@ Connect native applications, browser frontends and custom clients to a Codex app
 <!-- snodec:begin menu -->
 <p>
   <a href="#quick-start" title="Start"><img src="docs/media/menu/snodec-start-108.svg" alt="Start" width="108" height="24"></a>
-  <a href="#platforms-and-packages" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="108" height="24"></a>
+  <a href="#install" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="108" height="24"></a>
   <a href="#build-from-source" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="108" height="24"></a>
-  <a href="#run-the-bridge" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="108" height="24"></a>
-  <a href="src/ai/openai/codex/docs/architecture.md" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="108" height="24"></a>
+  <a href="#first-success" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="108" height="24"></a>
+  <a href="#configuration" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="108" height="24"></a>
   <a href="#architecture" title="Architecture"><img src="docs/media/menu/snodec-architecture-108.svg" alt="Architecture" width="108" height="24"></a>
   <a href="#contributing" title="Contribute"><img src="docs/media/menu/snodec-contribute-108.svg" alt="Contribute" width="108" height="24"></a>
 </p>
@@ -39,16 +39,20 @@ Connect native applications, browser frontends and custom clients to a Codex app
 <details>
 <summary>Text navigation</summary>
 
-[Start](#quick-start) · [Install](#platforms-and-packages) · [Build](#build-from-source) · [Use](#run-the-bridge) · [Configure](src/ai/openai/codex/docs/architecture.md) · [Architecture](#architecture) · [Contribute](#contributing)
+[Start](#quick-start) · [Install](#install) · [Build](#build-from-source) · [Use](#first-success) · [Configure](#configuration) · [Architecture](#architecture) · [Contribute](#contributing)
 
 </details>
 <!-- snodec:end menu -->
 
 ## Quick start
 
-[Build and install](#build-from-source), then [run the bridge](#run-the-bridge) with a configured Codex app-server. For application code, continue to the [C++ and TypeScript integration examples](#integrate).
+1. [Install](#install) — choose the available installation route and prepare its requirements.
+2. [Use](#first-success) — run the bridge with a configured Codex app-server.
+3. [Configure](#configuration) — review runtime settings and access boundaries before deployment.
 
 ## First success
+
+[Build](#build-from-source) and [install](#install), then [run the bridge](#run-the-bridge) with a configured Codex app-server. For application code, continue to the [C++ and TypeScript integration examples](#integrate).
 
 ### Run the bridge
 
@@ -132,11 +136,17 @@ Three boundaries keep the integration understandable:
 
 When reporting a problem, include AISuite, SNode.C and Codex revisions, the transport, and a minimal reproduction. Remove credentials and private payloads from logs.
 
+### Configuration
+
+The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#configuration) separates bridge-specific and client-specific settings from their SNode.C transport instances. For browser listeners and their static root, see [Serve a browser frontend](#serve-a-browser-frontend); review the [observer policy](docs/codex-observer-policy.md) before sharing a session. Compile-time options remain in [Build from source](#build-from-source).
+
 ## Platforms and packages
 
-AISuite is built and installed from source here. It is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
+### Install
 
-### Build from source
+Choose your route: [build from source](#build-from-source), then install the resulting libraries and applications.
+
+AISuite is built and installed from source here. It is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
 
 #### Prerequisites
 
@@ -146,6 +156,21 @@ AISuite is built and installed from source here. It is not yet part of the share
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
 - A configured Codex executable to run an owned app-server; Node.js 22+ for the frontend SDK development workflow.
+
+After completing [Build from source](#build-from-source), install from the same checkout and build directory.
+
+The example installs into `/usr/local` and needs administrator privileges. To use a writable non-system prefix instead, set `CMAKE_INSTALL_PREFIX` at configure time and omit `sudo`; configure consumers and runtime library lookup for that prefix.
+
+To make the libraries and applications available to consumers:
+
+```sh
+sudo cmake --install build
+sudo ldconfig
+```
+
+### Build from source
+
+Prepare the [prerequisites](#prerequisites) listed under Install before configuring this source build.
 
 #### Configure, build and verify
 
@@ -163,15 +188,6 @@ ctest --test-dir build -L codex --output-on-failure --parallel 14
 ```
 
 Set `-DAISUITE_ENABLE_ANTHROPIC=OFF` for the direct Codex/OpenAI path without the model-provider HTTP/TLS dependencies. Optional frontend transports are selected from available SNode.C components and can be configured with `AISUITE_ENABLE_CODEX_FRONTEND_TLS`, `AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET` and `AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM`.
-
-The example installs into `/usr/local` and needs administrator privileges. To use a writable non-system prefix instead, set `CMAKE_INSTALL_PREFIX` at configure time and omit `sudo`; configure consumers and runtime library lookup for that prefix.
-
-To make the libraries and applications available to consumers:
-
-```sh
-sudo cmake --install build
-sudo ldconfig
-```
 
 ## Releases
 
