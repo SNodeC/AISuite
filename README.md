@@ -26,7 +26,22 @@ Connect native applications, browser frontends and custom clients to a Codex app
 - [CodexUI](https://github.com/SNodeC/CodexUI#project-overview)
 
 <!-- snodec:begin menu -->
+<p>
+  <a href="#quick-start" title="Start"><img src="docs/media/menu/snodec-start-108.svg" alt="Start" width="108" height="24"></a>
+  <a href="#platforms-and-packages" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="108" height="24"></a>
+  <a href="#build-from-source" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="108" height="24"></a>
+  <a href="#run-the-bridge" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="108" height="24"></a>
+  <a href="src/ai/openai/codex/docs/architecture.md" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="108" height="24"></a>
+  <a href="#architecture" title="Architecture"><img src="docs/media/menu/snodec-architecture-108.svg" alt="Architecture" width="108" height="24"></a>
+  <a href="#contributing" title="Contribute"><img src="docs/media/menu/snodec-contribute-108.svg" alt="Contribute" width="108" height="24"></a>
+</p>
+
+<details>
+<summary>Text navigation</summary>
+
 [Start](#quick-start) · [Install](#platforms-and-packages) · [Build](#build-from-source) · [Use](#run-the-bridge) · [Configure](src/ai/openai/codex/docs/architecture.md) · [Architecture](#architecture) · [Contribute](#contributing)
+
+</details>
 <!-- snodec:end menu -->
 
 ## Quick start
