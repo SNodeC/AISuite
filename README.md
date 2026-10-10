@@ -36,19 +36,13 @@ Connect native applications, browser frontends and custom clients to a Codex app
   <a href="#contributing" title="Contribute"><img src="docs/media/menu/snodec-contribute-108.svg" alt="Contribute" width="108" height="24"></a>
 </p>
 
-<details>
-<summary>Text navigation</summary>
-
-[Start](#quick-start) · [Install](#install) · [Build](#build-from-source) · [Use](#first-success) · [Configure](#configuration) · [Architecture](#architecture) · [Contribute](#contributing)
-
-</details>
 <!-- snodec:end menu -->
 
 ## Quick start
 
-1. [Install](#install) — choose the available installation route and prepare its requirements.
-2. [Use](#first-success) — run the bridge with a configured Codex app-server.
-3. [Configure](#configuration) — review runtime settings and access boundaries before deployment.
+1. [Install](#install) — get AISuite and its required dependencies.
+2. [Use](#first-success) — connect the bridge to a configured Codex app-server.
+3. [Configure](#configuration) — review runtime settings and access controls before deployment.
 
 ## First success
 
@@ -144,9 +138,13 @@ The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#co
 
 ### Install
 
-Choose your route: [build from source](#build-from-source), then install the resulting libraries and applications.
+Choose your route.
 
-AISuite is built and installed from source here. It is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
+| Route | How to install |
+| --- | --- |
+| **From source** | Prepare the prerequisites below, [build AISuite](#build-from-source), then install the build. |
+
+AISuite is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
 
 #### Prerequisites
 
@@ -157,11 +155,11 @@ AISuite is built and installed from source here. It is not yet part of the share
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
 - A configured Codex executable to run an owned app-server; Node.js 22+ for the frontend SDK development workflow.
 
-After completing [Build from source](#build-from-source), install from the same checkout and build directory.
+#### Install the build
+
+Run these commands from the same checkout and build directory used for the source build.
 
 The example installs into `/usr/local` and needs administrator privileges. To use a writable non-system prefix instead, set `CMAKE_INSTALL_PREFIX` at configure time and omit `sudo`; configure consumers and runtime library lookup for that prefix.
-
-To make the libraries and applications available to consumers:
 
 ```sh
 sudo cmake --install build
