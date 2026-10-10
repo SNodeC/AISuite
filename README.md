@@ -29,7 +29,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 <p>
   <a href="#quick-start" title="Start"><img src="docs/media/menu/snodec-start-108.svg" alt="Start" width="108" height="24"></a>
   <a href="#install" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="108" height="24"></a>
-  <a href="#build-from-source" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="108" height="24"></a>
+  <a href="docs/build.md" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="108" height="24"></a>
   <a href="#first-success" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="108" height="24"></a>
   <a href="#configuration" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="108" height="24"></a>
   <a href="#architecture" title="Architecture"><img src="docs/media/menu/snodec-architecture-108.svg" alt="Architecture" width="108" height="24"></a>
@@ -40,13 +40,13 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 ## Quick start
 
-1. [Install](#install) — get AISuite and its required dependencies.
-2. [Use](#first-success) — connect the bridge to a configured Codex app-server.
-3. [Configure](#configuration) — review runtime settings and access controls before deployment.
+1. [Install](#install): get AISuite and its required dependencies.
+2. [Use](#first-success): connect the bridge to a configured Codex app-server.
+3. [Configure](#configuration): review runtime settings and access controls before deployment.
 
 ## First success
 
-[Build](#build-from-source) and [install](#install), then [run the bridge](#run-the-bridge) with a configured Codex app-server. For application code, continue to the [C++ and TypeScript integration examples](#integrate).
+[Install AISuite](#install), then [run the bridge](#run-the-bridge) with a configured Codex app-server. For application code, continue to the [C++ and TypeScript integration examples](#integrate).
 
 ### Run the bridge
 
@@ -132,7 +132,7 @@ When reporting a problem, include AISuite, SNode.C and Codex revisions, the tran
 
 ### Configuration
 
-The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#configuration) separates bridge-specific and client-specific settings from their SNode.C transport instances. For browser listeners and their static root, see [Serve a browser frontend](#serve-a-browser-frontend); review the [observer policy](docs/codex-observer-policy.md) before sharing a session. Compile-time options remain in [Build from source](#build-from-source).
+The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#configuration) separates bridge-specific and client-specific settings from their SNode.C transport instances. For browser listeners and their static root, see [Serve a browser frontend](#serve-a-browser-frontend); review the [observer policy](docs/codex-observer-policy.md) before sharing a session. Compile-time options remain in [Build from source](docs/build.md).
 
 ## Platforms and packages
 
@@ -140,50 +140,9 @@ The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#co
 
 Choose your route.
 
-**From source** — Prepare the prerequisites below, [build AISuite](#build-from-source), then install the build.
+**From source:** Follow the [build and installation guide](docs/build.md) for prerequisites, compilation and installation.
 
 AISuite is not yet part of the shared distribution-package pipeline; the [organization catalog](https://github.com/SNodeC/.github/blob/main/catalog.yml) records packaging as disabled until its first release.
-
-#### Prerequisites
-
-- A C++20 toolchain, CMake 3.18+, and a build tool such as Make.
-- Python 3 for the documented app-server integration tests.
-- An installed [SNode.C](https://github.com/SNodeC/snode.c#project-overview) `master`/HEAD package satisfying the project's SNode.C 2.0 requirement.
-- nlohmann-json headers; optional transports require their corresponding SNode.C components.
-- For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
-- A configured Codex executable to run an owned app-server; Node.js 22+ for the frontend SDK development workflow.
-
-#### Install the build
-
-Run these commands from the same checkout and build directory used for the source build.
-
-The example installs into `/usr/local` and needs administrator privileges. To use a writable non-system prefix instead, set `CMAKE_INSTALL_PREFIX` at configure time and omit `sudo`; configure consumers and runtime library lookup for that prefix.
-
-```sh
-sudo cmake --install build
-sudo ldconfig
-```
-
-### Build from source
-
-Prepare the [prerequisites](#prerequisites) listed under Install before configuring this source build.
-
-#### Configure, build and verify
-
-Replace the SNode.C installation prefix:
-
-```sh
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr/local \
-  -DCMAKE_PREFIX_PATH="/path/to/snodec/prefix" \
-  -DAISUITE_BUILD_APPS=ON \
-  -DAISUITE_BUILD_CODEX_TESTS=ON
-cmake --build build --parallel 14
-ctest --test-dir build -L codex --output-on-failure --parallel 14
-```
-
-Set `-DAISUITE_ENABLE_ANTHROPIC=OFF` for the direct Codex/OpenAI path without the model-provider HTTP/TLS dependencies. Optional frontend transports are selected from available SNode.C components and can be configured with `AISUITE_ENABLE_CODEX_FRONTEND_TLS`, `AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET` and `AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM`.
 
 ## Releases
 
