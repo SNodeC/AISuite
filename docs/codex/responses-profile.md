@@ -4,19 +4,19 @@
 <p><a href="README.md#page-overview" title="Up to Codex"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-codex-dark.svg"><img src="../media/nav/up-codex-light.svg" alt="Up to Codex" width="160" height="28"></picture></a><a href="https://github.com/SNodeC" title="SNodeC organization"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNodeC organization" width="160" height="28"></picture></a><a href="../../README.md#project-overview" title="AISuite repository"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" width="160" height="28"></picture></a><br clear="all"></p>
 <!-- snodec:end page-header -->
 
-# Codex Responses compatibility profile: 0.154.0
+# Codex Responses compatibility profile: 0.162.1
 
-Target: upstream `openai/codex` release **0.154.0**, commit `6b9826e3aa83b1a5947db50f4332cb9c65f1b340`, also pinned by AISuite's generated app-server protocol. A newer Codex release must be rechecked, not assumed compatible.
+Target: upstream `openai/codex` release **0.162.1**, commit `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d`, also pinned by AISuite's generated app-server protocol. A newer Codex release must be rechecked, not assumed compatible.
 
 Primary source inspected:
 
-- [request construction](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/core/src/client.rs)
-- [request structs](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/codex-api/src/common.rs)
-- [SSE parser](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/codex-api/src/sse/responses.rs)
-- [output/history items](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/protocol/src/models.rs)
-- [model-provider configuration](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/model-provider-info/src/lib.rs)
-- [tool serialization](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/tools/src/responses_api.rs)
-- [model catalog](https://github.com/openai/codex/blob/6b9826e3aa83b1a5947db50f4332cb9c65f1b340/codex-rs/protocol/src/openai_models.rs)
+- [request construction](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/core/src/client.rs)
+- [request structs](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/codex-api/src/common.rs)
+- [SSE parser](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/codex-api/src/sse/responses.rs)
+- [output/history items](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/protocol/src/models.rs)
+- [model-provider configuration](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/model-provider-info/src/lib.rs)
+- [tool serialization](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/tools/src/responses_api.rs)
+- [model catalog](https://github.com/openai/codex/blob/092d3acd6bec3e3a14bdc7e7a2810ab628ab759d/codex-rs/protocol/src/openai_models.rs)
 
 ## Request endpoint
 
@@ -47,7 +47,7 @@ The service emits SSE with event/type agreement and monotonic `sequence_number`:
 
 Assistant message items carry an explicit `phase`. Text streams immediately as `commentary`; the trailing text item's `output_item.done` waits until another block begins (commentary) or successful inference completion establishes that no tools are pending (`final_answer`). Tool-continuation text remains commentary, including text after a tool call. Failed/truncated inference never promotes text to a final answer. Both the done item and completed output retain the same phase. This is essential for CodexUI's existing final-answer/update visibility policy; omitting phase makes a valid response disappear when updates are hidden.
 
-Codex 0.154's SSE parser consumes text/custom-input deltas and added/done items; it **does not consume function-argument deltas**. Therefore complete function arguments on `output_item.done` are essential. Function deltas are nevertheless provided for coherent Responses streaming. Namespaces, names, IDs and custom raw input survive the adapter's neutral representation. Custom input is incrementally unescaped, including fragmented Unicode surrogate pairs; JSON wrappers never leak into Codex's freeform `apply_patch` input.
+Codex 0.162.1's SSE parser consumes text/custom-input deltas and added/done items; it **does not consume function-argument deltas**. Therefore complete function arguments on `output_item.done` are essential. Function deltas are nevertheless provided for coherent Responses streaming. Namespaces, names, IDs and custom raw input survive the adapter's neutral representation. Custom input is incrementally unescaped, including fragmented Unicode surrogate pairs; JSON wrappers never leak into Codex's freeform `apply_patch` input.
 
 Usage is input+cache-read+cache-write, output, total and cached-token details. No Anthropic thinking tokens are fabricated as OpenAI reasoning details. Native output-limit/pause stops fail as incomplete rather than fake successful turns.
 

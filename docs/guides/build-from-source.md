@@ -13,7 +13,7 @@
 - A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
-- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.154.0; [check compatibility](../codex/responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
+- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.162.1; [check compatibility](../codex/responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
 
 ## Configure, build and verify
 

@@ -10,5 +10,5 @@ Codex-specific policies and the supported Codex Responses compatibility profile.
 
 <!-- snodec:begin section-pages -->
 - [Codex bridge observer policy](observer-policy.md#page-overview)
-- [Codex Responses compatibility profile: 0.154.0](responses-profile.md#page-overview)
+- [Codex Responses compatibility profile: 0.162.1](responses-profile.md#page-overview)
 <!-- snodec:end section-pages -->

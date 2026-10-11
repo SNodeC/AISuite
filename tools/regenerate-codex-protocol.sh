@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-readonly CODEX_RELEASE="rust-v0.154.0"
-readonly CODEX_REVISION="6b9826e3aa83b1a5947db50f4332cb9c65f1b340"
+readonly CODEX_RELEASE="rust-v0.162.1"
+readonly CODEX_REVISION="092d3acd6bec3e3a14bdc7e7a2810ab628ab759d"
 readonly CODEX_REMOTE="https://github.com/openai/codex.git"
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

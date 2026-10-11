@@ -153,6 +153,8 @@ int main() {
         auto bad = request();
         bad["input"][1]["content"][0] = {{"type", "input_image"}, {"image_url", "https://example.invalid/image"}};
         cases.push_back(bad);
+        bad["input"][1]["content"][0] = {{"type", "input_image"}, {"file_id", "file-fixture"}};
+        cases.push_back(bad);
         bad = request();
         bad["tools"] = Json::array({{{"type", "web_search"}}});
         cases.push_back(bad);

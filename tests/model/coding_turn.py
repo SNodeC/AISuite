@@ -106,8 +106,8 @@ def main():
         print("SKIP: live test requires ANTHROPIC_API_KEY and AISUITE_ANTHROPIC_TEST_MODEL (or --model)")
         return 77
     version = subprocess.check_output([args.codex, "--version"], text=True).strip()
-    if version != "codex-cli 0.154.0":
-        raise RuntimeError(f"compatibility acceptance requires codex-cli 0.154.0, found {version}")
+    if version != "codex-cli 0.162.1":
+        raise RuntimeError(f"compatibility acceptance requires codex-cli 0.162.1, found {version}")
     # Capability preflight: skip only environmental EPERM/EACCES, not product failures.
     try:
         with socket.socket() as probe:

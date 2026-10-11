@@ -1,16 +1,16 @@
 {
-  "codexRelease": "rust-v0.154.0",
-  "codexRevision": "6b9826e3aa83b1a5947db50f4332cb9c65f1b340",
+  "codexRelease": "rust-v0.162.1",
+  "codexRevision": "092d3acd6bec3e3a14bdc7e7a2810ab628ab759d",
   "experimentalApi": true,
   "schema": "codex-rs/app-server-protocol/schema/json/codex_app_server_protocol.schemas.json",
-  "schemaSha256": "24df528acec2952e6b96c1c2b061f98e60177d059e12c90cf318621380c9de9e",
+  "schemaSha256": "e4e7f0c7d3fd77c48cd8619cad2bf2b315d860ab006ad5a7ebe44f6e32e666c1",
   "protocolSource": "codex-rs/app-server-protocol/src/protocol/common.rs",
-  "protocolSourceSha256": "6aa47ec984c9198ea797bf63b784cf6a88cc0ab85efb0a4ac75e01aabffc2cfa",
-  "generatedTypes": 2413,
+  "protocolSourceSha256": "e25ebb90bf79be79def79ebf2dd704057577fa9806710fbea0ee240a909d0dc1",
+  "generatedTypes": 2527,
   "canonicalRootTypes": 90,
-  "canonicalV2Types": 748,
-  "clientRequests": 159,
+  "canonicalV2Types": 789,
+  "clientRequests": 170,
   "serverRequests": 11,
   "clientNotifications": 1,
-  "serverNotifications": 81
+  "serverNotifications": 84
 }

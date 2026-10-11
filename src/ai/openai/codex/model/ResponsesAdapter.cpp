@@ -72,7 +72,7 @@ namespace ai::openai::codex::model {
                 require((key == "effort" || key == "summary") && (value.is_null() || value == "none"),
                         "reasoning translation is not supported; disable Codex reasoning");
         }
-        // Codex 0.154 unconditionally requests this optional field, even when
+        // Codex 0.162.1 unconditionally requests this optional field, even when
         // reasoning is disabled. We produce no reasoning items to enrich.
         if (input.contains("include")) {
             require(input["include"].is_array(), "include must be an array");

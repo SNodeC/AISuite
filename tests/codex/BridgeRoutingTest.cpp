@@ -79,7 +79,7 @@ namespace {
         constexpr std::array requests{AI_OPENAI_CODEX_CLIENT_REQUESTS(REQUEST_METHOD)};
 #undef REQUEST_METHOD
         // A protocol update requires reviewing new operations, not silently granting access.
-        static_assert(requests.size() == 159);
+        static_assert(requests.size() == 170);
 #define NOTIFICATION_METHOD(operation, name) generated::server_notifications::operation::method,
         constexpr std::array notifications{AI_OPENAI_CODEX_SERVER_NOTIFICATIONS(NOTIFICATION_METHOD)};
 #undef NOTIFICATION_METHOD

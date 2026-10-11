@@ -18,7 +18,7 @@ The observer trust model remains the existing one: observers may see account, co
 
 ## Newly allowed operations
 
-Reviewed against upstream revision `6b9826e3aa83b1a5947db50f4332cb9c65f1b340` (`rust-v0.154.0`), matching the generated AISuite protocol bindings.
+Reviewed against upstream revision `092d3acd6bec3e3a14bdc7e7a2810ab628ab759d` (`rust-v0.162.1`), matching the generated AISuite protocol bindings.
 
 | Request | Reason for observer access |
 | --- | --- |
@@ -67,10 +67,14 @@ An operation is not safe merely because its name sounds like a read:
 
 The app-server remains responsible for operation availability, experimental capabilities and parameter validation. The bridge forwards unsupported-method and capability errors unchanged. It does not substitute a legacy operation or retry a mutation as a read.
 
-`BridgeRoutingTest.cpp` independently specifies the 50 approved reads and checks all 159 generated client requests with observer reads both enabled and disabled. Its catalog-size assertion forces a permission review when the generated request count changes. It also checks every generated server notification and server request. Payloads are deliberately opaque routing fixtures, not end-to-end app-server schema validation.
+`BridgeRoutingTest.cpp` independently specifies the 50 approved reads and checks all 170 generated client requests with observer reads both enabled and disabled. Its catalog-size assertion forces a permission review when the generated request count changes. It also checks every generated server notification and server request. Payloads are deliberately opaque routing fixtures, not end-to-end app-server schema validation.
 
 Regression coverage includes exact matching, forged envelope roles, concurrent equal request IDs, numeric versus string IDs, response/error isolation, controller transfer, provider readiness and write rejection, disconnect/reconnect, abandoned requests, stale responses, and generic controller forwarding of future methods. The existing frontend SDK and transport suites remain separate compatibility gates. No app-server mutation or desktop restart is required for these checks.
 
 ## Implementation record
 
 Historical verification and change accounting are kept in the [implementation record](../records/observer-verification.md#page-overview). Follow the current user guide above for behavior; historical test commands are not an onboarding requirement.
+
+## 0.162.1 migration review
+
+The twelve newly generated client requests remain controller-only, including gateway readiness, memory status, attachment listings and GovCloud requirement reads. This migration preserves the exact 50 approved observer reads; the independent 170-operation test checks that no new method is implicitly granted. `thread/rollback` was removed upstream and has no bridge compatibility alias.

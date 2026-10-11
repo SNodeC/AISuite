@@ -456,17 +456,16 @@ function typescriptType(node, definition, location = null) {
         return node.enum.map(typescriptLiteral).join(" | ");
     }
 
-    for (const unionName of ["oneOf", "anyOf"]) {
-        if (Array.isArray(node[unionName]) && node[unionName].length > 0) {
-            return node[unionName]
-                .map((variant, index) => typescriptType(variant, definition, `${unionName}:${index}`))
-                .join(" | ");
-        }
-    }
-    if (Array.isArray(node.allOf) && node.allOf.length > 0) {
-        return node.allOf
-            .map((variant, index) => typescriptType(variant, definition, `allOf:${index}`))
-            .join(" & ");
+    const compositions = ["oneOf", "anyOf", "allOf"].filter(key => Array.isArray(node[key]) && node[key].length);
+    if (compositions.length) {
+        const base = {...node};
+        for (const key of compositions) delete base[key];
+        const constraints = compositions.map(key => node[key]
+            .map((variant, index) => typescriptType(variant, definition, `${key}:${index}`))
+            .join(key === "allOf" ? " & " : " | "));
+        if (base.properties || base.type || base.additionalProperties !== undefined)
+            constraints.unshift(typescriptType(base, definition));
+        return constraints.map(constraint => `(${constraint})`).join(" & ");
     }
 
     if (Array.isArray(node.type)) {
