@@ -1,8 +1,7 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
-<p>
-  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../media/page-banner.svg" alt="AISuite repository" width="100%"></a>
-</p>
+<p><picture><source media="(max-width: 640px)" srcset="../media/nav/banner-records-compact.svg"><img src="../media/nav/banner-records.svg" alt="AISuite — Records" width="100%"></picture></p>
+<p><a href="README.md#page-overview" title="Up to Records"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-records-dark.svg"><img src="../media/nav/up-records-light.svg" alt="Up to Records" width="160" height="28"></picture></a><a href="https://github.com/SNodeC" title="SNodeC organization"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNodeC organization" width="160" height="28"></picture></a><a href="../../README.md#project-overview" title="AISuite repository"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" width="160" height="28"></picture></a><br clear="all"></p>
 <!-- snodec:end page-header -->
 
 # Implementation and verification record
@@ -78,4 +77,4 @@ Production C++ changes: **+2685 / -102 lines (net +2583)**, including headers an
 
 Remaining acceptance is the same task in interactive CodexUI. The headless process test now demonstrates actual read/patch/test tools, tool results, continued live inference, streamed answer, changed file and successful turn completion over HTTPS. Negative TLS peer-identity cases and network disconnect/backpressure under load still merit dedicated host-level tests; a successful TLS request does not prove all failure paths.
 
-Deliberate limitations and usage are in [agent-providers.md](../agent-providers.md#page-overview) and [codex-responses-profile.md](../codex-responses-profile.md#page-overview). In particular, this is an owned-stdio, text/coding-tools profile with no compaction endpoint, deferred or hosted tools, structured output, or Codex reasoning translation. Unsupported semantics fail diagnostically. Future providers and native coding agents were not implemented.
+Deliberate limitations and usage are in [agent-providers.md](../guides/agent-providers.md#page-overview) and [codex-responses-profile.md](../codex/responses-profile.md#page-overview). In particular, this is an owned-stdio, text/coding-tools profile with no compaction endpoint, deferred or hosted tools, structured output, or Codex reasoning translation. Unsupported semantics fail diagnostically. Future providers and native coding agents were not implemented.

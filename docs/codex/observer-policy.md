@@ -1,13 +1,12 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
-<p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
-</p>
+<p><picture><source media="(max-width: 640px)" srcset="../media/nav/banner-codex-compact.svg"><img src="../media/nav/banner-codex.svg" alt="AISuite — Codex" width="100%"></picture></p>
+<p><a href="README.md#page-overview" title="Up to Codex"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-codex-dark.svg"><img src="../media/nav/up-codex-light.svg" alt="Up to Codex" width="160" height="28"></picture></a><a href="https://github.com/SNodeC" title="SNodeC organization"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNodeC organization" width="160" height="28"></picture></a><a href="../../README.md#project-overview" title="AISuite repository"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" width="160" height="28"></picture></a><br clear="all"></p>
 <!-- snodec:end page-header -->
 
 # Codex bridge observer policy
 
-For operator settings and trust boundaries, use [the runtime configuration reference](../src/ai/openai/codex/docs/architecture.md#access-boundary). This page specifies exact request classification and records implementation evidence.
+For operator settings and trust boundaries, use [the runtime configuration reference](../architecture/codex-bridge.md#access-boundary). This page specifies exact request classification and records implementation evidence.
 
 ## Boundary and compatibility
 
@@ -74,4 +73,4 @@ Regression coverage includes exact matching, forged envelope roles, concurrent e
 
 ## Implementation record
 
-Historical verification and change accounting are kept in the [implementation record](records/observer-verification.md#page-overview). Follow the current user guide above for behavior; historical test commands are not an onboarding requirement.
+Historical verification and change accounting are kept in the [implementation record](../records/observer-verification.md#page-overview). Follow the current user guide above for behavior; historical test commands are not an onboarding requirement.

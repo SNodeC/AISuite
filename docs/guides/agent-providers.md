@@ -1,8 +1,7 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
-<p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
-</p>
+<p><picture><source media="(max-width: 640px)" srcset="../media/nav/banner-guides-compact.svg"><img src="../media/nav/banner-guides.svg" alt="AISuite — Guides" width="100%"></picture></p>
+<p><a href="README.md#page-overview" title="Up to Guides"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-guides-dark.svg"><img src="../media/nav/up-guides-light.svg" alt="Up to Guides" width="160" height="28"></picture></a><a href="https://github.com/SNodeC" title="SNodeC organization"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNodeC organization" width="160" height="28"></picture></a><a href="../../README.md#project-overview" title="AISuite repository"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" width="160" height="28"></picture></a><br clear="all"></p>
 <!-- snodec:end page-header -->
 
 # Agent runtimes and model providers
@@ -116,6 +115,6 @@ Or configure `-DAISUITE_ANTHROPIC_LIVE_TEST=ON` and run `ctest --test-dir "$BUIL
 
 ## Deliberate scope and remaining acceptance
 
-See [the pinned compatibility profile](codex-responses-profile.md#page-overview). This is a text/coding-tools slice, not a general Responses server: no images/audio, hosted search, deferred tool loading, stored response IDs, Responses Lite, background requests, compaction endpoint or structured-output constraints. Custom-tool Lark syntax is given as instructions, not enforced by constrained decoding. Codex's actual tool validates input. Mid-conversation system/developer changes after assistant history are rejected rather than silently moved to global instructions.
+See [the pinned compatibility profile](../codex/responses-profile.md#page-overview). This is a text/coding-tools slice, not a general Responses server: no images/audio, hosted search, deferred tool loading, stored response IDs, Responses Lite, background requests, compaction endpoint or structured-output constraints. Custom-tool Lark syntax is given as instructions, not enforced by constrained decoding. Codex's actual tool validates input. Mid-conversation system/developer changes after assistant history are rejected rather than silently moved to global instructions.
 
-Detailed build/test outcomes and line accounting: [verification record](records/anthropic-verification.md#page-overview).
+Detailed build/test outcomes and line accounting: [verification record](../records/anthropic-verification.md#page-overview).
