@@ -11,7 +11,7 @@
 
 The agent owns conversations, tools, approvals and persistence. A model provider owns inference and provider credentials. Neither is the other's identity or data model. In particular, Codex still owns every thread and turn; AISuite does **not** maintain a competing conversation cache, replay database, or tool executor.
 
-This slice evolves the existing bridge rather than replacing it:
+The existing bridge separates agent and model-provider responsibilities:
 
 ```text
 CodexUI / frontend SDK -> AISuite bridge -> owned Codex app-server
@@ -118,6 +118,4 @@ Or configure `-DAISUITE_ANTHROPIC_LIVE_TEST=ON` and run `ctest --test-dir "$BUIL
 
 See [the pinned compatibility profile](codex-responses-profile.md#page-overview). This is a text/coding-tools slice, not a general Responses server: no images/audio, hosted search, deferred tool loading, stored response IDs, Responses Lite, background requests, compaction endpoint or structured-output constraints. Custom-tool Lark syntax is given as instructions, not enforced by constrained decoding. Codex's actual tool validates input. Mid-conversation system/developer changes after assistant history are rejected rather than silently moved to global instructions.
 
-On 2026-09-19, after network access became available, both the mock-native-API coding turn and a real Claude coding turn with `--model claude-sonnet-5` passed. The live path used the production bridge, actual Codex 0.154.0, native Anthropic HTTPS/SSE and three real tools to read, patch and test a temporary project before streaming the final answer. This is a headless test of the CodexUI-facing contract, not graphical UI acceptance. Interactive CodexUI verification, negative TLS identity cases and network backpressure/disconnect stress tests remain follow-up work. The Codex compatibility path still disables thinking explicitly.
-
-Detailed build/test outcomes and line accounting: [verification record](anthropic-verification.md#page-overview).
+Detailed build/test outcomes and line accounting: [verification record](records/anthropic-verification.md#page-overview).

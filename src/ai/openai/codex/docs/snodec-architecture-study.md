@@ -33,7 +33,7 @@ The source trees inspected were SNode.C `master`/HEAD, the local MQTTSuite
 source tree, and the AISuite `codex-master` branch. The implemented codex
 build and CI always consume the current SNode.C `master`/HEAD.
 
-The OpenAI Codex repository at `/home/voc/tmp/codex/codex` was treated as a
+The OpenAI Codex repository at `/path/to/workspace/tmp/codex/codex` was treated as a
 read-only protocol/schema source. It was not modified.
 
 ## Executive Conclusions
@@ -785,7 +785,7 @@ The canonical combined schema currently available from the read-only
 app-server checkout is:
 
 ```text
-/home/voc/tmp/codex/codex/codex-rs/app-server-protocol/schema/json/
+/path/to/workspace/tmp/codex/codex/codex-rs/app-server-protocol/schema/json/
     codex_app_server_protocol.schemas.json
 ```
 

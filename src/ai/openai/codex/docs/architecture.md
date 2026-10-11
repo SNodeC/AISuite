@@ -5,18 +5,15 @@
 </p>
 <!-- snodec:end page-header -->
 
-> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md#page-overview).
-> In this existing document, “provider” refers to an app-server transport unless
-> explicitly called a **model provider**. Codex no longer implies OpenAI inference.
-
 # codex / codex-bridge Architecture
-
-> **Implementation provenance:** This architecture and its initial implementation
-> were created with Codex using GPT-5.6-Sol at high reasoning effort.
 
 ## Goal
 
 `codex` is the canonical slim Codex integration for AISuite. It makes Codex available to SNode.C applications through transports, framing, typed facades, and explicit routing.
+
+> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md#page-overview). Here, “provider” means an app-server transport unless explicitly called a **model provider**; Codex does not imply OpenAI inference.
+
+> **Historical implementation provenance:** This architecture and its initial implementation were created with Codex using GPT-5.6-Sol at high reasoning effort.
 
 ## Runtime Shape
 
@@ -611,30 +608,37 @@ Observers can see shared thread, account, configuration and workspace informatio
 
 The [exact operation policy](../../../../../docs/codex-observer-policy.md#page-overview) is a developer reference, not a deployment checklist.
 
-### Application and transport settings
+#### Options and instances
 
-Both applications use the existing SNode.C configuration subsystem whenever command-line options are required.
+Inspect `codex-bridge codex --help` for the installed application's options, and `codex-bridge INSTANCE --help=expanded` for the selected transport. Compiled instances vary with build features. Application options follow the `codex` section, not the executable name alone:
 
-Each SNode.C server/client instance already has a broad set of command-line options. Neither application duplicates existing transport semantics in application configuration.
+```sh
+codex-bridge codex --app-server-executable /path/to/codex --codex-home /path/to/private/codex-home
+```
 
-Valid bridge-specific configuration includes:
+| `codex` option | Purpose / default |
+| --- | --- |
+| `--app-server-executable PATH` | Owned app-server executable; `codex` by default |
+| `--app-server-transport TRANSPORT` | `stdio` (owned child), `unix`, `websocket-ipv4` or `websocket-ipv6` |
+| `--codex-home PATH` | Sets `CODEX_HOME` only for the spawned child; empty means inherit its environment |
+| `--bridge-first-frontend-controller=BOOL` | Assign first frontend control; default `true`, not authentication |
+| `--bridge-observer-reads=BOOL` | Permit classified observer reads; default `true`, not tenant isolation |
+| `--bridge-maximum-frame-bytes BYTES` | Positive JSON/frame size bound; default 64 MiB |
+| `--app-server-maximum-queued-input-bytes BYTES` | Positive owned-child stdin queue bound; default 128 MiB |
+| `--bridge-websocket-endpoint PATH` | HTTP upgrade path; default `/codex` |
+| `--bridge-web-root PATH` | Static frontend directory; available with frontend WebSocket support |
 
-- app-server executable path
-- app-server listen mode / provider transport
-- child-specific `CODEX_HOME`
-- controller policy
-- bridge protocol limits
-- telemetry/log verbosity
-- optional app-server restart policy
+Agent/model selection options (`--agent`, `--model-provider`, `--model` and the Anthropic credential/environment controls) belong to the same section; the [provider guide](../../../../../docs/agent-providers.md#page-overview) owns their setup and compatibility limits.
 
-Valid client-specific configuration is limited to behavior not already owned by its selected SNode.C instance, such as:
+| Instance | Role / scope |
+| --- | --- |
+| `codex-bridge` | Private frontend Unix listener; default endpoint described in [First success](../../../../../README.md#first-success) |
+| `codex-bridge-websocket-ipv4`, `codex-bridge-websocket-ipv6` | Frontend HTTP/WebSocket; disabled by default, loopback host defaults |
+| `codex-bridge-wss-ipv4`, `codex-bridge-wss-ipv6` | Frontend TLS HTTP/WebSocket; disabled by default, available with TLS support |
+| `codex-bridge-app-server-unix` | External provider Unix connection when `--app-server-transport unix` is selected |
+| `codex-bridge-app-server-websocket-ipv4`, `codex-bridge-app-server-websocket-ipv6` | External provider network connection for the corresponding transport selection |
 
-- JSON versus human presentation
-- WebSocket request path
-- bridge protocol frame limit
-- optional initial controller claim policy
-
-Do not duplicate existing SNode.C instance semantics such as Unix path binding, IPv4/IPv6 binding, TLS certificate/key handling, RFCOMM adapter/channel handling, or WebSocket transport configuration.
+Use each instance's `local` or `remote`, `tls`, `connection` and `socket` sections for binding, peer trust, limits and retries. Do not duplicate transport options in application configuration. `codex-bridge-client` uses `codex-bridge-client-unix` for its private default frontend connection; inspect its own help for compiled alternatives.
 
 Codex connections are legitimately quiet while users inspect work or while a turn waits elsewhere in the system. Production provider and frontend stream instances therefore default their SNode.C connection read and write inactivity timeouts to zero (unlimited). These are instance defaults configured through the existing `Connection` config section, not new application options. SNode.C accepts zero for both timeout options and converts explicitly between numeric CLI seconds and `utils::Timeval`; finite values remain available as normal per-instance CLI/config overrides. Maximum frames, queue bounds, connect timeouts, and explicit lifecycle control remain active.
 

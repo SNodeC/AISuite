@@ -1,13 +1,13 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
+  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
 # Implementation and verification record
 
-Date: 2026-09-19. Branch: `feature/agent-provider-anthropic`, based on clean `master` at `24b1d16c`. No upstream Codex files or CodexUI files were changed. Changes are staged on that branch. The attempted commit could not use the configured GPG signer because its agent/temporary files are outside the writable sandbox. No unsigned commit was substituted and the signing configuration was not changed.
+Historical verification on 2026-09-19; results below apply to the recorded implementation and environment, not every current build. This is an engineering record, not a first-use prerequisite.
 
 **Status: live Claude coding turn passed through the CodexUI-facing interface.** After socket/network access and a user-supplied credential became available, the production bridge and actual Codex 0.154.0 completed a coding turn against `claude-sonnet-5` over the native Anthropic HTTPS Messages API. The test uses the same frontend contract as CodexUI; interactive graphical CodexUI acceptance is still outstanding. No credential was written to repository files.
 
@@ -17,7 +17,7 @@ The user's 14:27:18 UTC turn completed successfully and persisted 71 characters 
 
 The Codex adapter now derives phase from neutral block/stop events. It reuses its existing output storage and defers only the trailing text item's completion until its phase can be resolved; text deltas still stream immediately. No provider business logic, UI policy, conversation cache, or parallel state owner was added. Earlier/intermediate text is commentary; the last text of a successful response without tool calls is final. The direct OpenAI path is unchanged.
 
-The new regression failed before the correction. After rebuilding the bridge, all eight focused tests and the real Codex catalog test passed. Coverage includes single/multiple text blocks, text before/after tools, end-turn/stop-sequence/refusal, output limits and pauses, with consistent done/completed phases. The process test now requires a completed `agentMessage` with `phase: final_answer`, rather than merely some text deltas. The environment again restricts sockets, so its rerun was an explicit skip; the corrected graphical/live path is not yet reverified. This follow-up adds 16/removes 1 production lines (net +15) and adds 47 test lines. Growth resolves the absent protocol semantics at their owner without adding new retained state; the earlier broad line-growth approval applies.
+The new regression failed before the correction. After rebuilding the bridge, all eight focused tests and the real Codex catalog test passed. Coverage includes single/multiple text blocks, text before/after tools, end-turn/stop-sequence/refusal, output limits and pauses, with consistent done/completed phases. The process test now requires a completed `agentMessage` with `phase: final_answer`, rather than merely some text deltas. The environment again restricts sockets, so its rerun was an explicit skip; the corrected graphical/live path is not yet reverified. This follow-up adds 16/removes 1 production lines (net +15) and adds 47 test lines. The recorded change resolved absent protocol semantics at their owner without adding new retained state; this historical accounting does not authorize future changes.
 
 ## Repository analysis and implementation path
 
@@ -78,4 +78,4 @@ Production C++ changes: **+2685 / -102 lines (net +2583)**, including headers an
 
 Remaining acceptance is the same task in interactive CodexUI. The headless process test now demonstrates actual read/patch/test tools, tool results, continued live inference, streamed answer, changed file and successful turn completion over HTTPS. Negative TLS peer-identity cases and network disconnect/backpressure under load still merit dedicated host-level tests; a successful TLS request does not prove all failure paths.
 
-Deliberate limitations and usage are in [agent-providers.md](agent-providers.md#page-overview) and [codex-responses-profile.md](codex-responses-profile.md#page-overview). In particular, this is an owned-stdio, text/coding-tools profile with no compaction endpoint, deferred or hosted tools, structured output, or Codex reasoning translation. Unsupported semantics fail diagnostically. Future providers and native coding agents were not implemented.
+Deliberate limitations and usage are in [agent-providers.md](../agent-providers.md#page-overview) and [codex-responses-profile.md](../codex-responses-profile.md#page-overview). In particular, this is an owned-stdio, text/coding-tools profile with no compaction endpoint, deferred or hosted tools, structured output, or Codex reasoning translation. Unsupported semantics fail diagnostically. Future providers and native coding agents were not implemented.
