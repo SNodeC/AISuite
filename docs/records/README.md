@@ -8,6 +8,8 @@
 
 Implementation and verification records.
 
+## Sections
+
 <!-- snodec:begin section-pages -->
 - [Implementation and verification record](anthropic-verification.md#page-overview)
 - [Observer Verification](observer-verification.md#page-overview)

@@ -21,6 +21,15 @@
 
 Start with the [repository README](../README.md#quick-start) for a first working result. These guides own deeper build, configuration, deployment and development instructions.
 
+## Sections
+
+<!-- snodec:begin section-pages -->
+- [Architecture](architecture/README.md#page-overview)
+- [Codex](codex/README.md#page-overview)
+- [Guides](guides/README.md#page-overview)
+- [Records](records/README.md#page-overview)
+<!-- snodec:end section-pages -->
+
 ## User guides and references
 
 - [Build and install from source](guides/build-from-source.md#page-overview)
@@ -37,11 +46,7 @@ These documents describe implementation decisions, qualification scope or histor
 - [Anthropic verification record](records/anthropic-verification.md#page-overview)
 - [Observer verification](records/observer-verification.md#page-overview)
 
-[Repository](../README.md#project-overview) · [SNode.C organization](https://github.com/SNodeC)
 
-<!-- snodec:begin section-pages -->
-- [Architecture](architecture/README.md#page-overview)
-- [Codex](codex/README.md#page-overview)
-- [Guides](guides/README.md#page-overview)
-- [Records](records/README.md#page-overview)
-<!-- snodec:end section-pages -->
+
+
+[Media assets](media/README.md).

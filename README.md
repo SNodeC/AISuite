@@ -2,7 +2,10 @@
 <a name="project-overview"></a>
 
 <p align="center">
+  <picture>
+    <source media="(max-width: 600px)" srcset="docs/media/hero-mobile.svg">
   <img src="docs/media/readme-hero.svg" alt="AISuite — Connect applications to coding agents." width="100%">
+  </picture>
 </p>
 
 <!-- snodec:begin organization -->
@@ -50,7 +53,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 ### Run the bridge
 
-**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.154.0**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex/responses-profile.md#page-overview).
+**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.162.1**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex/responses-profile.md#page-overview).
 
 **Terminal 1:** start the bridge:
 
@@ -213,12 +216,14 @@ No GitHub release has been published yet. Build from the source checkout; future
 
 ## Contributing
 
+[Engineering instructions for coding agents](AGENTS.md).
+
 [Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation). The [build and verification guide](docs/guides/build-from-source.md#development-checks) covers the existing checks.
 
 <!-- snodec:begin ecosystem -->
 ## Ecosystem
 
-[SNode.C organization](https://github.com/SNodeC) · Depends on [SNode.C](https://github.com/SNodeC/snode.c#project-overview) · Used by [CodexUI and CodexWUI](https://github.com/SNodeC/CodexUI#project-overview)
+Depends on [SNode.C](https://github.com/SNodeC/snode.c#project-overview) · Used by [CodexUI and CodexWUI](https://github.com/SNodeC/CodexUI#project-overview)
 <!-- snodec:end ecosystem -->
 
 <!-- snodec:begin footer -->
