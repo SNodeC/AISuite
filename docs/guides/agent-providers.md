@@ -1,7 +1,7 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
+  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
@@ -116,6 +116,6 @@ Or configure `-DAISUITE_ANTHROPIC_LIVE_TEST=ON` and run `ctest --test-dir "$BUIL
 
 ## Deliberate scope and remaining acceptance
 
-See [the pinned compatibility profile](codex-responses-profile.md#page-overview). This is a text/coding-tools slice, not a general Responses server: no images/audio, hosted search, deferred tool loading, stored response IDs, Responses Lite, background requests, compaction endpoint or structured-output constraints. Custom-tool Lark syntax is given as instructions, not enforced by constrained decoding. Codex's actual tool validates input. Mid-conversation system/developer changes after assistant history are rejected rather than silently moved to global instructions.
+See [the pinned compatibility profile](../codex/responses-profile.md#page-overview). This is a text/coding-tools slice, not a general Responses server: no images/audio, hosted search, deferred tool loading, stored response IDs, Responses Lite, background requests, compaction endpoint or structured-output constraints. Custom-tool Lark syntax is given as instructions, not enforced by constrained decoding. Codex's actual tool validates input. Mid-conversation system/developer changes after assistant history are rejected rather than silently moved to global instructions.
 
-Detailed build/test outcomes and line accounting: [verification record](records/anthropic-verification.md#page-overview).
+Detailed build/test outcomes and line accounting: [verification record](../records/anthropic-verification.md#page-overview).

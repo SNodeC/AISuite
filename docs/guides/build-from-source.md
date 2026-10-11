@@ -1,7 +1,7 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../README.md#project-overview" title="AISuite repository"><img src="media/page-banner.svg" alt="AISuite repository" width="100%"></a>
+  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
@@ -14,7 +14,7 @@
 - A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
-- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.154.0; [check compatibility](codex-responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
+- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.154.0; [check compatibility](../codex/responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
 
 ## Configure, build and verify
 
@@ -49,11 +49,11 @@ sudo cmake --install build
 sudo ldconfig
 ```
 
-For frontend SDK development, see the [TypeScript SDK guide](../packages/codex-frontend/README.md#page-overview). For a first working bridge connection, return to [First success](../README.md#first-success).
+For frontend SDK development, see the [TypeScript SDK guide](../../packages/codex-frontend/README.md#page-overview). For a first working bridge connection, return to [First success](../../README.md#first-success).
 
 ## Verify the installation
 
-Run `codex-bridge --help` and `codex-bridge-client --help` from the installed prefix. If they are not found, check `PATH`; if shared libraries cannot be loaded, check the prefix and runtime library lookup before continuing. Return to [First success](../README.md#first-success) to verify a real bridge connection.
+Run `codex-bridge --help` and `codex-bridge-client --help` from the installed prefix. If they are not found, check `PATH`; if shared libraries cannot be loaded, check the prefix and runtime library lookup before continuing. Return to [First success](../../README.md#first-success) to verify a real bridge connection.
 
 ## Development checks
 
@@ -67,7 +67,7 @@ npm test --prefix packages/codex-frontend
 tools/regenerate-codex-protocol.sh --check
 ```
 
-Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](records/anthropic-verification.md#page-overview).
+Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](../records/anthropic-verification.md#page-overview).
 
 ## Troubleshooting
 
@@ -75,7 +75,7 @@ Regeneration requires fetching the pinned upstream source. Live provider checks 
 - **Executable or shared library missing:** check installation, `PATH`, and runtime library lookup before debugging the protocol.
 - **Unix connection fails:** select exactly one client transport and launch bridge and client as the same user with the same runtime environment. If the bridge uses a custom socket, configure the client's `codex-bridge-client-unix remote --sun-path PATH` to match.
 - **Provider not ready / protocol error:** inspect the configured Codex executable, operating-system user, authentication and pinned protocol compatibility. Configure that installed executable’s login as the bridge service user (`codex login --help` describes its supported methods); for an owned child, `codex-bridge codex --codex-home PATH` selects its private credential/config home. Do not copy credentials into the frontend or make the runtime directory public. Anthropic provider credentials follow the separate [provider guide](agent-providers.md#page-overview). A socket connection alone is not app-server readiness.
-- **Observer write rejected:** claim an available controller role; changing an envelope's role does not grant permission. Review [access policy](../src/ai/openai/codex/docs/architecture.md#access-boundary).
+- **Observer write rejected:** claim an available controller role; changing an envelope's role does not grant permission. Review [access policy](../architecture/codex-bridge.md#access-boundary).
 
 ### Dependency version scope
 

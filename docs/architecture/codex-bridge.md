@@ -1,7 +1,7 @@
 <!-- snodec:begin page-header -->
 <a id="page-overview"></a>
 <p>
-  <a href="../../../../../README.md#project-overview" title="AISuite repository"><img src="../../../../../docs/media/page-banner.svg" alt="AISuite repository" width="100%"></a>
+  <a href="../../README.md#project-overview" title="AISuite repository"><img src="../media/page-banner.svg" alt="AISuite repository" width="100%"></a>
 </p>
 <!-- snodec:end page-header -->
 
@@ -11,7 +11,7 @@
 
 `codex` is the canonical slim Codex integration for AISuite. It makes Codex available to SNode.C applications through transports, framing, typed facades, and explicit routing.
 
-> Agent/model-provider evolution: see [the provider architecture](../../../../../docs/agent-providers.md#page-overview). Here, “provider” means an app-server transport unless explicitly called a **model provider**; Codex does not imply OpenAI inference.
+> Agent/model-provider evolution: see [the provider architecture](../guides/agent-providers.md#page-overview). Here, “provider” means an app-server transport unless explicitly called a **model provider**; Codex does not imply OpenAI inference.
 
 > **Historical implementation provenance:** This architecture and its initial implementation were created with Codex using GPT-5.6-Sol at high reasoning effort.
 
@@ -606,7 +606,7 @@ The `codex` section exposes `--bridge-first-frontend-controller` (default `true`
 
 Observers can see shared thread, account, configuration and workspace information, including approved filesystem reads. All connected frontends must therefore belong to the same trusted audience. The protocol has no bearer-token authentication layer. Preserve the private Unix runtime directory; bind network listeners to loopback or protect them with an external authenticated TLS boundary. Controller ownership is separate from the agent's approval/sandbox configuration.
 
-The [exact operation policy](../../../../../docs/codex-observer-policy.md#page-overview) is a developer reference, not a deployment checklist.
+The [exact operation policy](../codex/observer-policy.md#page-overview) is a developer reference, not a deployment checklist.
 
 #### Options and instances
 
@@ -628,11 +628,11 @@ codex-bridge codex --app-server-executable /path/to/codex --codex-home /path/to/
 | `--bridge-websocket-endpoint PATH` | HTTP upgrade path; default `/codex` |
 | `--bridge-web-root PATH` | Static frontend directory; available with frontend WebSocket support |
 
-Agent/model selection options (`--agent`, `--model-provider`, `--model` and the Anthropic credential/environment controls) belong to the same section; the [provider guide](../../../../../docs/agent-providers.md#page-overview) owns their setup and compatibility limits.
+Agent/model selection options (`--agent`, `--model-provider`, `--model` and the Anthropic credential/environment controls) belong to the same section; the [provider guide](../guides/agent-providers.md#page-overview) owns their setup and compatibility limits.
 
 | Instance | Role / scope |
 | --- | --- |
-| `codex-bridge` | Private frontend Unix listener; default endpoint described in [First success](../../../../../README.md#first-success) |
+| `codex-bridge` | Private frontend Unix listener; default endpoint described in [First success](../../README.md#first-success) |
 | `codex-bridge-websocket-ipv4`, `codex-bridge-websocket-ipv6` | Frontend HTTP/WebSocket; disabled by default, loopback host defaults |
 | `codex-bridge-wss-ipv4`, `codex-bridge-wss-ipv6` | Frontend TLS HTTP/WebSocket; disabled by default, available with TLS support |
 | `codex-bridge-app-server-unix` | External provider Unix connection when `--app-server-transport unix` is selected |
@@ -792,7 +792,7 @@ codex-bridge --app-server-transport websocket-ipv4 \
   codex-bridge-app-server-websocket-ipv4 remote --host 127.0.0.1 --port 4501
 ```
 
-`ProviderApplication.cpp` defines this provider instance. The bridge does not spawn or supervise the externally managed process; stop and restart it through its own supervisor. The normal Unix frontend remains available to [the bridge client](../../../../../README.md#first-success). Verify the initialize handshake and a `threads` response, not only TCP connection establishment. Keep the unencrypted provider listener on loopback; `--codex-home` applies only to a spawned stdio child and does not configure the external process's authentication.
+`ProviderApplication.cpp` defines this provider instance. The bridge does not spawn or supervise the externally managed process; stop and restart it through its own supervisor. The normal Unix frontend remains available to [the bridge client](../../README.md#first-success). Verify the initialize handshake and a `threads` response, not only TCP connection establishment. Keep the unencrypted provider listener on loopback; `--codex-home` applies only to a spawned stdio child and does not configure the external process's authentication.
 
 
 ### Frontend server and proxy implementation

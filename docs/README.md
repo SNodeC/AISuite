@@ -11,7 +11,7 @@
 <p>
   <a href="../README.md#quick-start" title="Start"><img src="media/menu/snodec-start-108.svg" alt="Start" width="133" height="28"></a>
   <a href="../README.md#install" title="Install"><img src="media/menu/snodec-install-108.svg" alt="Install" width="133" height="28"></a>
-  <a href="build.md#page-overview" title="Build"><img src="media/menu/snodec-build-108.svg" alt="Build" width="133" height="28"></a>
+  <a href="guides/build-from-source.md#page-overview" title="Build"><img src="media/menu/snodec-build-108.svg" alt="Build" width="133" height="28"></a>
   <a href="../README.md#first-success" title="Use"><img src="media/menu/snodec-use-108.svg" alt="Use" width="133" height="28"></a>
   <a href="../README.md#configuration" title="Configure"><img src="media/menu/snodec-configure-108.svg" alt="Configure" width="133" height="28"></a>
   <a href="../README.md#architecture" title="Architecture"><img src="media/menu/snodec-architecture-108.svg" alt="Architecture" width="133" height="28"></a>
@@ -24,11 +24,11 @@ Start with the [repository README](../README.md#quick-start) for a first working
 
 ## User guides and references
 
-- [Build and install from source](build.md#page-overview)
-- [Bridge, SDKs and transports](../src/ai/openai/codex/docs/architecture.md#page-overview)
-- [Agent and model providers](agent-providers.md#page-overview)
-- [Controller/observer policy](codex-observer-policy.md#page-overview)
-- [Codex compatibility profile](codex-responses-profile.md#page-overview)
+- [Build and install from source](guides/build-from-source.md#page-overview)
+- [Bridge, SDKs and transports](architecture/codex-bridge.md#page-overview)
+- [Agent and model providers](guides/agent-providers.md#page-overview)
+- [Controller/observer policy](codex/observer-policy.md#page-overview)
+- [Codex compatibility profile](codex/responses-profile.md#page-overview)
 - [TypeScript frontend SDK](../packages/codex-frontend/README.md#page-overview)
 
 ## Design and engineering records

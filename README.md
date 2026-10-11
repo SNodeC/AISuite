@@ -25,7 +25,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 <p>
   <a href="#quick-start" title="Start"><img src="docs/media/menu/snodec-start-108.svg" alt="Start" width="133" height="28"></a>
   <a href="#install" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="133" height="28"></a>
-  <a href="docs/build.md#page-overview" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="133" height="28"></a>
+  <a href="docs/guides/build-from-source.md#page-overview" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="133" height="28"></a>
   <a href="#first-success" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="133" height="28"></a>
   <a href="#configuration" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="133" height="28"></a>
   <a href="#architecture" title="Architecture"><img src="docs/media/menu/snodec-architecture-108.svg" alt="Architecture" width="133" height="28"></a>
@@ -46,7 +46,7 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 ### Run the bridge
 
-**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.154.0**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex-responses-profile.md#page-overview).
+**You need:** AISuite installed with its applications, a configured Codex executable available to the same operating-system user, and two terminals. The generated protocol and Anthropic compatibility profile target Codex **0.154.0**; a different version needs compatibility checks, not an assumption of support. See the [pinned profile](docs/codex/responses-profile.md#page-overview).
 
 **Terminal 1:** start the bridge:
 
@@ -91,7 +91,7 @@ target_link_libraries(my_app PRIVATE AISuite::OpenAICodex)
 
 Public Codex headers live under `aisuite/ai/openai/codex`; the namespace is `ai::openai::codex`. Use the frontend proxy for the full Codex protocol or `frontend::CodexAgent` for the common conversation/start-turn/interrupt facade. The underlying Codex APIs remain accessible through `backend()`.
 
-Start with the [interactive client implementation](src/apps/codex-bridge-client) and [SDK architecture reference](src/ai/openai/codex/docs/architecture.md#page-overview).
+Start with the [interactive client implementation](src/apps/codex-bridge-client) and [SDK architecture reference](docs/architecture/codex-bridge.md#page-overview).
 
 #### TypeScript / browser
 
@@ -115,13 +115,13 @@ client.onServerNotification("thread/started", notification => {
 
 The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md#page-overview) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
 
-If the first run fails, use [build and runtime troubleshooting](docs/build.md#troubleshooting).
+If the first run fails, use [build and runtime troubleshooting](docs/guides/build-from-source.md#troubleshooting).
 
 ## Capabilities
 
 ### Agent runtime and model provider
 
-**Codex is the implemented agent runtime.** The normal OpenAI route stays direct; AISuite can also adapt an owned Codex app-server to its native Anthropic provider. That path supports the documented text-and-coding-tools profile, not a general Responses implementation or a Claude Code runtime. Images/audio, hosted search and thinking are outside that compatibility path. See the [provider guide](docs/agent-providers.md#page-overview) and [compatibility profile](docs/codex-responses-profile.md#page-overview) for configuration and limits.
+**Codex is the implemented agent runtime.** The normal OpenAI route stays direct; AISuite can also adapt an owned Codex app-server to its native Anthropic provider. That path supports the documented text-and-coding-tools profile, not a general Responses implementation or a Claude Code runtime. Images/audio, hosted search and thinking are outside that compatibility path. See the [provider guide](docs/guides/agent-providers.md#page-overview) and [compatibility profile](docs/codex/responses-profile.md#page-overview) for configuration and limits.
 
 ### What you can build
 
@@ -151,7 +151,7 @@ Generation checks and cross-language equality tests detect drift. Protocol cover
 
 The app-server side supports an owned **stdio JSONL** process or an externally managed app-server over **Unix, IPv4 or IPv6 WebSocket**. Frontend transports include Unix streams, TCP, optional TLS, HTTP/WebSocket and optional RFCOMM, depending on the installed SNode.C components and build options.
 
-All carry the same bridge semantics. Transport selection does not create another agent implementation. See the [transport and lifecycle reference](src/ai/openai/codex/docs/architecture.md#page-overview).
+All carry the same bridge semantics. Transport selection does not create another agent implementation. See the [transport and lifecycle reference](docs/architecture/codex-bridge.md#page-overview).
 
 ## Architecture
 
@@ -170,22 +170,22 @@ Three boundaries keep the integration understandable:
 
 ## Configuration
 
-The [runtime configuration contract](src/ai/openai/codex/docs/architecture.md#configuration) separates the `codex` application section from named SNode.C transport instances. Inspect `codex-bridge codex --help` and the selected listener's `--help=expanded`; use `--write-config FILE` to save and exit, then `--config-file FILE` to load the settings. Protect exported files and logs.
+The [runtime configuration contract](docs/architecture/codex-bridge.md#configuration) separates the `codex` application section from named SNode.C transport instances. Inspect `codex-bridge codex --help` and the selected listener's `--help=expanded`; use `--write-config FILE` to save and exit, then `--config-file FILE` to load the settings. Protect exported files and logs.
 
-Controller/observer roles are routing permissions, **not authentication or tenant isolation**. Observers may read workspace files and receive broadcasts; disabling observer requests does not redact notifications. Keep Unix sockets private and network listeners on loopback unless an external authenticated access boundary protects them. See [access and control policy](src/ai/openai/codex/docs/architecture.md#access-boundary) for the actual flags.
+Controller/observer roles are routing permissions, **not authentication or tenant isolation**. Observers may read workspace files and receive broadcasts; disabling observer requests does not redact notifications. Keep Unix sockets private and network listeners on loopback unless an external authenticated access boundary protects them. See [access and control policy](docs/architecture/codex-bridge.md#access-boundary) for the actual flags.
 
-For browser listeners and static assets, see [Serve a browser frontend](#serve-a-browser-frontend). Build-time options belong in [Build from source](docs/build.md#page-overview).
+For browser listeners and static assets, see [Serve a browser frontend](#serve-a-browser-frontend). Build-time options belong in [Build from source](docs/guides/build-from-source.md#page-overview).
 
 ## Documentation
 
-[Documentation index](docs/index.md#page-overview) — bridge, provider and frontend SDK guides.
+[Documentation index](docs/README.md#page-overview) — bridge, provider and frontend SDK guides.
 
 | Topic | Reference |
 | --- | --- |
-| Bridge, SDKs, configuration and transport matrix | [Architecture](src/ai/openai/codex/docs/architecture.md#page-overview) |
-| Agent and model-provider separation | [Providers](docs/agent-providers.md#page-overview) |
-| Anthropic through Codex: supported semantics | [Compatibility profile](docs/codex-responses-profile.md#page-overview) |
-| Controller/observer boundaries | [Access boundary](src/ai/openai/codex/docs/architecture.md#access-boundary) |
+| Bridge, SDKs, configuration and transport matrix | [Architecture](docs/architecture/codex-bridge.md#page-overview) |
+| Agent and model-provider separation | [Providers](docs/guides/agent-providers.md#page-overview) |
+| Anthropic through Codex: supported semantics | [Compatibility profile](docs/codex/responses-profile.md#page-overview) |
+| Controller/observer boundaries | [Access boundary](docs/architecture/codex-bridge.md#access-boundary) |
 | Browser/Node frontend integration | [TypeScript SDK](packages/codex-frontend/README.md#page-overview) |
 | Native and browser consumers | [Codex(W)UI](https://github.com/SNodeC/CodexUI#project-overview) — CodexUI and CodexWUI |
 
@@ -193,12 +193,12 @@ When reporting a problem, include AISuite, SNode.C and Codex revisions, the tran
 
 ## Platforms and packages
 
-The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ and the SNode.C default-branch source installation described in the build guide. See the [build prerequisites](docs/build.md#prerequisites) for optional transport and provider components.
+The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ and the SNode.C default-branch source installation described in the build guide. See the [build prerequisites](docs/guides/build-from-source.md#prerequisites) for optional transport and provider components.
 
 ### Install
 
 <p>
-  <a href="docs/build.md#page-overview" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="188" height="28"></a>
+  <a href="docs/guides/build-from-source.md#page-overview" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="188" height="28"></a>
 </p>
 
 The shared distribution-package pipeline does not publish AISuite binary packages yet; use the source build and installation guide.
@@ -209,7 +209,7 @@ No GitHub release has been published yet. Build from the source checkout; future
 
 ## Contributing
 
-[Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation). The [build and verification guide](docs/build.md#development-checks) covers the existing checks.
+[Report an issue](https://github.com/SNodeC/AISuite/issues) with the revisions, transport and sanitized reproduction described in [Documentation](#documentation). The [build and verification guide](docs/guides/build-from-source.md#development-checks) covers the existing checks.
 
 <!-- snodec:begin ecosystem -->
 ## Ecosystem
