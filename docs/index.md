@@ -35,8 +35,7 @@ Start with the [repository README](../README.md#quick-start) for a first working
 
 These documents describe implementation decisions, qualification scope or historical evidence; they are not prerequisites for first use and do not establish that current builds passed every check.
 
-- [Anthropic verification record](anthropic-verification.md#page-overview)
-
+- [Anthropic verification record](records/anthropic-verification.md#page-overview)
 - [Observer verification](records/observer-verification.md#page-overview)
 
 [Repository](../README.md#project-overview) · [SNode.C organization](https://github.com/SNodeC)

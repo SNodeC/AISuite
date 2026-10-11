@@ -115,6 +115,8 @@ client.onServerNotification("thread/started", notification => {
 
 The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md#page-overview) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
 
+If the first run fails, use [build and runtime troubleshooting](docs/build.md#troubleshooting).
+
 ## Capabilities
 
 ### Agent runtime and model provider
@@ -211,8 +213,6 @@ No GitHub release has been published yet. Build from the source checkout; future
 
 <!-- snodec:begin ecosystem -->
 ## Ecosystem
-
-**Frontend application:** [CodexUI](https://github.com/SNodeC/CodexUI#project-overview).
 
 [SNode.C organization](https://github.com/SNodeC) · Depends on [SNode.C](https://github.com/SNodeC/snode.c#project-overview) · Used by [CodexUI and CodexWUI](https://github.com/SNodeC/CodexUI#project-overview)
 <!-- snodec:end ecosystem -->

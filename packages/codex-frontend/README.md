@@ -23,6 +23,8 @@ The release script fetches the exact pinned Codex revision, extracts that releas
 
 `CodexBridgeClient` mirrors the observable routing and lifecycle contract of AISuite's C++ frontend proxy while exposing generated method typing:
 
+In this low-level example, `transport` is the consuming application’s connected message sender. For the SDK-provided browser connection helpers, continue to the next example.
+
 ```ts
 import {CodexBridgeClient} from "@snodec/codex-frontend";
 
@@ -53,7 +55,7 @@ const client = new CodexBridgeClient();
 const connection = new ClientConnection(client);
 const transport = new WebSocketTransport(
     connection,
-    "ws://localhost:8080/codex",
+    "ws://127.0.0.1:8080/codex",
 );
 ```
 
