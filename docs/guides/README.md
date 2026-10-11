@@ -8,6 +8,8 @@
 
 Building AISuite and choosing agent runtimes and model providers.
 
+## Sections
+
 <!-- snodec:begin section-pages -->
 - [Agent runtimes and model providers](agent-providers.md#page-overview)
 - [Build and install AISuite from source](build-from-source.md#page-overview)

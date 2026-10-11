@@ -8,6 +8,8 @@
 
 Architecture of the codex bridge and the studies of SNode.C and MQTTSuite it is based on.
 
+## Sections
+
 <!-- snodec:begin section-pages -->
 - [codex / codex-bridge Architecture](codex-bridge.md#page-overview)
 - [MQTTSuite Architecture Study for codex](mqttsuite-study.md#page-overview)
