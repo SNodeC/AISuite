@@ -30,13 +30,13 @@ Connect native applications, browser frontends and custom clients to a Codex app
 
 <!-- snodec:begin menu -->
 <p>
-  <a href="#quick-start" title="Start"><img src="docs/media/menu/snodec-start-108.svg" alt="Start" width="160" height="28"></a>
-  <a href="#install" title="Install"><img src="docs/media/menu/snodec-install-108.svg" alt="Install" width="160" height="28"></a>
-  <a href="docs/guides/build-from-source.md#page-overview" title="Build"><img src="docs/media/menu/snodec-build-108.svg" alt="Build" width="160" height="28"></a>
-  <a href="#first-success" title="Use"><img src="docs/media/menu/snodec-use-108.svg" alt="Use" width="160" height="28"></a>
-  <a href="#configuration" title="Configure"><img src="docs/media/menu/snodec-configure-108.svg" alt="Configure" width="160" height="28"></a>
-  <a href="#architecture" title="Architecture"><img src="docs/media/menu/snodec-architecture-108.svg" alt="Architecture" width="160" height="28"></a>
-  <a href="#contributing" title="Contribute"><img src="docs/media/menu/snodec-contribute-108.svg" alt="Contribute" width="160" height="28"></a>
+  <a href="#quick-start" title="Start"><img src="docs/media/menu/start.svg" alt="Start" width="160" height="28"></a>
+  <a href="#install" title="Install"><img src="docs/media/menu/install.svg" alt="Install" width="160" height="28"></a>
+  <a href="docs/guides/build-from-source.md#page-overview" title="Build"><img src="docs/media/menu/build.svg" alt="Build" width="160" height="28"></a>
+  <a href="#first-success" title="Use"><img src="docs/media/menu/use.svg" alt="Use" width="160" height="28"></a>
+  <a href="#configuration" title="Configure"><img src="docs/media/menu/configure.svg" alt="Configure" width="160" height="28"></a>
+  <a href="#architecture" title="Architecture"><img src="docs/media/menu/architecture.svg" alt="Architecture" width="160" height="28"></a>
+  <a href="#contributing" title="Contribute"><img src="docs/media/menu/contribute.svg" alt="Contribute" width="160" height="28"></a>
 </p>
 
 <!-- snodec:end menu -->
@@ -204,11 +204,7 @@ The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ an
 
 ### Install
 
-<p>
-  <a href="docs/guides/build-from-source.md#page-overview" title="Build from source"><img src="docs/media/menu/route-source.svg" alt="Build from source" width="160" height="28"></a>
-</p>
-
-The shared distribution-package pipeline does not publish AISuite binary packages yet; use the source build and installation guide.
+The shared distribution-package pipeline does not publish AISuite binary packages yet; use the [source build and installation guide](docs/guides/build-from-source.md#page-overview).
 
 ## Releases
 
