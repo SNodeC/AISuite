@@ -101,7 +101,7 @@ ctest --test-dir "$BUILD_DIR" -R 'CodexModelCatalogTest|CodexAnthropicCodingTurn
 
 `CodexModelCatalogTest` uses the actual installed Codex app-server over stdio to verify catalog loading, model discovery and Anthropic thread selection without making a model request. It needs no Anthropic credential.
 
-`coding_turn.py` uses the **same Unix frontend contract as CodexUI**, the production bridge application, actual Codex 0.162.1, local Responses service and native Anthropic provider. Its default local native-API fixture requests a real file read, a real custom `apply_patch`, a real unit-test execution and a final answer, checking all inference continuations and the resulting file. This headless boundary test does not claim to launch or visually test CodexUI itself.
+`coding_turn.py` uses the **same Unix frontend contract as CodexUI**, the production bridge application, the configured Codex executable, local Responses service and native Anthropic provider. Its default local native-API fixture requests a real file read, a real custom `apply_patch`, a real unit-test execution and a final answer, checking all inference continuations and the resulting file. This headless boundary test does not claim to launch or visually test CodexUI itself.
 
 To run the billable real Claude variant (key must already be exported):
 
