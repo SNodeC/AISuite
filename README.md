@@ -185,6 +185,8 @@ For browser listeners and static assets, see [Serve a browser frontend](#serve-a
 
 ## Documentation
 
+Manual CI runs reusable build verification and checks the pinned Codex protocol. See the organization [workflow graph](https://github.com/SNodeC/.github/blob/main/docs/workflow-graph.md#page-overview) for triggers, shared verification and publication boundaries.
+
 [Documentation index](docs/README.md#page-overview) — bridge, provider and frontend SDK guides.
 
 | Topic | Reference |
