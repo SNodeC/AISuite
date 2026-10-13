@@ -1,9 +1,10 @@
-name: CI
+name: Build and test AISuite and verify Codex protocol
+# Compile and test the project, including its repository-specific verification gates.
 on: [workflow_dispatch]
 permissions: { contents: read }
 jobs:
   snodec:
-    uses: SNodeC/.github/.github/workflows/verify.yml@main
+    uses: SNodeC/.github/.github/workflows/verify-project.yml@main
   x-protocol:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
