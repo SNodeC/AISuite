@@ -10,10 +10,11 @@
 
 - A C++20 toolchain, CMake 3.18+, and a build tool such as Make.
 - Python 3 for the documented app-server integration tests.
+- Node.js 22+ and npm to build the installed frontend SDK package.
 - A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
-- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.162.1; [check compatibility](../codex/responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
+- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.162.1; [check compatibility](../codex/responses-profile.md#page-overview) before using another version.
 
 ## Configure, build and verify
 
@@ -47,6 +48,8 @@ The example installs into `/usr/local` and needs administrator privileges. To us
 sudo cmake --install build
 sudo ldconfig
 ```
+
+The installation includes the frontend SDK archive in `share/aisuite/npm/aisuite-frontend.tgz` and standalone `AISuiteFrontend` CMake discovery metadata. Browser consumers do not need an AISuite source checkout or native libraries to use this package.
 
 For frontend SDK development, see the [TypeScript SDK guide](../../packages/codex-frontend/README.md#page-overview). For a first working bridge connection, return to [First success](../../README.md#first-success).
 

@@ -62,13 +62,12 @@ The transport negotiates the `codex` subprotocol, accepts JSON text messages, an
 
 ## Consume the SDK from source
 
-The package is `@snodec/codex-frontend`; `package.json` exports the compiled `dist/index.js` and `dist/index.d.ts`. This source-consumption route does not require a published npm release. From an AISuite checkout, build the SDK before linking it into a separate application:
+The package is `@snodec/codex-frontend`; it exports compiled JavaScript and TypeScript declarations. AISuite's normal build installs the npm archive and `AISuiteFrontend` discovery metadata. To build and install only the frontend SDK, without SNode.C or AISuite's C++ libraries:
 
 ```sh
-npm ci --prefix packages/codex-frontend
-npm run build --prefix packages/codex-frontend
-cd /path/to/your/application
-npm install --save /absolute/path/to/AISuite/packages/codex-frontend
+cmake -S packages/codex-frontend -B /path/to/build/aisuite-sdk -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build /path/to/build/aisuite-sdk
+sudo cmake --install /path/to/build/aisuite-sdk
 ```
 
-The consumer records a local `file:` dependency. Keep that checkout available and rebuild the SDK when changing its source; record its resolved Git revision with your application. Imports use the package export, not private source paths. CodexUI's [build guide](https://github.com/SNodeC/CodexUI#project-overview) documents its existing local checkout layout (Build → Browser frontend).
+Use a writable custom prefix and omit `sudo` when appropriate. CMake consumers locate the installed archive through `find_package(AISuiteFrontend 1.0 CONFIG REQUIRED)` and `AISuiteFrontend_PACKAGE`; pass a custom prefix through `CMAKE_PREFIX_PATH`. npm consumers can install the archive with `npm install /usr/local/share/aisuite/npm/aisuite-frontend.tgz`. The archive is extracted into their own node_modules, not linked to this source checkout. See [CodexUI's browser build guide](https://github.com/SNodeC/CodexUI/blob/master/docs/guides/build-from-source.md#browser-frontend).

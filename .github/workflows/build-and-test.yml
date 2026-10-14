@@ -16,3 +16,33 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y zstd
       - name: Verify pinned Codex protocol generation
         run: tools/regenerate-codex-protocol.sh --check
+  x-frontend:
+    name: Qualify the installed frontend SDK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/codex-frontend/package-lock.json
+      - name: Test SDK source and install the package
+        run: |
+          npm ci --prefix packages/codex-frontend
+          npm test --prefix packages/codex-frontend
+          cmake -S packages/codex-frontend -B _build/frontend-sdk \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/aisuite-sdk"
+          cmake --build _build/frontend-sdk
+          cmake --install _build/frontend-sdk
+      - name: Verify a consumer without the source checkout
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sdk-consumer" --no-audit --no-fund \
+            "$RUNNER_TEMP/aisuite-sdk/share/aisuite/npm/aisuite-frontend.tgz"
+          test ! -L "$RUNNER_TEMP/sdk-consumer/node_modules/@snodec/codex-frontend"
+          mv packages/codex-frontend "$RUNNER_TEMP/frontend-checkout"
+          cd "$RUNNER_TEMP/sdk-consumer"
+          node --input-type=module -e "import assert from 'node:assert/strict'; import {CodexBridgeClient} from '@snodec/codex-frontend'; assert.equal(typeof CodexBridgeClient, 'function');"
