@@ -9,7 +9,7 @@
 </p>
 
 <!-- snodec:begin organization -->
-<p><a href="https://github.com/SNodeC" title="SNodeC organization"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/media/nav/organization-dark.svg"><img align="right" src="docs/media/nav/organization-light.svg" alt="SNodeC organization" title="SNodeC organization" width="160" height="28"></picture></a><br clear="all"></p>
+<p><a href="https://github.com/SNodeC" title="SNode.C organization"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/media/nav/organization-dark.svg"><img align="right" src="docs/media/nav/organization-light.svg" alt="SNode.C organization" title="SNode.C organization" width="160" height="28"></picture></a><br clear="all"></p>
 <!-- snodec:end organization -->
 
 # AISuite
@@ -21,7 +21,7 @@
 <!-- snodec:end header -->
 
 <!-- snodec:begin status -->
-[![CI](https://github.com/SNodeC/AISuite/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/SNodeC/AISuite/actions/workflows/build-and-test.yml) [![License: MIT or LGPL 3.0 or later](https://img.shields.io/badge/License-MIT%20OR%20LGPL--3.0--or--later-334155?style=flat)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/SNodeC/AISuite/build-and-test.yml?branch=master&label=CI&style=flat)](https://github.com/SNodeC/AISuite/actions/workflows/build-and-test.yml) [![License: MIT or LGPL 3.0 or later](https://img.shields.io/badge/License-MIT%20OR%20LGPL--3.0--or--later-334155?style=flat)](LICENSE)
 <!-- snodec:end status -->
 
 **Agent integration, built for event-driven applications.** AISuite provides asynchronous C++ libraries, a multi-client Codex bridge and a framework-neutral TypeScript frontend SDK, built on [SNode.C](https://github.com/SNodeC/snode.c#project-overview).
