@@ -83,7 +83,7 @@ codex-bridge --config-file /dev/null codex-bridge-websocket-ipv4 --disabled=fals
   local --host 127.0.0.1 --port 8080
 ```
 
-The same listener serves a built CodexWUI at `/` and upgrades `/codex` with the `codex` WebSocket subprotocol. Install the web artifact using [CodexWUI](https://github.com/SNodeC/CodexUI#project-overview). The default static root is the configured install data directory's `codexui/web`; the `codex` configuration subcommand's `--bridge-web-root PATH` option overrides it. An empty root disables static delivery without disabling WebSocket. **No Node process is needed to serve the installed application.**
+The same listener serves a built CodexWUI at `/` and upgrades `/codex` with the `codex` WebSocket subprotocol. Install the web artifact using [CodexWUI](https://github.com/SNodeC/CodexUI#project-overview). The default static root is the configured install data directory's `codexui/web`; the `codex` configuration subcommand's `--bridge-web-root PATH` option overrides it. If CodexWUI is installed under a different prefix, set `--bridge-web-root PATH` to its actual installed static directory; the prefixes need not match. An empty root disables static delivery without disabling WebSocket. **No Node process is needed to serve the installed application.**
 
 > **Deployment boundary:** controller/observer roles are routing permissions, not user authentication or tenant isolation. Observer reads can include workspace files. Keep listeners private unless you provide an appropriate authenticated access boundary. Review [Configuration](#configuration) before sharing a session.
 
@@ -102,7 +102,7 @@ Start with the [interactive client implementation](src/apps/codex-bridge-client)
 
 #### TypeScript / browser
 
-Using the locally built frontend SDK:
+Using the installed frontend SDK package:
 
 ```ts
 import {
@@ -120,7 +120,7 @@ client.onServerNotification("thread/started", notification => {
 });
 ```
 
-The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md#page-overview) for request APIs and lifecycle details; the package is consumed from source by CodexWUI, so this is not an instruction to install a published npm release.
+The transport negotiates the bridge subprotocol. The application owns connection lifetime and reconnect intent. See the [SDK guide](packages/codex-frontend/README.md#page-overview) for request APIs and lifecycle details; CodexWUI consumes the installed SDK archive through CMake discovery, independently of the AISuite checkout and build directory. The archive is built and installed from source; this is not an instruction to install a published npm release.
 
 If the first run fails, use [build and runtime troubleshooting](docs/guides/build-from-source.md#troubleshooting).
 
@@ -210,7 +210,7 @@ The shared distribution-package pipeline does not publish AISuite binary package
 
 ## Releases
 
-No GitHub release has been published yet. Build from the source checkout; future release notes will appear on the [releases page](https://github.com/SNodeC/AISuite/releases). The frontend SDK is consumed from source, not a published npm release.
+No GitHub release has been published yet. Build from the source checkout; future release notes will appear on the [releases page](https://github.com/SNodeC/AISuite/releases). The frontend SDK is built and installed from source, then consumed as an installed npm archive rather than a published npm release.
 
 ## Contributing
 
