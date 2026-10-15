@@ -1,7 +1,9 @@
+<a id="banner"></a>
+
 <!-- snodec:begin page-header -->
-<a id="page-overview"></a>
+<a id="banner"></a><a id="page-overview"></a>
 <p><picture><source media="(max-width: 640px)" srcset="../media/nav/banner-architecture-compact.svg"><img src="../media/nav/banner-architecture.svg" alt="AISuite — Architecture" width="100%"></picture></p>
-<p><a href="README.md#page-overview" title="Up to Architecture"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-architecture-dark.svg"><img src="../media/nav/up-architecture-light.svg" alt="Up to Architecture" title="Up to Architecture" width="160" height="28"></picture></a><a href="https://github.com/SNodeC" title="SNode.C organization"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/organization-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/organization-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNode.C organization" title="SNode.C organization"></picture></a><a href="../../README.md#project-overview" title="AISuite repository"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/repository-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/repository-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" title="AISuite repository"></picture></a><br clear="all"></p>
+<p><a href="README.md#banner" title="Up to Architecture"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-architecture-dark.svg"><img src="../media/nav/up-architecture-light.svg" alt="Up to Architecture" title="Up to Architecture" width="160" height="28"></picture></a><a href="https://github.com/VolkerChristian#banner" title="Volker Christian account"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/account-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/account-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/account-dark.svg"><img align="right" src="../media/nav/account-light.svg" alt="Volker Christian account" title="Volker Christian account"></picture></a><a href="https://github.com/SNodeC#banner" title="SNode.C organization"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/organization-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/organization-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNode.C organization" title="SNode.C organization"></picture></a><a href="../../README.md#banner" title="AISuite repository"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/repository-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/repository-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" title="AISuite repository"></picture></a><br clear="all"></p>
 <!-- snodec:end page-header -->
 
 # codex / codex-bridge Architecture
@@ -10,7 +12,7 @@
 
 `codex` is the canonical slim Codex integration for AISuite. It makes Codex available to SNode.C applications through transports, framing, typed facades, and explicit routing.
 
-> Agent/model-provider evolution: see [the provider architecture](../guides/agent-providers.md#page-overview). Here, “provider” means an app-server transport unless explicitly called a **model provider**; Codex does not imply OpenAI inference.
+> Agent/model-provider evolution: see [the provider architecture](../guides/agent-providers.md#banner). Here, “provider” means an app-server transport unless explicitly called a **model provider**; Codex does not imply OpenAI inference.
 
 > **Historical implementation provenance:** This architecture and its initial implementation were created with Codex using GPT-5.6-Sol at high reasoning effort.
 
@@ -605,7 +607,7 @@ The `codex` section exposes `--bridge-first-frontend-controller` (default `true`
 
 Observers can see shared thread, account, configuration and workspace information, including approved filesystem reads. All connected frontends must therefore belong to the same trusted audience. The protocol has no bearer-token authentication layer. Preserve the private Unix runtime directory; bind network listeners to loopback or protect them with an external authenticated TLS boundary. Controller ownership is separate from the agent's approval/sandbox configuration.
 
-The [exact operation policy](../codex/observer-policy.md#page-overview) is a developer reference, not a deployment checklist.
+The [exact operation policy](../codex/observer-policy.md#banner) is a developer reference, not a deployment checklist.
 
 #### Options and instances
 
@@ -627,7 +629,7 @@ codex-bridge codex --app-server-executable /path/to/codex --codex-home /path/to/
 | `--bridge-websocket-endpoint PATH` | HTTP upgrade path; default `/codex` |
 | `--bridge-web-root PATH` | Static frontend directory; available with frontend WebSocket support |
 
-Agent/model selection options (`--agent`, `--model-provider`, `--model` and the Anthropic credential/environment controls) belong to the same section; the [provider guide](../guides/agent-providers.md#page-overview) owns their setup and compatibility limits.
+Agent/model selection options (`--agent`, `--model-provider`, `--model` and the Anthropic credential/environment controls) belong to the same section; the [provider guide](../guides/agent-providers.md#banner) owns their setup and compatibility limits.
 
 | Instance | Role / scope |
 | --- | --- |

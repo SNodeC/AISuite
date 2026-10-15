@@ -1,7 +1,9 @@
+<a id="banner"></a>
+
 <!-- snodec:begin page-header -->
-<a id="page-overview"></a>
+<a id="banner"></a><a id="page-overview"></a>
 <p><picture><source media="(max-width: 640px)" srcset="../media/nav/banner-guides-compact.svg"><img src="../media/nav/banner-guides.svg" alt="AISuite — Guides" width="100%"></picture></p>
-<p><a href="README.md#page-overview" title="Up to Guides"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-guides-dark.svg"><img src="../media/nav/up-guides-light.svg" alt="Up to Guides" title="Up to Guides" width="160" height="28"></picture></a><a href="https://github.com/SNodeC" title="SNode.C organization"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/organization-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/organization-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNode.C organization" title="SNode.C organization"></picture></a><a href="../../README.md#project-overview" title="AISuite repository"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/repository-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/repository-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" title="AISuite repository"></picture></a><br clear="all"></p>
+<p><a href="README.md#banner" title="Up to Guides"><picture><source media="(prefers-color-scheme: dark)" srcset="../media/nav/up-guides-dark.svg"><img src="../media/nav/up-guides-light.svg" alt="Up to Guides" title="Up to Guides" width="160" height="28"></picture></a><a href="https://github.com/VolkerChristian#banner" title="Volker Christian account"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/account-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/account-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/account-dark.svg"><img align="right" src="../media/nav/account-light.svg" alt="Volker Christian account" title="Volker Christian account"></picture></a><a href="https://github.com/SNodeC#banner" title="SNode.C organization"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/organization-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/organization-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/organization-dark.svg"><img align="right" src="../media/nav/organization-light.svg" alt="SNode.C organization" title="SNode.C organization"></picture></a><a href="../../README.md#banner" title="AISuite repository"><picture><source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="../media/nav/repository-icon-dark.svg"><source media="(max-width: 640px)" srcset="../media/nav/repository-icon-light.svg"><source media="(prefers-color-scheme: dark)" srcset="../media/nav/repository-dark.svg"><img align="right" src="../media/nav/repository-light.svg" alt="AISuite repository" title="AISuite repository"></picture></a><br clear="all"></p>
 <!-- snodec:end page-header -->
 
 # Build and install AISuite from source
@@ -10,10 +12,10 @@
 
 - A C++20 toolchain, CMake 3.18+, and a build tool such as Make.
 - Python 3 for the documented app-server integration tests.
-- A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
+- A compatible [SNode.C](https://github.com/SNodeC/snode.c#banner) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
-- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.162.1; [check compatibility](../codex/responses-profile.md#page-overview) before using another version. Node.js 22+ is needed for frontend SDK development.
+- A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.162.1; [check compatibility](../codex/responses-profile.md#banner) before using another version. Node.js 22+ is needed for frontend SDK development.
 
 ## Configure, build and verify
 
@@ -48,7 +50,7 @@ sudo cmake --install build
 sudo ldconfig
 ```
 
-For frontend SDK development, see the [TypeScript SDK guide](../../packages/codex-frontend/README.md#page-overview). For a first working bridge connection, return to [First success](../../README.md#first-success).
+For frontend SDK development, see the [TypeScript SDK guide](../../packages/codex-frontend/README.md#banner). For a first working bridge connection, return to [First success](../../README.md#first-success).
 
 ## Verify the installation
 
@@ -66,14 +68,14 @@ npm test --prefix packages/codex-frontend
 tools/regenerate-codex-protocol.sh --check
 ```
 
-Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](../records/anthropic-verification.md#page-overview).
+Regeneration requires fetching the pinned upstream source. Live provider checks are separately opt-in and may incur API charges; missing prerequisites must not be mistaken for passing coverage. See the [provider verification record](../records/anthropic-verification.md#banner).
 
 ## Troubleshooting
 
 - **CMake component missing:** verify the complete SNode.C installation and enabled provider/transport components; use `CMAKE_PREFIX_PATH` for a custom prefix.
 - **Executable or shared library missing:** check installation, `PATH`, and runtime library lookup before debugging the protocol.
 - **Unix connection fails:** select exactly one client transport and launch bridge and client as the same user with the same runtime environment. If the bridge uses a custom socket, configure the client's `codex-bridge-client-unix remote --sun-path PATH` to match.
-- **Provider not ready / protocol error:** inspect the configured Codex executable, operating-system user, authentication and pinned protocol compatibility. Configure that installed executable’s login as the bridge service user (`codex login --help` describes its supported methods); for an owned child, `codex-bridge codex --codex-home PATH` selects its private credential/config home. Do not copy credentials into the frontend or make the runtime directory public. Anthropic provider credentials follow the separate [provider guide](agent-providers.md#page-overview). A socket connection alone is not app-server readiness.
+- **Provider not ready / protocol error:** inspect the configured Codex executable, operating-system user, authentication and pinned protocol compatibility. Configure that installed executable’s login as the bridge service user (`codex login --help` describes its supported methods); for an owned child, `codex-bridge codex --codex-home PATH` selects its private credential/config home. Do not copy credentials into the frontend or make the runtime directory public. Anthropic provider credentials follow the separate [provider guide](agent-providers.md#banner). A socket connection alone is not app-server readiness.
 - **Observer write rejected:** claim an available controller role; changing an envelope's role does not grant permission. Review [access policy](../architecture/codex-bridge.md#access-boundary).
 
 ### Dependency version scope
