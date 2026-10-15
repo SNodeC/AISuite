@@ -4,7 +4,9 @@
   "description": "Framework-neutral TypeScript frontend SDK for AISuite codex-bridge",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE-MIT",
+    "LICENSE-LGPL-3.0-or-later"
   ],
   "exports": {
     ".": {
