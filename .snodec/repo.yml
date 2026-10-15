@@ -5,6 +5,7 @@ ci:
   - openssl
   - procps
   - nodejs
+  - npm
   - zstd
   deps:
   - snode.c@source

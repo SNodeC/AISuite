@@ -158,6 +158,8 @@ if(AISUITE_SNODEC_OPTIONAL_COMPONENTS)
     )
 endif()
 
+add_subdirectory(packages/codex-frontend)
+
 add_subdirectory(src/ai/agent)
 add_subdirectory(src/ai/model)
 if(AISUITE_ENABLE_ANTHROPIC)
@@ -217,7 +219,9 @@ set(CPACK_SOURCE_IGNORE_FILES
     "/[.]git/"
     "/build[^/]*/"
     "/stage[^/]*/"
-    "/package[^/]*/"
+    "/package/"
+    "/package[-_][^/]*/"
+    "/packages/codex-frontend/(node_modules|dist)/"
     "~$"
 )
 include(CPack)
