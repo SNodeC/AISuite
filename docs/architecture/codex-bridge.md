@@ -115,7 +115,7 @@ App-server requests create only transient response-ownership records. A normal r
 
 ### Frontend listeners
 
-Raw frontend listeners use one common JSONL `SocketContextFactory` over Unix, IPv4, IPv6, TLS, RFCOMM, and RFCOMM TLS SNode.C server aliases. WebSocket and WSS listeners use the same Codex text-message subprotocol over their respective HTTP/TLS transports. Transport adapters perform framing, bounds, queue admission, lifecycle callbacks, and diagnostics only.
+Raw frontend listeners use one common JSONL `SocketContextFactory` over Unix, IPv4, IPv6, TLS, RFCOMM, and RFCOMM TLS SNode.C server aliases. WebSocket and WSS listeners use the same Codex text-message subprotocol over their respective HTTP/TLS transports. Transport adapters perform framing, message bounds, accepted-delivery checks, lifecycle callbacks, and diagnostics only.
 
 The default Unix listener uses a private per-user runtime directory: a valid private `XDG_RUNTIME_DIR`, or `/tmp/codex-bridge-<uid>` created with mode `0700`. Its default socket path is shared with CodexUI. Frontend count is bounded (16 by default). Network and RFCOMM listeners remain disabled unless explicitly configured and require the deployment's own identity policy.
 
@@ -364,7 +364,7 @@ Native `ClientFlowController` policy owns initial retry, retry backoff, post-dis
 
 TLS remains below the Codex protocol context. The same raw Codex context is used over plain and TLS stream clients, and the same Codex WebSocket subprotocol is used over WS and WSS. Certificate, SNI, cipher, handshake, and shutdown configuration remain native SNode.C instance sections.
 
-Outbound delivery is successful only when the SNode.C writer accepts the bounded frame. The binding records `QueueResult`, queued/sent/outstanding byte accounting, and the configured writer limit when delivery fails. It must not report success merely because JSON serialization or WebSocket framing succeeded.
+Outbound delivery is successful only when the SNode.C writer queues the bounded frame. The socket `sendToPeer()` Boolean reports queue pressure, while the AISuite endpoint Boolean continues to report acceptance. Adapters use the writer’s existing total-queued counter to distinguish accepted sends from writes ignored during closure or shutdown. Reaching a watermark must not reject or retry an already queued message, or close its connection. WebSocket adapters retain message-size and lifecycle checks and no longer calculate hypothetical framing sizes or impose a second socket queue limit. This migration does not introduce automatic producer pause/resume.
 
 ### CLI behavior
 
@@ -641,7 +641,7 @@ Agent/model selection options (`--agent`, `--model-provider`, `--model` and the 
 
 Use each instance's `local` or `remote`, `tls`, `connection` and `socket` sections for binding, peer trust, limits and retries. Do not duplicate transport options in application configuration. `codex-bridge-client` uses `codex-bridge-client-unix` for its private default frontend connection; inspect its own help for compiled alternatives.
 
-Codex connections are legitimately quiet while users inspect work or while a turn waits elsewhere in the system. Production provider and frontend stream instances therefore default their SNode.C connection read and write inactivity timeouts to zero (unlimited). These are instance defaults configured through the existing `Connection` config section, not new application options. SNode.C accepts zero for both timeout options and converts explicitly between numeric CLI seconds and `utils::Timeval`; finite values remain available as normal per-instance CLI/config overrides. Maximum frames, queue bounds, connect timeouts, and explicit lifecycle control remain active.
+Codex connections are legitimately quiet while users inspect work or while a turn waits elsewhere in the system. Production provider and frontend stream instances therefore default their SNode.C connection read and write inactivity timeouts to zero (unlimited). These are instance defaults configured through the existing `Connection` config section, not new application options. SNode.C accepts zero for both timeout options and converts explicitly between numeric CLI seconds and `utils::Timeval`; finite values remain available as normal per-instance CLI/config overrides. Maximum frames, socket queue watermarks, owned-child stdin queue bounds, connect timeouts, and explicit lifecycle control remain active.
 
 ## Canonical Implementation Scope
 
@@ -810,7 +810,7 @@ The bridge application composes the following frontend server instances when the
 - IPv4 and IPv6 WebSocket;
 - IPv4 and IPv6 WSS.
 
-Only the Unix JSONL listener is enabled by default. Other native SNode.C instances remain visible in configuration and start disabled. Connection inactivity timeouts default to unlimited, while frame and writer-queue limits remain bounded.
+Only the Unix JSONL listener is enabled by default. Other native SNode.C instances remain visible in configuration and start disabled. Connection inactivity timeouts default to unlimited, while frames remain bounded and socket writers use configurable queue watermarks.
 
 The reusable frontend `CodexBridge` proxy exposes the same generated method and datatype surface as the backend SDK. It wraps outbound native JSON-RPC in a bridge envelope, unwraps inbound payloads, dispatches typed callbacks and events, tracks only local outstanding callbacks and current role telemetry, and fails pending callbacks exactly once on transport loss. `ClientConnection` ensures that only one physical stream or WebSocket context is attached to a proxy SDK instance at a time.
 

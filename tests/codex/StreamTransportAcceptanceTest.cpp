@@ -60,7 +60,7 @@ namespace {
     namespace v2 = codex::generated::v2;
 
     constexpr std::size_t MaximumFrameBytes = 256U * 1024U;
-    constexpr std::size_t MaximumWriteQueueBytes = 512U * 1024U;
+    constexpr std::size_t WriteQueueHighWatermark = 64;
     constexpr int SkipReturnCode = 77;
 
     enum class Transport { Unix, Ipv4, Ipv6, TlsIpv4, TlsIpv6 };
@@ -395,8 +395,12 @@ namespace {
             server.getConfig()->Instance::forceUnrequired();
             configuredClient.getConfig()->Instance::forceUnrequired();
             configuredClient.getConfig()->setRetry(false);
-            server.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
-            configuredClient.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
+            server.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
+            configuredClient.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
             server.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
             configuredClient.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
 #if defined(AISUITE_CODEX_TEST_TLS)
@@ -484,8 +488,12 @@ namespace {
             server.getConfig()->Instance::forceUnrequired();
             configuredClient.getConfig()->Instance::forceUnrequired();
             configuredClient.getConfig()->setRetry(false);
-            server.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
-            configuredClient.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
+            server.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
+            configuredClient.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
             server.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
             configuredClient.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
 

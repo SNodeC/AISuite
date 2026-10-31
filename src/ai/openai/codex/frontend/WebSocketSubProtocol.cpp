@@ -4,16 +4,10 @@
 
 #include "ai/openai/codex/frontend/WebSocketSubProtocol.h"
 
-#include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
-#include "net/config/ConfigConnection.h"
-#include "net/config/ConfigInstance.h"
 #include "web/websocket/SubProtocolContext.h"
 
-#include <algorithm>
 #include <iostream>
-#include <limits>
-#include <optional>
 #include <utility>
 
 namespace ai::openai::codex::frontend {
@@ -23,21 +17,6 @@ namespace ai::openai::codex::frontend {
         constexpr std::uint16_t CloseUnsupportedData = 1003;
         constexpr std::uint16_t ClosePolicyViolation = 1008;
         constexpr std::uint16_t CloseUnexpectedCondition = 1011;
-        constexpr std::size_t WebSocketFramePayloadBytes = 16U * 1024U;
-        constexpr std::size_t MaximumServerFrameHeaderBytes = 4;
-
-        std::optional<std::size_t> framedMessageBytes(std::size_t payloadBytes) noexcept {
-            const std::size_t frameCount = payloadBytes == 0 ? 1 : (payloadBytes - 1) / WebSocketFramePayloadBytes + 1;
-            if (frameCount > (std::numeric_limits<std::size_t>::max() - payloadBytes) / MaximumServerFrameHeaderBytes) {
-                return std::nullopt;
-            }
-            return payloadBytes + frameCount * MaximumServerFrameHeaderBytes;
-        }
-
-        std::size_t configuredWriterBytes(const core::socket::stream::SocketConnection& connection) noexcept {
-            const auto* config = dynamic_cast<const net::config::ConfigConnection*>(connection.getConfigInstance());
-            return config == nullptr ? 0 : config->getMaximumWriteQueueBytes();
-        }
 
     } // namespace
 
@@ -54,50 +33,22 @@ namespace ai::openai::codex::frontend {
     }
 
     bool WebSocketSubProtocol::send(const nlohmann::json& message) {
-        if (closing_) {
-            return false;
+        bool accepted = false;
+        if (!closing_) {
+            try {
+                const std::string serialized = message.dump();
+                core::socket::stream::SocketConnection* const connection = getSocketConnection();
+                if (connection != nullptr && serialized.size() <= maximumFrameBytes_) {
+                    const std::size_t queued = connection->getTotalQueued();
+                    sendMessage(serialized);
+                    accepted = connection->getTotalQueued() != queued;
+                }
+            } catch (const std::exception& exception) {
+                std::clog << "codex-bridge: WebSocket serialization rejected connection=" << connectionId_ << " reason=" << exception.what()
+                          << '\n';
+            }
         }
-        try {
-            const std::string serialized = message.dump();
-            if (serialized.size() > maximumFrameBytes_) {
-                std::clog << "codex-bridge: WebSocket frame rejected connection=" << connectionId_
-                          << " reason=frame-over-adapter-limit frame-bytes=" << serialized.size()
-                          << " adapter-limit=" << maximumFrameBytes_ << '\n';
-                return false;
-            }
-
-            core::socket::stream::SocketConnection* const connection = getSocketConnection();
-            const std::optional<std::size_t> frameBytes = framedMessageBytes(serialized.size());
-            if (connection == nullptr || !frameBytes) {
-                return false;
-            }
-            const std::size_t writerLimit = configuredWriterBytes(*connection);
-            const std::size_t totalQueued = connection->getTotalQueued();
-            const std::size_t totalSent = connection->getTotalSent();
-            if (totalQueued < totalSent) {
-                return false;
-            }
-            const std::size_t outstanding = totalQueued - totalSent;
-            if (writerLimit != 0 && (*frameBytes > writerLimit || outstanding > writerLimit - *frameBytes)) {
-                std::clog << "codex-bridge: WebSocket writer rejected connection=" << connectionId_
-                          << " reason=frame-over-writer-limit frame-bytes=" << *frameBytes
-                          << " writer-limit=" << writerLimit << " outstanding=" << outstanding << '\n';
-                return false;
-            }
-            const core::socket::stream::QueueResult probe = connection->trySendToPeer("", 0);
-            if (probe != core::socket::stream::QueueResult::Queued) {
-                std::clog << "codex-bridge: WebSocket writer rejected connection=" << connectionId_
-                          << " reason=writer-not-queueable queue-result=" << static_cast<int>(probe)
-                          << " outstanding=" << outstanding << '\n';
-                return false;
-            }
-            sendMessage(serialized);
-            return true;
-        } catch (const std::exception& exception) {
-            std::clog << "codex-bridge: WebSocket serialization rejected connection=" << connectionId_
-                      << " reason=" << exception.what() << '\n';
-            return false;
-        }
+        return accepted;
     }
 
     void WebSocketSubProtocol::close(std::string_view reason) {

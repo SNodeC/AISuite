@@ -55,7 +55,7 @@ namespace {
     namespace v2 = codex::generated::v2;
 
     constexpr std::size_t MaximumMessageBytes = 256U * 1024U;
-    constexpr std::size_t MaximumWriteQueueBytes = 512U * 1024U;
+    constexpr std::size_t WriteQueueHighWatermark = 64;
     constexpr int SkipReturnCode = 77;
     constexpr std::string_view WebSocketUpgrade = "websocket";
 
@@ -377,7 +377,9 @@ namespace {
 
             WebApp webApp("codex-provider-websocket-server");
             webApp.getConfig()->Instance::forceUnrequired();
-            webApp.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
+            webApp.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
             configureWebSocketPolicy(webApp.getConfig());
             configureFakeAppServer(webApp, scenario);
 
@@ -392,7 +394,9 @@ namespace {
             HttpClient httpClient("codex-provider-websocket-client", beginUpgrade, endHttp, endpoint.state());
             httpClient.getConfig()->Instance::forceUnrequired();
             httpClient.getConfig()->setRetry(false);
-            httpClient.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
+            httpClient.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
             scenario.stopProvider = [&endpoint] {
                 endpoint.stop();
             };

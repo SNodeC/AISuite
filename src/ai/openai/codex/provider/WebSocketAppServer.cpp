@@ -5,22 +5,18 @@
 #include "ai/openai/codex/provider/WebSocketAppServer.h"
 
 #include "ai/openai/codex/bridge/CodexBridge.h"
-#include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
-#include "net/config/ConfigConnection.h"
+#include "net/config/ConfigInstance.h"
+#include "utils/base64.h"
 #include "web/http/client/Response.h"
 #include "web/http/client/SocketContext.h"
 #include "web/websocket/SocketContextUpgrade.h"
 #include "web/websocket/SubProtocolContext.h"
 #include "web/websocket/client/SocketContextUpgradeFactory.h"
 #include "web/websocket/client/SubProtocol.h"
-#include "utils/base64.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <iostream>
-#include <limits>
-#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -32,8 +28,6 @@ namespace ai::openai::codex::provider {
         constexpr std::uint16_t CloseUnsupportedData = 1003;
         constexpr std::uint16_t ClosePolicyViolation = 1008;
         constexpr std::uint16_t CloseUnexpectedCondition = 1011;
-        constexpr std::size_t WebSocketFramePayloadBytes = 16U * 1024U;
-        constexpr std::size_t MaximumClientFrameHeaderBytes = 8;
 
         class AppServerSubProtocol;
 
@@ -68,14 +62,6 @@ namespace ai::openai::codex::provider {
 
     namespace {
 
-        std::optional<std::size_t> framedMessageBytes(std::size_t payloadBytes) noexcept {
-            const std::size_t frameCount = payloadBytes == 0 ? 1 : (payloadBytes - 1) / WebSocketFramePayloadBytes + 1;
-            if (frameCount > (std::numeric_limits<std::size_t>::max() - payloadBytes) / MaximumClientFrameHeaderBytes) {
-                return std::nullopt;
-            }
-            return payloadBytes + frameCount * MaximumClientFrameHeaderBytes;
-        }
-
         void sendBoundedClose(web::websocket::client::SubProtocol& protocol,
                               std::uint16_t status,
                               std::string_view reason) {
@@ -96,38 +82,20 @@ namespace ai::openai::codex::provider {
             }
 
             bool sendJson(const nlohmann::json& message) {
-                if (closing_) {
-                    return false;
+                bool accepted = false;
+                if (!closing_) {
+                    try {
+                        const std::string serialized = message.dump();
+                        core::socket::stream::SocketConnection* const connection = getSocketConnection();
+                        if (connection != nullptr && serialized.size() <= state_->maximumFrameBytes()) {
+                            const std::size_t queued = connection->getTotalQueued();
+                            sendMessage(serialized);
+                            accepted = connection->getTotalQueued() != queued;
+                        }
+                    } catch (...) {
+                    }
                 }
-                try {
-                    const std::string serialized = message.dump();
-                    if (serialized.size() > state_->maximumFrameBytes()) {
-                        return false;
-                    }
-                    core::socket::stream::SocketConnection* const connection = getSocketConnection();
-                    const std::optional<std::size_t> frameBytes = framedMessageBytes(serialized.size());
-                    if (connection == nullptr || !frameBytes) {
-                        return false;
-                    }
-                    const auto* config = dynamic_cast<const net::config::ConfigConnection*>(connection->getConfigInstance());
-                    const std::size_t writerLimit = config == nullptr ? 0 : config->getMaximumWriteQueueBytes();
-                    const std::size_t totalQueued = connection->getTotalQueued();
-                    const std::size_t totalSent = connection->getTotalSent();
-                    if (totalQueued < totalSent) {
-                        return false;
-                    }
-                    const std::size_t outstanding = totalQueued - totalSent;
-                    if (writerLimit != 0 && (*frameBytes > writerLimit || outstanding > writerLimit - *frameBytes)) {
-                        return false;
-                    }
-                    if (connection->trySendToPeer("", 0) != core::socket::stream::QueueResult::Queued) {
-                        return false;
-                    }
-                    sendMessage(serialized);
-                    return true;
-                } catch (...) {
-                    return false;
-                }
+                return accepted;
             }
 
             void close() noexcept {

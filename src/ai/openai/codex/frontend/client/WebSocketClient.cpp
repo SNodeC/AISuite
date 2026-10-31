@@ -5,9 +5,8 @@
 #include "ai/openai/codex/frontend/client/WebSocketClient.h"
 
 #include "ai/openai/codex/frontend/client/ClientConnection.h"
-#include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
-#include "net/config/ConfigConnection.h"
+#include "net/config/ConfigInstance.h"
 #include "web/http/client/SocketContext.h"
 #include "web/websocket/SubProtocolContext.h"
 #include "web/websocket/SubProtocolFactory.h"
@@ -17,12 +16,9 @@
 
 #include <cstdint>
 #include <iostream>
-#include <limits>
-#include <optional>
+#include <nlohmann/json.hpp>
 #include <string_view>
 #include <utility>
-
-#include <nlohmann/json.hpp>
 
 namespace ai::openai::codex::frontend::client {
 
@@ -31,16 +27,6 @@ namespace ai::openai::codex::frontend::client {
         constexpr std::uint16_t CloseUnsupportedData = 1003;
         constexpr std::uint16_t ClosePolicyViolation = 1008;
         constexpr std::uint16_t CloseUnexpectedCondition = 1011;
-        constexpr std::size_t WebSocketFramePayloadBytes = 16U * 1024U;
-        constexpr std::size_t MaximumClientFrameHeaderBytes = 8;
-
-        std::optional<std::size_t> framedMessageBytes(std::size_t payloadBytes) noexcept {
-            const std::size_t frameCount = payloadBytes == 0 ? 1 : (payloadBytes - 1) / WebSocketFramePayloadBytes + 1;
-            if (frameCount > (std::numeric_limits<std::size_t>::max() - payloadBytes) / MaximumClientFrameHeaderBytes) {
-                return std::nullopt;
-            }
-            return payloadBytes + frameCount * MaximumClientFrameHeaderBytes;
-        }
 
         class WebSocketHttpSocketContext final : public web::http::client::SocketContext {
         public:
@@ -82,43 +68,20 @@ namespace ai::openai::codex::frontend::client {
         }
 
         bool send(const nlohmann::json& message) override {
-            if (closing_ || binding_->active_ != this) {
-                return false;
+            bool accepted = false;
+            if (!closing_ && binding_->active_ == this) {
+                try {
+                    const std::string serialized = message.dump();
+                    core::socket::stream::SocketConnection* const socket = getSocketConnection();
+                    if (socket != nullptr && serialized.size() <= binding_->maximumFrameBytes_) {
+                        const std::size_t queued = socket->getTotalQueued();
+                        sendMessage(serialized);
+                        accepted = socket->getTotalQueued() != queued;
+                    }
+                } catch (...) {
+                }
             }
-            try {
-                const std::string serialized = message.dump();
-                if (serialized.size() > binding_->maximumFrameBytes_) {
-                    return false;
-                }
-                core::socket::stream::SocketConnection* const socket = getSocketConnection();
-                const std::optional<std::size_t> frameBytes = framedMessageBytes(serialized.size());
-                if (socket == nullptr || !frameBytes) {
-                    return false;
-                }
-                const auto* config = dynamic_cast<const net::config::ConfigConnection*>(socket->getConfigInstance());
-                const std::size_t writerLimit = config == nullptr ? 0 : config->getMaximumWriteQueueBytes();
-                const std::size_t queued = socket->getTotalQueued();
-                const std::size_t sent = socket->getTotalSent();
-                if (queued < sent) {
-                    return false;
-                }
-                const std::size_t outstanding = queued - sent;
-                if (writerLimit != 0 && (*frameBytes > writerLimit || outstanding > writerLimit - *frameBytes)) {
-                    std::clog << "codex-bridge-client: WebSocket writer limit rejected frame-bytes=" << *frameBytes
-                              << " writer-limit=" << writerLimit << " outstanding=" << outstanding << '\n';
-                    return false;
-                }
-                const core::socket::stream::QueueResult probe = socket->trySendToPeer("", 0);
-                if (probe != core::socket::stream::QueueResult::Queued) {
-                    std::clog << "codex-bridge-client: WebSocket writer rejected queue-result="
-                              << static_cast<int>(probe) << " outstanding=" << outstanding << '\n';
-                    return false;
-                }
-                sendMessage(serialized);
-                return true;
-            } catch (...) {
-                return false;
-            }
+            return accepted;
         }
 
         void close(std::string_view reason) noexcept override {
