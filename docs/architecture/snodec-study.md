@@ -86,9 +86,7 @@ internal implementation.
    socket loops, and synchronous assumptions in protocol callbacks are invalid.
    Deferred callbacks must be lifetime-safe and must respect SNode.C shutdown.
 
-8. SNode.C already provides bounded writer queues and backpressure signals.
-   Every bridge delivery path must inspect `QueueResult`; a `void` convenience
-   transmitter must be used only after bounded admission has been established.
+8. SNode.C provides socket queue accounting and configurable backpressure watermarks. Socket sends queue the entire chunk and return a pressure signal; AISuite endpoint sends continue to report acceptance. Owned-child pipe queues retain their separate admission contract.
 
 9. Provider transport owns process supervision and lifecycle handling without
    introducing a semantic middle layer, reducer, snapshot, journal, or retained
@@ -379,28 +377,9 @@ while application data is pending consumption. `SocketContext::readFromPeer()`
 advances the consumed count. A protocol parser should consume only complete
 units and retain a bounded incomplete suffix.
 
-The stream writer exposes bounded queue accounting and:
+The stream writer exposes `bool sendToPeer(...)`. For an active writer the complete chunk is queued, even when the resulting queue reaches or exceeds its high watermark. `true` means the queue remains below that watermark; `false` signals pressure, not rejection. Disabled or shutting-down writers ignore sends and return `false`.
 
-```cpp
-enum class QueueResult {
-    Queued,
-    WouldExceedLimit,
-    Closed,
-    ShutdownInProgress
-};
-```
-
-It tracks total queued and total sent bytes and can suspend the paired source
-at a high watermark until the queue falls below a low watermark. Bridge
-delivery must classify every result:
-
-- `Queued`: delivery accepted by this transport layer;
-- `WouldExceedLimit`: apply bounded backpressure or close according to policy;
-- `Closed`: endpoint is terminal;
-- `ShutdownInProgress`: no new application write is valid.
-
-An endpoint must not report successful fanout merely because serialization
-succeeded. Acceptance by the SNode.C writer is part of delivery success.
+The writer tracks total queued and sent bytes and suspends an attached pipe source at its high watermark until the queue drains to the low watermark. AISuite adapters retain their existing accepted/rejected endpoint Boolean by checking the existing queued-byte counter around the send. They do not retry or reject a chunk merely because the socket reports pressure. No automatic producer pause/resume is added to the bridge.
 
 ## 4. Transport Composition
 
@@ -574,16 +553,7 @@ payload can be identical, but framing semantics are not.
 
 ### 6.4 WebSocket transmit boundedness
 
-The convenience WebSocket transmitter currently presents `void` send methods.
-The underlying socket writer remains bounded. The adapter therefore calculates
-bounded WebSocket framing overhead, inspects the configured writer limit and
-outstanding bytes, probes terminal writer state, and only then calls the
-transmitter. If admission is unavailable, return
-backpressure or close; do not silently lose an event.
-
-A cleaner future SNode.C API could expose queue admission directly through the
-WebSocket transmitter, but `codex` must work correctly with the current API
-without modifying SNode.C as part of this narrow implementation.
+The convenience WebSocket transmitter presents `void` send methods and the underlying socket writer accepts complete chunks beyond its watermark. AISuite keeps its message-size and lifecycle checks, sends through the existing transmitter, and uses the socket’s queued-byte counter to report acceptance. It no longer duplicates WebSocket framing calculations or preflights a hard socket queue capacity. Socket pressure is not an endpoint rejection. Producer pause/resume remains outside this API migration.
 
 ### 6.5 Server groups are not the bridge
 
@@ -912,7 +882,7 @@ codex-bridge application
 - enforce bounded frame/message size;
 - register/deregister with `CodexBridge`;
 - expose connection identity and current role;
-- deliver accepted outbound envelopes with `QueueResult` handling;
+- deliver outbound envelopes while preserving accepted/rejected endpoint semantics;
 - report close cause and queue counters;
 - never decide Codex state authority.
 
@@ -991,7 +961,7 @@ codex-bridge-client application
     |     SocketClient<StreamSocketContextFactory, ClientConnection&, bounds>
     |       -> StreamSocketContext
     |            -> bounded JSONL framing
-    |            -> QueueResult-aware delivery
+    |            -> accepted-delivery accounting
     |            -> ClientConnection
     |
     `-- WebSocket/WSS instance selected by native configuration
@@ -1000,7 +970,7 @@ codex-bridge-client application
             -> Codex client SubProtocolFactory
             -> Codex client SubProtocol
                  -> bounded text-message framing
-                 -> QueueResult-aware admission
+                 -> accepted-delivery accounting
                  -> ClientConnection
 ```
 
@@ -1234,10 +1204,7 @@ and suspends again when the queue is empty. `eof()` stops new admission but
 allows accepted bytes to drain before close. `close()` discards queued bytes
 and disables immediately. Error, close, and shutdown callbacks are distinct.
 
-Although this API returns a boolean rather than the socket layer's richer
-`QueueResult`, the boolean is still a hard delivery boundary. codex must not
-discard or silently claim delivery for a provider request when `send()`
-returns false.
+Unlike the socket writer’s pressure Boolean, the pipe Boolean is a hard delivery boundary. Codex must not discard or silently claim delivery for a provider request when the pipe’s `send()` returns false.
 
 ### 15.4 In-process `Source` and `Sink`
 

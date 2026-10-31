@@ -171,7 +171,7 @@ All carry the same bridge semantics. Transport selection does not create another
 Three boundaries keep the integration understandable:
 
 1. **Applications own presentation and interaction.** Frontend SDKs correlate requests and deliver events; they do not retain a second conversation store.
-2. **AISuite owns transport and routing.** The bridge translates request IDs, dispatches responses to their owners, broadcasts notifications and enforces controller/observer policy. Frames and outgoing queues are bounded.
+2. **AISuite owns transport and routing.** The bridge translates request IDs, dispatches responses to their owners, broadcasts notifications and enforces controller/observer policy. Frames are bounded. Socket writers use SNode.C’s configurable watermarks; the owned app-server stdin queue retains its hard bound.
 3. **Codex owns the agent session.** Threads, turns, tools, approvals and persistence remain upstream. A model provider handles inference, not agent lifecycle.
 
 “Stateless bridge” means **no retained Codex-domain state**—not an absence of connection state, pending requests or routing tables.

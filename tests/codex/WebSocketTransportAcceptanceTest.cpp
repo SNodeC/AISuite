@@ -59,7 +59,7 @@ namespace {
 
     constexpr std::string_view Endpoint = "/codex";
     constexpr std::size_t MaximumMessageBytes = 256U * 1024U;
-    constexpr std::size_t MaximumWriteQueueBytes = 512U * 1024U;
+    constexpr std::size_t WriteQueueHighWatermark = 64;
     constexpr int SkipReturnCode = 77;
 
     enum class Transport { WebSocketIpv4, WebSocketIpv6, WssIpv4, WssIpv6 };
@@ -381,7 +381,9 @@ namespace {
 
             WebApp webApp("codex-websocket-transport-server");
             webApp.getConfig()->Instance::forceUnrequired();
-            webApp.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
+            webApp.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
             configureWebSocketPolicy(webApp.getConfig());
             apps::codex_bridge::configureWebSocketApplication(
                 webApp, router, std::string(Endpoint), MaximumMessageBytes, "/tmp/codex-webui-test-root");
@@ -401,7 +403,9 @@ namespace {
             httpClient.getConfig()->setRetry(false);
             webApp.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
             httpClient.getConfig()->Connection::setReadTimeout(utils::Timeval({0, 0}));
-            httpClient.getConfig()->Connection::setMaximumWriteQueueBytes(MaximumWriteQueueBytes);
+            httpClient.getConfig()
+                ->Connection::setMaximumWriteQueueBytes(WriteQueueHighWatermark)
+                ->setWriteQueueHighWatermark(WriteQueueHighWatermark);
             scenario.shutdownBinding = [binding] {
                 binding->shutdown();
             };

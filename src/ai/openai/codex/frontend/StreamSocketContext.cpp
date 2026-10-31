@@ -4,7 +4,6 @@
 
 #include "ai/openai/codex/frontend/StreamSocketContext.h"
 
-#include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
 
 #include <array>
@@ -30,23 +29,19 @@ namespace ai::openai::codex::frontend {
     }
 
     bool StreamSocketContext::send(const nlohmann::json& message) {
-        if (disconnecting_) {
-            return false;
-        }
-        try {
-            const std::string frame = protocol::JsonLineFramer::encode(message, maximumFrameBytes_);
-            const core::socket::stream::QueueResult result = trySendToPeer(frame);
-            if (result == core::socket::stream::QueueResult::Queued) {
-                return true;
+        bool accepted = false;
+        if (!disconnecting_) {
+            try {
+                const std::string frame = protocol::JsonLineFramer::encode(message, maximumFrameBytes_);
+                const std::size_t queued = getTotalQueued();
+                sendToPeer(frame);
+                accepted = getTotalQueued() - queued == frame.size();
+            } catch (const std::exception& exception) {
+                std::clog << "codex-bridge: frontend serialization rejected connection=" << connectionId_ << " reason=" << exception.what()
+                          << '\n';
             }
-            std::clog << "codex-bridge: frontend send rejected connection=" << connectionId_
-                      << " frame-bytes=" << frame.size() << " queue-result=" << static_cast<int>(result)
-                      << " total-queued=" << getTotalQueued() << " total-sent=" << getTotalSent() << '\n';
-        } catch (const std::exception& exception) {
-            std::clog << "codex-bridge: frontend serialization rejected connection=" << connectionId_
-                      << " reason=" << exception.what() << '\n';
         }
-        return false;
+        return accepted;
     }
 
     void StreamSocketContext::close(std::string_view reason) {

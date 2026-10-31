@@ -2,7 +2,6 @@
 #include "ai/http/StreamingClient.h"
 
 #include "ai/http/detail/ResponseParser.h"
-#include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketContext.h"
 #include "core/socket/stream/SocketContextFactory.h"
 #include "net/in/stream/legacy/SocketClient.h"
@@ -64,20 +63,19 @@ namespace ai::http {
             void onConnected() override {
                 if (state_->done) {
                     close();
-                    return;
+                } else {
+                    std::string header = "POST " + state_->address.path + " HTTP/1.1\r\nHost: " + state_->address.authority +
+                                         "\r\nConnection: close\r\nAccept-Encoding: identity\r\nContent-Length: " +
+                                         std::to_string(state_->request.body.size()) + "\r\n";
+                    for (const auto& [key, value] : state_->request.headers) {
+                        header += key + ": " + value + "\r\n";
+                    }
+                    header += "\r\n";
+                    sendToPeer(header);
+                    sendToPeer(state_->request.body);
+                    state_->request.body.clear();
+                    state_->request.headers.clear();
                 }
-                std::string header =
-                    "POST " + state_->address.path + " HTTP/1.1\r\nHost: " + state_->address.authority +
-                    "\r\nConnection: close\r\nAccept-Encoding: identity\r\nContent-Length: " + std::to_string(state_->request.body.size()) +
-                    "\r\n";
-                for (const auto& [key, value] : state_->request.headers)
-                    header += key + ": " + value + "\r\n";
-                header += "\r\n";
-                if (trySendToPeer(header) != core::socket::stream::QueueResult::Queued ||
-                    trySendToPeer(state_->request.body) != core::socket::stream::QueueResult::Queued)
-                    state_->fail("HTTP request write queue rejected");
-                state_->request.body.clear();
-                state_->request.headers.clear();
             }
             void onDisconnected() override {
                 state_->context = nullptr;

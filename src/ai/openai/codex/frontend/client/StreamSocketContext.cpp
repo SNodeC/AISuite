@@ -4,10 +4,7 @@
 
 #include "ai/openai/codex/frontend/client/StreamSocketContext.h"
 
-#include "core/socket/stream/QueueResult.h"
 #include "core/socket/stream/SocketConnection.h"
-#include "net/config/ConfigConnection.h"
-#include "net/config/ConfigInstance.h"
 
 #include <array>
 #include <iostream>
@@ -33,30 +30,18 @@ namespace ai::openai::codex::frontend::client {
     }
 
     bool StreamSocketContext::send(const nlohmann::json& message) {
-        if (disconnecting_) {
-            return false;
-        }
-        try {
-            const std::string frame = protocol::JsonLineFramer::encode(message, maximumFrameBytes_);
-            core::socket::stream::SocketConnection* const socket = getSocketConnection();
-            if (socket == nullptr) {
-                return false;
+        bool accepted = false;
+        if (!disconnecting_ && getSocketConnection() != nullptr) {
+            try {
+                const std::string frame = protocol::JsonLineFramer::encode(message, maximumFrameBytes_);
+                const std::size_t queued = getTotalQueued();
+                sendToPeer(frame);
+                accepted = getTotalQueued() - queued == frame.size();
+            } catch (const std::exception& exception) {
+                std::clog << "codex-bridge-client: stream send failed reason=" << exception.what() << '\n';
             }
-            const core::socket::stream::QueueResult result = socket->trySendToPeer(frame);
-            if (result == core::socket::stream::QueueResult::Queued) {
-                return true;
-            }
-            const auto* config = dynamic_cast<const net::config::ConfigConnection*>(socket->getConfigInstance());
-            const std::size_t queued = socket->getTotalQueued();
-            const std::size_t sent = socket->getTotalSent();
-            std::clog << "codex-bridge-client: stream send rejected queue-result=" << static_cast<int>(result)
-                      << " frame-bytes=" << frame.size() << " writer-limit="
-                      << (config == nullptr ? 0 : config->getMaximumWriteQueueBytes()) << " total-queued=" << queued
-                      << " total-sent=" << sent << " outstanding=" << (queued >= sent ? queued - sent : 0) << '\n';
-        } catch (const std::exception& exception) {
-            std::clog << "codex-bridge-client: stream send failed reason=" << exception.what() << '\n';
         }
-        return false;
+        return accepted;
     }
 
     void StreamSocketContext::close(std::string_view reason) noexcept {
