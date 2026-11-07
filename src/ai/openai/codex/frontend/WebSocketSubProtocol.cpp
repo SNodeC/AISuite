@@ -23,7 +23,7 @@ namespace ai::openai::codex::frontend {
     WebSocketSubProtocol::WebSocketSubProtocol(web::websocket::SubProtocolContext* context,
                                                bridge::CodexBridge& bridge,
                                                std::size_t maximumFrameBytes)
-        : web::websocket::server::SubProtocol(context, std::string(WebSocketSubProtocolName))
+        : web::websocket::server::SubProtocol(context, std::string(WebSocketSubProtocolName), 15, 2)
         , bridge_(bridge)
         , maximumFrameBytes_(maximumFrameBytes) {
     }
