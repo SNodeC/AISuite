@@ -13,12 +13,13 @@ add_executable(
     main.cpp
 )
 target_compile_features(codex-bridge-client PRIVATE cxx_std_20)
-target_include_directories(codex-bridge-client PRIVATE ${PROJECT_SOURCE_DIR}/src)
+target_include_directories(
+    codex-bridge-client PRIVATE ${PROJECT_SOURCE_DIR}/src
+)
 target_link_libraries(
     codex-bridge-client
-    PRIVATE AISuite::OpenAICodex snodec::core
-            snodec::net-un-stream-legacy snodec::net-in-stream-legacy
-            snodec::net-in6-stream-legacy
+    PRIVATE AISuite::OpenAICodex snodec::core snodec::net-un-stream-legacy
+            snodec::net-in-stream-legacy snodec::net-in6-stream-legacy
 )
 if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
     target_compile_definitions(
@@ -38,9 +39,7 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_RFCOMM)
                                     snodec::net-rc-stream-tls
     )
 endif()
-if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
-   AND TARGET snodec::websocket-client
-)
+if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET AND TARGET snodec::websocket-client)
     target_compile_definitions(
         codex-bridge-client PRIVATE AISUITE_CODEX_FRONTEND_WEBSOCKET=1
     )
@@ -49,4 +48,6 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
                                     snodec::websocket-client
     )
 endif()
-install(TARGETS codex-bridge-client RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS codex-bridge-client RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                                            COMPONENT aisuite
+)
