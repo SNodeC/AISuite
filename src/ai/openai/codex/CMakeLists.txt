@@ -1,6 +1,5 @@
 add_library(
-    ai-openai-codex
-    STATIC
+    ai-openai-codex SHARED
     bridge/CodexBridge.cpp
     bridge/CodexBridge.h
     bridge/Endpoint.h
@@ -31,18 +30,28 @@ add_library(
 )
 add_library(AISuite::OpenAICodex ALIAS ai-openai-codex)
 if(AISUITE_ENABLE_ANTHROPIC)
-    target_sources(ai-openai-codex PRIVATE model/ResponsesAdapter.cpp
-                   model/ResponsesService.cpp model/ProviderProfile.cpp)
-    target_link_libraries(ai-openai-codex PUBLIC AISuite::Model
-                          PRIVATE snodec::http-server OpenSSL::Crypto)
+    target_sources(
+        ai-openai-codex
+        PRIVATE model/ResponsesAdapter.cpp model/ResponsesService.cpp
+                model/ProviderProfile.cpp
+    )
+    target_link_libraries(
+        ai-openai-codex
+        PUBLIC AISuite::Model
+        PRIVATE snodec::http-server OpenSSL::Crypto
+    )
     target_compile_definitions(ai-openai-codex PUBLIC AISUITE_MODEL_PROVIDERS=1)
 endif()
-set_target_properties(ai-openai-codex PROPERTIES EXPORT_NAME OpenAICodex)
+set_target_properties(
+    ai-openai-codex
+    PROPERTIES EXPORT_NAME OpenAICodex
+               VERSION ${PROJECT_VERSION}
+               SOVERSION ${PROJECT_VERSION_MAJOR}
+)
 target_include_directories(
     ai-openai-codex
-    PUBLIC
-        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
-        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/aisuite>"
+    PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
+           "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/aisuite>"
 )
 target_compile_features(ai-openai-codex PUBLIC cxx_std_20)
 target_link_libraries(
@@ -67,18 +76,21 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET AND TARGET snodec::websocket-server)
         ai-openai-codex PUBLIC AISUITE_CODEX_FRONTEND_WEBSOCKET=1
     )
     target_link_libraries(
-        ai-openai-codex
-        PUBLIC snodec::websocket-server snodec::http-client
-               snodec::websocket-client
+        ai-openai-codex PUBLIC snodec::websocket-server snodec::http-client
+                               snodec::websocket-client
     )
 endif()
 install(
     TARGETS ai-openai-codex
     EXPORT AISuiteTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT aisuite
+            NAMELINK_COMPONENT aisuite-dev
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT aisuite-dev
 )
 install(
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/aisuite/ai/openai/codex
-    FILES_MATCHING PATTERN "*.h"
+    FILES_MATCHING
+    PATTERN "*.h"
 )

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.18)
+project(AISuiteConsumer LANGUAGES CXX)
+find_package(AISuite CONFIG REQUIRED)
+add_executable(aisuite-consumer main.cpp)
+target_link_libraries(aisuite-consumer PRIVATE AISuite::OpenAICodex)
+enable_testing()
+add_test(NAME installed-consumer COMMAND aisuite-consumer)

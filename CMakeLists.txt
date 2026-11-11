@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.18)
+include(cmake/Version.cmake)
 
 project(
     AISuite
-    VERSION 0.7.0
+    VERSION ${RELEASE_VERSION}
     DESCRIPTION "Reusable C++ AI integrations based on SNode.C"
     LANGUAGES CXX
 )
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(format)
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME aisuite-dev)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)
 option(AISUITE_BUILD_CODEX_TESTS "Build the focused codex tests" OFF)
@@ -72,8 +76,8 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
 endif()
 # These transports are dependencies of the always-built Codex library, not
 # merely of the apps/tests. Native streaming HTTP also uses IPv4 plain TCP.
-set(AISUITE_SNODEC_COMPONENTS
-    core net-un-stream-legacy net-in-stream-legacy net-in6-stream-legacy
+set(AISUITE_SNODEC_COMPONENTS core net-un-stream-legacy net-in-stream-legacy
+                              net-in6-stream-legacy
 )
 
 find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
@@ -143,7 +147,8 @@ if(AISUITE_BUILD_APPS OR AISUITE_BUILD_CODEX_TESTS)
         )
         if(AISUITE_BUILD_CODEX_TESTS)
             list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
-                 http-server-express-legacy-un)
+                 http-server-express-legacy-un
+            )
         endif()
         if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
             list(APPEND AISUITE_SNODEC_OPTIONAL_COMPONENTS
@@ -164,8 +169,10 @@ add_subdirectory(src/ai/agent)
 add_subdirectory(src/ai/model)
 if(AISUITE_ENABLE_ANTHROPIC)
     find_package(OpenSSL REQUIRED)
-    find_package(snodec 2.0 CONFIG REQUIRED
-                 COMPONENTS http-client http-server net-in-stream-tls)
+    find_package(
+        snodec 2.0 CONFIG REQUIRED COMPONENTS http-client http-server
+                                              net-in-stream-tls
+    )
     add_subdirectory(src/ai/http)
     add_subdirectory(src/ai/providers/anthropic)
 endif()
@@ -203,25 +210,9 @@ install(
     NAMESPACE AISuite::
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
 )
-install(
-    FILES
-        "${CMAKE_CURRENT_BINARY_DIR}/AISuiteConfig.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/AISuiteConfigVersion.cmake"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/AISuiteConfig.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/AISuiteConfigVersion.cmake"
+        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/AISuite"
 )
 
-set(CPACK_PACKAGE_NAME "AISuite")
-set(CPACK_PACKAGE_VENDOR "SNodeC")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_GENERATOR "TGZ")
-set(CPACK_SOURCE_GENERATOR "TGZ")
-set(CPACK_SOURCE_IGNORE_FILES
-    "/[.]git/"
-    "/build[^/]*/"
-    "/stage[^/]*/"
-    "/package/"
-    "/package[-_][^/]*/"
-    "/packages/codex-frontend/(node_modules|dist)/"
-    "~$"
-)
-include(CPack)
+include(Packing)

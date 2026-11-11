@@ -1,0 +1,11 @@
+set(CPACK_DEBIAN_AISUITE-DEV_PACKAGE_DEPENDS
+    "aisuite (= ${CPACK_PACKAGE_VERSION}), snodec, libssl-dev, nlohmann-json3-dev"
+)
+set(CPACK_RPM_AISUITE-DEV_PACKAGE_REQUIRES
+    "aisuite = ${CPACK_PACKAGE_VERSION}-${CPACK_RPM_PACKAGE_RELEASE}, snodec, openssl-devel, json-devel"
+)
+file(MAKE_DIRECTORY "${CPACK_OUTPUT_FILE_PREFIX}")
+file(
+    WRITE "${CPACK_OUTPUT_FILE_PREFIX}/aisuite.packages"
+    "${CPACK_DEBIAN_AISUITE_PACKAGE_NAME}\n${CPACK_DEBIAN_AISUITE-DEV_PACKAGE_NAME}\n"
+)

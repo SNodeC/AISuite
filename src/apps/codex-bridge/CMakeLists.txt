@@ -1,10 +1,6 @@
 add_executable(
-    codex-bridge
-    Configuration.cpp
-    Configuration.h
-    ProviderApplication.cpp
-    ProviderApplication.h
-    main.cpp
+    codex-bridge Configuration.cpp Configuration.h ProviderApplication.cpp
+                 ProviderApplication.h main.cpp
 )
 target_compile_features(codex-bridge PRIVATE cxx_std_20)
 target_include_directories(codex-bridge PRIVATE ${PROJECT_SOURCE_DIR}/src)
@@ -41,23 +37,24 @@ if(AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET
     )
     target_compile_definitions(
         codex-bridge
-        PRIVATE AISUITE_CODEX_FRONTEND_WEBSOCKET=1
-                AISUITE_CODEXUI_WEB_ROOT="${CMAKE_INSTALL_FULL_DATADIR}/codexui/web"
+        PRIVATE
+            AISUITE_CODEX_FRONTEND_WEBSOCKET=1
+            AISUITE_CODEXUI_WEB_ROOT="${CMAKE_INSTALL_FULL_DATADIR}/codexui/web"
     )
     target_link_libraries(
-        codex-bridge
-        PRIVATE snodec::http-server-express-legacy-in
-                snodec::http-server-express-legacy-in6
+        codex-bridge PRIVATE snodec::http-server-express-legacy-in
+                             snodec::http-server-express-legacy-in6
     )
     if(AISUITE_ENABLE_CODEX_FRONTEND_TLS)
         target_link_libraries(
-            codex-bridge
-            PRIVATE snodec::http-server-express-tls-in
-                    snodec::http-server-express-tls-in6
+            codex-bridge PRIVATE snodec::http-server-express-tls-in
+                                 snodec::http-server-express-tls-in6
         )
     endif()
 endif()
-install(TARGETS codex-bridge RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS codex-bridge RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                                     COMPONENT aisuite
+)
 
 if(AISUITE_ENABLE_ANTHROPIC)
     target_link_libraries(codex-bridge PRIVATE AISuite::Anthropic)
