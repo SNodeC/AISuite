@@ -15,13 +15,13 @@ build=/work/build-product
 cmake -S "$SOURCE_DIR" -B "$build" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_LIBDIR="$libdir" -DAISUITE_BUILD_CODEX_TESTS=ON
-cmake --build "$build" --parallel "$(nproc)"
+cmake --build "$build" --parallel 1
 ctest --test-dir "$build" --output-on-failure -LE 'real-app-server|end-to-end|live' \
     --output-junit core-ci-tests.xml
 DESTDIR=/work/installed cmake --install "$build"
 export CMAKE_PREFIX_PATH="/work/installed/usr${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
 export LD_LIBRARY_PATH="/work/installed/usr/$libdir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 cmake -S "$SOURCE_DIR/tests/consumer" -B /work/build-consumer -G Ninja
-cmake --build /work/build-consumer --parallel "$(nproc)"
+cmake --build /work/build-consumer --parallel 1
 ctest --test-dir /work/build-consumer --output-on-failure
 python3 /tool/native_container.py --package "$build"
