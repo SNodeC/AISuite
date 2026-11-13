@@ -4,7 +4,7 @@
 
 Persistent builds use `build/codex/<configuration>` and approved additional checkouts use `checkouts/<task>`; both are ignored. Temporary builds use `/tmp/codex/build/AISuite/<task>`. Never install verification packages on the host.
 
-`VERSION` supplies the CMake project version. The three existing compiled libraries are shared runtime files in `aisuite`; headers, linker names, CMake exports and the frontend SDK belong to `aisuite-dev`. Keep `AISuite::` exported target names. `ci/packages.json` owns native target and dependency policy; `ci/package/native.sh` builds, runs disposable tests, compiles/runs `tests/consumer` against the staged installation, and packages through the shared worker interface. Real app-server, end-to-end and live-provider tests are outside the package hook; they require their documented environments.
+`VERSION` supplies the CMake project version. The three existing compiled libraries are shared runtime files in `aisuite`; headers, linker names, CMake exports and the frontend SDK belong to `aisuite-dev`. Keep `AISuite::` exported target names. `tests/consumer` compiles and runs against a staged installation. Real app-server, end-to-end and live-provider tests require their documented environments.
 
 Formatting and analysis configurations match the shared canonical baseline. Explicit formatting modules discover owned `src/` and `tests/` C++, root/subdirectory CMake files and the frontend SDK build definition; generated protocol, third-party, build and checkout files are excluded. Ordinary builds never format sources.
 
