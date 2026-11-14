@@ -180,6 +180,29 @@ int main() {
         test.expect(usage.inputTokens == 11 && usage.outputTokens == 15 && usage.cacheReadTokens == 3,
                     "cumulative usage not double counted");
     });
+    run("oversized content indices", [&] {
+        for (const auto* type : {"content_block_start", "content_block_delta", "content_block_stop"}) {
+            std::vector<model::Event> events;
+            MessageStream stream(
+                [&](const auto& e) {
+                    events.push_back(e);
+                },
+                {});
+            event(stream, start());
+            if (std::string_view(type) != "content_block_start") {
+                event(stream, blockStart(0, {{"type", "text"}, {"text", ""}}));
+            }
+            const auto before = events.size();
+            event(stream,
+                  {{"type", type},
+                   {"index", std::uint64_t{1} << 32},
+                   {"content_block", {{"type", "text"}, {"text", ""}}},
+                   {"delta", {{"type", "text_delta"}, {"text", "must not alias block zero"}}}});
+            test.expect(events.size() == before + 1 && std::holds_alternative<model::Error>(events.back()) &&
+                            std::get<model::Error>(events.back()).code == "invalid_stream" && stream.terminal(),
+                        "oversized wire indices fail without aliasing an existing block");
+        }
+    });
     run("thinking continuation", [&] {
         std::vector<model::Event> events;
         MessageStream stream(

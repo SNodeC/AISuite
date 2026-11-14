@@ -242,6 +242,9 @@ namespace ai::providers::anthropic {
         const auto type = event.at("type").get<std::string>();
         if (type.starts_with("content_block_"))
             require(event.contains("index"), "missing Anthropic content index");
+        const auto wireIndex = type.starts_with("content_block_") ? count(event, "index") : 0;
+        require(std::in_range<std::size_t>(wireIndex), "invalid Anthropic content index");
+        const auto index = static_cast<std::size_t>(wireIndex);
         if (type == "ping")
             return;
         if (type == "error") {
@@ -270,7 +273,6 @@ namespace ai::providers::anthropic {
             emit(usage_);
         } else if (type == "content_block_start") {
             require(started_ && !stop_ && blocks_.empty(), "out-of-order Anthropic content block");
-            const auto index = count(event, "index");
             require(index == nextIndex_++, "invalid Anthropic content index");
             Block block{event.at("content_block"), {}};
             const auto kind = block.value.at("type").get<std::string>();
@@ -288,8 +290,7 @@ namespace ai::providers::anthropic {
             blocks_.emplace(index, std::move(block));
             emit(model::BlockStarted{index, item});
         } else if (type == "content_block_delta") {
-            auto& block = blocks_.at(count(event, "index"));
-            const auto index = count(event, "index");
+            auto& block = blocks_.at(index);
             const auto& delta = event.at("delta");
             const auto kind = delta.at("type").get<std::string>();
             if (kind == "text_delta") {
@@ -314,7 +315,6 @@ namespace ai::providers::anthropic {
             } else
                 throw std::invalid_argument("unsupported Anthropic content delta: " + kind);
         } else if (type == "content_block_stop") {
-            const auto index = count(event, "index");
             auto block = std::move(blocks_.at(index));
             blocks_.erase(index);
             if (!block.input.empty()) {
