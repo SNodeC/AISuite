@@ -39,7 +39,8 @@
       "bluez-libs-devel",
       "mariadb-connector-c-devel",
       "ncurses-devel"
-    ]
+    ],
+    "openwrt": []
   },
   "targets": [
     "debian-trixie-amd64",
