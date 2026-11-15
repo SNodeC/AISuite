@@ -130,10 +130,12 @@ int main() {
     test.expect(bridgeEvents == 3, "non-app-server telemetry remains separately observable");
 
     std::optional<v2::ThreadStartResponse> threadStartResponse;
-    const v2::ThreadStartParams startParams({{"cwd", "/tmp"}});
+    const v2::ThreadStartParams startParams(nlohmann::json{{"cwd", "/tmp"}});
     const std::string startRequestId = sdk.threadStart(startParams, [&](v2::ThreadStartResponse& response) {
         threadStartResponse = response;
     });
+    test.expect(endpoint.sent.back().at("payload").at("params") == nlohmann::json{{"cwd", "/tmp"}},
+                "thread/start sends cwd as a JSON object through the production SDK");
     const nlohmann::json appServerResponseWithoutVersion{
         {"id", startRequestId}, {"result", {{"thread", {{"id", "thread-from-real-envelope"}}}}}};
     connection.receive(endpoint,

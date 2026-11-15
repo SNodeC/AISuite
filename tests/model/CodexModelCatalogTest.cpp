@@ -45,7 +45,8 @@ int main(int argc, char** argv) {
             return;
         using Init = codex::generated::client_requests::Initialize;
         bridge.initialize(
-            Init::Params({{"clientInfo", {{"name", "aisuite_model_test"}, {"version", "1"}}}}), [&](Init::Response& response) {
+            Init::Params(nlohmann::json{{"clientInfo", {{"name", "aisuite_model_test"}, {"version", "1"}}}}),
+            [&](Init::Response& response) {
                 if (!response) {
                     test.expect(false, "Codex initialize accepted");
                     core::SNodeC::stop();
@@ -54,7 +55,8 @@ int main(int argc, char** argv) {
                 bridge.initialized();
                 bridge.setAppServerReady();
                 bridge.modelList(
-                    codex::generated::v2::ModelListParams({{"includeHidden", false}}), [&](codex::generated::v2::ModelListResponse& list) {
+                    codex::generated::v2::ModelListParams(nlohmann::json{{"includeHidden", false}}),
+                    [&](codex::generated::v2::ModelListResponse& list) {
                         if (!list) {
                             test.expect(false, "Codex model/list accepted");
                             core::SNodeC::stop();
