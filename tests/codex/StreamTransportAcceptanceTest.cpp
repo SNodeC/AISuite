@@ -161,7 +161,7 @@ namespace {
             started = true;
             tests::codex::traceCommunication(name(transport), "scenario", "local", "begin");
             if (realAppServer) {
-                v2::ThreadStartParams params({{"cwd", workingDirectory}});
+                v2::ThreadStartParams params(nlohmann::json{{"cwd", workingDirectory}});
                 expectedResponses = 1;
                 sdk->threadStart(params, [this](v2::ThreadStartResponse& response) {
                     tests::codex::traceCommunication(

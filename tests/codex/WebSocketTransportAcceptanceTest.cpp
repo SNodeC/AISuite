@@ -174,7 +174,7 @@ namespace {
             started = true;
             tests::codex::traceCommunication(name(transport), "scenario", "local", "begin");
             if (realAppServer) {
-                v2::ThreadStartParams params({{"cwd", workingDirectory}});
+                v2::ThreadStartParams params(nlohmann::json{{"cwd", workingDirectory}});
                 sdk->threadStart(params, [this](v2::ThreadStartResponse& response) {
                     tests::codex::traceCommunication(
                         name(transport), "typed-callback", "provider-to-client", "thread/start", response.getRaw());
