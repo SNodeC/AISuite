@@ -224,8 +224,7 @@ namespace ai::openai::codex::frontend::client {
         };
 
         web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>* createWebSocketFactory() {
-            static WebSocketClientSubProtocolFactory factory;
-            return &factory;
+            return new WebSocketClientSubProtocolFactory();
         }
 
     } // namespace

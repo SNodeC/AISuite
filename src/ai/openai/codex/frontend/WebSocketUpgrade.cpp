@@ -35,8 +35,7 @@ namespace ai::openai::codex::frontend {
         };
 
         web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>* createStaticFactory() {
-            static StaticWebSocketSubProtocolFactory factory;
-            return &factory;
+            return new StaticWebSocketSubProtocolFactory();
         }
 
     } // namespace
