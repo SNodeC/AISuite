@@ -20,12 +20,10 @@ namespace ai::openai::codex::frontend {
 
         thread_local ScopedWebSocketUpgrade* activeUpgrade = nullptr;
 
-        class StaticWebSocketSubProtocolFactory final
-            : public web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol> {
+        class WebSocketServerSubProtocolFactory final : public web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol> {
         public:
-            StaticWebSocketSubProtocolFactory()
-                : web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>(
-                      std::string(WebSocketSubProtocolName)) {
+            WebSocketServerSubProtocolFactory()
+                : web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>(std::string(WebSocketSubProtocolName)) {
             }
 
         private:
@@ -34,9 +32,8 @@ namespace ai::openai::codex::frontend {
             }
         };
 
-        web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>* createStaticFactory() {
-            static StaticWebSocketSubProtocolFactory factory;
-            return &factory;
+        web::websocket::SubProtocolFactory<web::websocket::server::SubProtocol>* createWebSocketServerFactory() {
+            return new WebSocketServerSubProtocolFactory();
         }
 
     } // namespace
@@ -82,7 +79,7 @@ namespace ai::openai::codex::frontend {
     void linkWebSocketSubProtocol() {
         static const bool linked = [] {
             web::websocket::server::SocketContextUpgradeFactory::link();
-            web::websocket::server::SubProtocolFactorySelector::link(std::string(WebSocketSubProtocolName), createStaticFactory);
+            web::websocket::server::SubProtocolFactorySelector::link(std::string(WebSocketSubProtocolName), createWebSocketServerFactory);
             return true;
         }();
         static_cast<void>(linked);
