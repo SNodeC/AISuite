@@ -223,7 +223,7 @@ namespace ai::openai::codex::frontend::client {
             }
         };
 
-        web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>* createWebSocketFactory() {
+        web::websocket::SubProtocolFactory<web::websocket::client::SubProtocol>* createWebSocketClientFactory() {
             return new WebSocketClientSubProtocolFactory();
         }
 
@@ -306,7 +306,7 @@ namespace ai::openai::codex::frontend::client {
     void linkWebSocketClient() {
         static const bool linked = [] {
             web::websocket::client::SocketContextUpgradeFactory::link();
-            web::websocket::client::SubProtocolFactorySelector::link("codex", createWebSocketFactory);
+            web::websocket::client::SubProtocolFactorySelector::link("codex", createWebSocketClientFactory);
             return true;
         }();
         static_cast<void>(linked);
