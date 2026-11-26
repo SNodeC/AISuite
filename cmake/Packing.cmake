@@ -30,6 +30,6 @@ set(CPACK_RPM_AISUITE-DEV_PACKAGE_NAME "aisuite-dev")
 set(CPACK_SOURCE_IGNORE_FILES
     "/build[^/]*/;/checkouts/;/.git/;/.qtcreator/;/.local-credentials/;/secrets/;/stage[^/]*/;/package/;/packages/codex-frontend/(node_modules|dist)/;~$"
 )
-set(CPACK_PROJECT_CONFIG_FILE "${CMAKE_CURRENT_LIST_DIR}/PackageConfig.cmake")
+set(CPACK_PROJECT_CONFIG_FILE "${PROJECT_SOURCE_DIR}/ci/package/config.cmake")
 get_cmake_property(CPACK_COMPONENTS_ALL COMPONENTS)
 include(CPack)

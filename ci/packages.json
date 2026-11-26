@@ -1,9 +1,12 @@
 {
-  "schema": 1,
+  "schema": 2,
   "package": "aisuite",
   "title": "AISuite",
   "depends_on": [
-    "snodec"
+    {
+      "package": "snodec",
+      "version": ">=2.0,<3"
+    }
   ],
   "build": {
     "deb": "ci/package/native.sh",
@@ -40,7 +43,10 @@
       "mariadb-connector-c-devel",
       "ncurses-devel"
     ],
-    "openwrt": []
+    "openwrt": [],
+    "rpm@rocky-9": [
+      "gcc-toolset-14-gcc-c++"
+    ]
   },
   "targets": [
     "debian-trixie-amd64",
