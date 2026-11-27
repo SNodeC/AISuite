@@ -11,17 +11,26 @@ if(NOT TARGET nlohmann_json::nlohmann_json)
                    "${AISUITE_NLOHMANN_JSON_INCLUDE_DIR}"
     )
 endif()
-set(_AISUITE_SNODEC_COMPONENTS
-    core net-un-stream-legacy net-in-stream-legacy net-in6-stream-legacy
+set(_AISUITE_SNODEC_COMPONENTS core net-un-stream-legacy net-in-stream-legacy
+                               net-in6-stream-legacy
 )
 if("@AISUITE_ENABLE_CODEX_FRONTEND_WEBSOCKET@" STREQUAL "ON")
     list(APPEND _AISUITE_SNODEC_COMPONENTS websocket-server http-client
-         websocket-client)
+         websocket-client
+    )
 endif()
-find_dependency(snodec 2.0 CONFIG COMPONENTS ${_AISUITE_SNODEC_COMPONENTS})
+find_dependency(snodec 3.0.0 CONFIG COMPONENTS ${_AISUITE_SNODEC_COMPONENTS})
 if("@AISUITE_ENABLE_ANTHROPIC@" STREQUAL "ON")
     find_dependency(OpenSSL)
-    find_dependency(snodec 2.0 CONFIG COMPONENTS http-client http-server net-in-stream-tls)
+    find_dependency(
+        snodec
+        3.0.0
+        CONFIG
+        COMPONENTS
+        http-client
+        http-server
+        net-in-stream-tls
+    )
 endif()
 unset(_AISUITE_SNODEC_COMPONENTS)
 
