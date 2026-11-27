@@ -13,7 +13,7 @@
 - A C++20 toolchain, CMake 3.18+, and a build tool such as Make.
 - Python 3 for the documented app-server integration tests.
 - Node.js 22+ and npm to build the installed frontend SDK package.
-- A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 2.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
+- A compatible [SNode.C](https://github.com/SNodeC/snode.c#project-overview) CMake installation satisfying `find_package(snodec 3.0.0)` and the components requested by the chosen features; use its default-branch source for the documented development build.
 - nlohmann-json headers; optional transports require their corresponding SNode.C components.
 - For the default Anthropic-enabled build: OpenSSL and SNode.C HTTP client/server plus IPv4 TLS support.
 - A configured Codex executable to run an owned app-server. The generated protocol and documented compatibility profile target Codex 0.162.1; [check compatibility](../codex/responses-profile.md#banner) before using another version.
@@ -83,4 +83,4 @@ Regeneration requires fetching the pinned upstream source. Live provider checks 
 
 ### Dependency version scope
 
-The documented development build uses dependency default-branch source and records the resolved revisions. `find_package(snodec 2.0)` is a CMake version floor, not a claim that every released 2.0 binary exposes all APIs required by the current AISuite/CodexUI source. Use the source-build route for this guide; compatibility with a particular signed release requires qualification of that exact dependency/application pair.
+The documented development build uses dependency default-branch source and records the resolved revisions. `find_package(snodec 3.0.0)` requires a compatible 3.x CMake package; SNode.C uses same-major version compatibility, so a 2.x request rejects 3.x. This requirement does not claim that every released 3.x binary exposes all APIs required by the current AISuite/CodexUI source. Use the source-build route for this guide; compatibility with a particular signed release requires qualification of that exact dependency/application pair.

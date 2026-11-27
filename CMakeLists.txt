@@ -80,7 +80,9 @@ set(AISUITE_SNODEC_COMPONENTS core net-un-stream-legacy net-in-stream-legacy
                               net-in6-stream-legacy
 )
 
-find_package(snodec 2.0 CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS})
+find_package(
+    snodec 3.0.0 CONFIG REQUIRED COMPONENTS ${AISUITE_SNODEC_COMPONENTS}
+)
 
 set(AISUITE_CODEX_FRONTEND_TLS_DEFAULT OFF)
 if(EXISTS "${snodec_DIR}/snodec_net-in-stream-tls_Targets.cmake"
@@ -170,8 +172,8 @@ add_subdirectory(src/ai/model)
 if(AISUITE_ENABLE_ANTHROPIC)
     find_package(OpenSSL REQUIRED)
     find_package(
-        snodec 2.0 CONFIG REQUIRED COMPONENTS http-client http-server
-                                              net-in-stream-tls
+        snodec 3.0.0 CONFIG REQUIRED COMPONENTS http-client http-server
+                                                net-in-stream-tls
     )
     add_subdirectory(src/ai/http)
     add_subdirectory(src/ai/providers/anthropic)
