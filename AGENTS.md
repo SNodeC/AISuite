@@ -2,11 +2,11 @@
 
 ## Packaging and workspace layout
 
-Persistent builds use `build/codex/<configuration>` and approved additional checkouts use `checkouts/<task>`; both are ignored. Temporary builds use `/tmp/codex/build/AISuite/<task>`. Never install verification packages on the host.
+Canonical source: `/home/voc/projects/snodec/AISuite`. Persistent agent builds use `/home/voc/projects/snodec/build/codex/AISuite/<configuration>`; manual builds use `/home/voc/projects/snodec/build/qtcreator/AISuite/<configuration>`. Temporary builds use `/tmp/codex/build/AISuite/<task>`. Additional checkouts require owner approval. Never install verification packages on the host.
 
 `VERSION` supplies the CMake project version. The three existing compiled libraries are shared runtime files in `aisuite`; headers, linker names, CMake exports and the frontend SDK belong to `aisuite-dev`. Keep `AISuite::` exported target names. `tests/consumer` compiles and runs against a staged installation. Real app-server, end-to-end and live-provider tests require their documented environments.
 
-Formatting and analysis configurations match the shared canonical baseline. Explicit formatting modules discover owned `src/` and `tests/` C++, root/subdirectory CMake files and the frontend SDK build definition; generated protocol, third-party, build and checkout files are excluded. Ordinary builds never format sources.
+Formatting and analysis configurations match the shared canonical baseline. Explicit formatting modules discover owned `src/` and `tests/` C++, root/subdirectory and repository-owned `ci/` CMake files and the frontend SDK build definition; generated protocol, third-party, build and checkout files are excluded. Ordinary builds never format sources.
 
 ## Markdown formatting
 
