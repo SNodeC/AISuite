@@ -1,5 +1,5 @@
 add_library(
-    ai-openai-codex SHARED
+    ai-openai-codex STATIC
     bridge/CodexBridge.cpp
     bridge/CodexBridge.h
     bridge/Endpoint.h
@@ -42,12 +42,7 @@ if(AISUITE_ENABLE_ANTHROPIC)
     )
     target_compile_definitions(ai-openai-codex PUBLIC AISUITE_MODEL_PROVIDERS=1)
 endif()
-set_target_properties(
-    ai-openai-codex
-    PROPERTIES EXPORT_NAME OpenAICodex
-               VERSION ${PROJECT_VERSION}
-               SOVERSION ${PROJECT_VERSION_MAJOR}
-)
+set_target_properties(ai-openai-codex PROPERTIES EXPORT_NAME OpenAICodex)
 target_include_directories(
     ai-openai-codex
     PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>"
@@ -83,9 +78,6 @@ endif()
 install(
     TARGETS ai-openai-codex
     EXPORT AISuiteTargets
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-            COMPONENT aisuite
-            NAMELINK_COMPONENT aisuite-dev
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT aisuite-dev
 )
 install(

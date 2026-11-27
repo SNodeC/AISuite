@@ -64,16 +64,7 @@ else()
     add_link_options(LINKER:--as-needed LINKER:--no-undefined)
 endif()
 
-find_package(nlohmann_json 3.11 CONFIG QUIET)
-if(NOT TARGET nlohmann_json::nlohmann_json)
-    find_path(AISUITE_NLOHMANN_JSON_INCLUDE_DIR nlohmann/json.hpp REQUIRED)
-    add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED)
-    set_target_properties(
-        nlohmann_json::nlohmann_json
-        PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
-                   "${AISUITE_NLOHMANN_JSON_INCLUDE_DIR}"
-    )
-endif()
+find_package(nlohmann_json 3.11 CONFIG REQUIRED)
 # These transports are dependencies of the always-built Codex library, not
 # merely of the apps/tests. Native streaming HTTP also uses IPv4 plain TCP.
 set(AISUITE_SNODEC_COMPONENTS core net-un-stream-legacy net-in-stream-legacy

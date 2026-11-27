@@ -1,9 +1,7 @@
 set(CPACK_DEBIAN_AISUITE-DEV_PACKAGE_DEPENDS
-    "aisuite (= ${CPACK_PACKAGE_VERSION}), snodec, libssl-dev, nlohmann-json3-dev"
+    "snodec, libssl-dev, nlohmann-json3-dev"
 )
-set(CPACK_RPM_AISUITE-DEV_PACKAGE_REQUIRES
-    "aisuite = ${CPACK_PACKAGE_VERSION}-${CPACK_RPM_PACKAGE_RELEASE}, snodec, openssl-devel, json-devel"
-)
+set(CPACK_RPM_AISUITE-DEV_PACKAGE_REQUIRES "snodec, openssl-devel, json-devel")
 # Exact native dependencies record the wave's frozen build inputs.
 if(DEFINED ENV{DEPENDENCIES_JSON})
     set(dependencies "$ENV{DEPENDENCIES_JSON}")
@@ -34,8 +32,12 @@ if(DEFINED ENV{DEPENDENCIES_JSON})
     string(APPEND ${runtime} "${bound}")
     string(REPLACE "snodec" "${bound}" ${development} "${${development}}")
 endif()
+foreach(component IN LISTS CPACK_COMPONENTS_ALL)
+    string(TOUPPER "${component}" component)
+    list(APPEND groups "${CPACK_COMPONENT_${component}_GROUP}")
+endforeach()
+list(REMOVE_DUPLICATES groups)
+list(SORT groups)
+list(JOIN groups "\n" names)
 file(MAKE_DIRECTORY "${CPACK_OUTPUT_FILE_PREFIX}")
-file(
-    WRITE "${CPACK_OUTPUT_FILE_PREFIX}/aisuite.packages"
-    "${CPACK_DEBIAN_AISUITE_PACKAGE_NAME}\n${CPACK_DEBIAN_AISUITE-DEV_PACKAGE_NAME}\n"
-)
+file(WRITE "${CPACK_OUTPUT_FILE_PREFIX}/aisuite.packages" "${names}\n")
