@@ -209,6 +209,8 @@ The documented native build targets Linux with a C++20 toolchain, CMake 3.18+ an
 
 The shared distribution-package pipeline does not publish AISuite binary packages yet; use the [source build and installation guide](docs/guides/build-from-source.md#banner).
 
+The Rocky Linux 9 package hook activates GCC Toolset 14.
+
 ## Releases
 
 No GitHub release has been published yet. Build from the source checkout; future release notes will appear on the [releases page](https://github.com/SNodeC/AISuite/releases). The frontend SDK is built and installed from source, then consumed as an installed npm archive rather than a published npm release.
