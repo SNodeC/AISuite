@@ -4,20 +4,19 @@
 
 #include "apps/codex-bridge/WebSocketApplication.h"
 
-#include "ai/openai/codex/bridge/CodexBridge.h"
 #include "ai/openai/codex/frontend/WebSocketUpgrade.h"
-#include "core/socket/stream/SocketConnection.h"
-#include "express/Request.h"
-#include "express/Response.h"
 #include "express/Router.h"
-#include "web/http/server/SocketContext.h"
 #include "web/http/http_utils.h"
+#include "web/http/server/SocketContext.h"
 
 #include <filesystem>
-#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <utility>
+
+namespace core::socket::stream {
+    class SocketConnection;
+}
 
 namespace apps::codex_bridge {
 

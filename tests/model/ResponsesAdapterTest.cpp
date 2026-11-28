@@ -2,15 +2,33 @@
 #include "ai/openai/codex/model/ResponsesAdapter.h"
 
 #include "TestHarness.h"
+#include "ai/http/StreamingClient.h"
+#include "ai/model/Provider.h"
 #include "ai/openai/codex/model/ProviderProfile.h"
+#include "ai/openai/codex/provider/StdioAppServer.h"
 #include "ai/providers/anthropic/AnthropicProvider.h"
 
+#include <cmath>
+#include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <filesystem>
-#include <fstream>
+#include <functional>
+#include <initializer_list>
 #include <iostream>
+#include <map>
+#include <memory>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <sys/stat.h>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace {
     namespace n = ai::model;

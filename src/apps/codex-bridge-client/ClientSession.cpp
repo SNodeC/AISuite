@@ -5,10 +5,17 @@
 #include "apps/codex-bridge-client/ClientSession.h"
 
 #include "ai/openai/codex/frontend/CodexBridge.h"
+#include "ai/openai/codex/protocol/Envelope.h"
+#include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 #include "apps/codex-bridge-client/Presenter.h"
 
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace apps::codex_bridge_client {
 

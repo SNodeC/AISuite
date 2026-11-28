@@ -7,8 +7,8 @@
 
 #include "core/socket/stream/SocketContextFactory.h"
 #include "net/config/ConfigInstance.h"
-#include "web/http/ConfigWebSocket.h"
-#include "web/http/client/ConfigHTTP.h"
+#include "web/http/ConfigWebSocket.h"   // IWYU pragma: keep
+#include "web/http/client/ConfigHTTP.h" // IWYU pragma: keep
 #include "web/http/client/Request.h"
 
 #include <cstddef>
@@ -16,11 +16,6 @@
 #include <memory>
 #include <string>
 #include <utility>
-
-namespace core::socket::stream {
-    class SocketConnection;
-    class SocketContext;
-}
 
 namespace ai::openai::codex::frontend::client {
 

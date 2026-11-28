@@ -6,11 +6,11 @@
 #define AI_OPENAI_CODEX_PROTOCOL_ENVELOPE_H
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
-
-#include <nlohmann/json.hpp>
 
 namespace ai::openai::codex::protocol {
 

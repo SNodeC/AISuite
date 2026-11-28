@@ -1,11 +1,15 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #ifndef AISUITE_CODEX_MODEL_RESPONSESSERVICE_H
 #define AISUITE_CODEX_MODEL_RESPONSESSERVICE_H
-#include "ai/model/Provider.h"
 
 #include <functional>
 #include <memory>
 #include <string>
+
+namespace ai::model {
+    class Provider;
+}
+
 namespace ai::openai::codex::model {
     class ResponsesService {
     public:

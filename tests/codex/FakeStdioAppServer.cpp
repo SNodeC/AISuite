@@ -3,8 +3,12 @@
  */
 
 #include <iostream>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <string_view>
 
 namespace {
     void trace(std::string_view direction, std::string_view event, const nlohmann::json& message) {

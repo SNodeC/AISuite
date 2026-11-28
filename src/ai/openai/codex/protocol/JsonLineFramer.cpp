@@ -4,6 +4,8 @@
 
 #include "ai/openai/codex/protocol/JsonLineFramer.h"
 
+#include <map>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <utility>
 

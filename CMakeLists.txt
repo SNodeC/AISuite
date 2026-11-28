@@ -12,6 +12,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(format)
+include(iwyu)
 set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME aisuite-dev)
 
 option(AISUITE_BUILD_APPS "Build AISuite applications" ON)

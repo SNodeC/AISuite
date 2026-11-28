@@ -6,11 +6,14 @@
 
 #include "ai/openai/codex/protocol/Envelope.h"
 
-#include <algorithm>
 #include <charconv>
+#include <cstddef>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
 #include <optional>
 #include <system_error>
 #include <unordered_set>
+#include <utility>
 
 namespace apps::codex_bridge_client {
 

@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <sys/types.h>
 #include <utility>

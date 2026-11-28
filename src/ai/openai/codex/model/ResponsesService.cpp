@@ -1,21 +1,27 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #include "ai/openai/codex/model/ResponsesService.h"
 
+#include "ai/model/Provider.h"
 #include "ai/openai/codex/model/ResponsesAdapter.h"
 #include "core/pipe/Source.h"
-#include "net/in/stream/legacy/SocketServer.h"
+#include "net/config/ConfigInstance.h"
+#include <net/in/stream/legacy/SocketServer.h>
 #include "web/http/ConfigHttpParser.h"
-#include "web/http/server/Request.h"
+#include "web/http/server/ConfigHttpServer.h"
 #include "web/http/server/Response.h"
 #include "web/http/server/Server.h"
-#include "web/http/server/SocketContext.h"
 
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <exception>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <openssl/crypto.h>
 #include <openssl/rand.h>
 #include <stdexcept>
+#include <utility>
 
 namespace ai::openai::codex::model {
     namespace {

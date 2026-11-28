@@ -1,10 +1,26 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #include "TestHarness.h"
 #include "ai/http/SseDecoder.h"
+#include "ai/http/StreamingClient.h"
+#include "ai/model/Provider.h"
 #include "ai/providers/anthropic/AnthropicProvider.h"
 
+#include <cmath>
+#include <cstdint>
+#include <exception>
+#include <functional>
+#include <initializer_list>
 #include <iostream>
-#include <stdexcept>
+#include <map>
+#include <memory>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace {
     using namespace ai;

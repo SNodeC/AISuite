@@ -12,45 +12,35 @@
 #include "ai/openai/codex/frontend/client/ClientConnection.h"
 #include "ai/openai/codex/frontend/client/StreamSocketContextFactory.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
-#include "core/EventReceiver.h"
 #include "core/SNodeC.h"
-#include "core/socket/SocketAddress.h"
-#include "core/socket/State.h"
-#include "core/socket/stream/ClientFlowController.h"
 #include "core/timer/Timer.h"
-#include "net/in/SocketAddress.h"
-#include "net/in/stream/legacy/SocketClient.h"
-#include "net/in/stream/legacy/SocketServer.h"
-#include "net/in6/SocketAddress.h"
-#include "net/in6/stream/legacy/SocketClient.h"
-#include "net/in6/stream/legacy/SocketServer.h"
-#include "net/un/SocketAddress.h"
-#include "net/un/stream/legacy/SocketClient.h"
-#include "net/un/stream/legacy/SocketServer.h"
+#include <net/in/stream/legacy/SocketClient.h>
+#include <net/in/stream/legacy/SocketServer.h>
+#include <net/in6/stream/legacy/SocketClient.h>
+#include <net/in6/stream/legacy/SocketServer.h>
+#include <net/un/stream/legacy/SocketClient.h>
+#include <net/un/stream/legacy/SocketServer.h>
 #if defined(AISUITE_CODEX_TEST_TLS)
-#include "net/in/stream/tls/SocketClient.h"
-#include "net/in/stream/tls/SocketServer.h"
-#include "net/in6/stream/tls/SocketClient.h"
-#include "net/in6/stream/tls/SocketServer.h"
+#include <net/in/stream/tls/SocketClient.h>
+#include <net/in/stream/tls/SocketServer.h>
+#include <net/in6/stream/tls/SocketClient.h>
+#include <net/in6/stream/tls/SocketServer.h>
 #endif
-#include "utils/Timeval.h"
 
-#include <cerrno>
+#include "ai/openai/codex/protocol/Envelope.h"
+
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <functional>
-#include <memory>
-#include <netdb.h>
+#include <iostream>
+#include <map>
 #include <netinet/in.h>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
-#include <string>
 #include <string_view>
-#include <sys/socket.h>
 #include <unistd.h>
 #include <utility>
-#include <vector>
 
 namespace {
     namespace codex = ai::openai::codex;

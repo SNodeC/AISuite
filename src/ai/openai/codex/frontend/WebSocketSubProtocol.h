@@ -5,12 +5,18 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_WEBSOCKETSUBPROTOCOL_H
 #define AI_OPENAI_CODEX_FRONTEND_WEBSOCKETSUBPROTOCOL_H
 
-#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/bridge/Endpoint.h"
 #include "web/websocket/server/SubProtocol.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <string_view>
+
+namespace ai::openai::codex::bridge {
+    class CodexBridge;
+}
 
 namespace web::websocket {
     class SubProtocolContext;

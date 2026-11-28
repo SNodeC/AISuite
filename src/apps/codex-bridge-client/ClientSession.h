@@ -8,6 +8,7 @@
 #include "apps/codex-bridge-client/CommandParser.h"
 
 #include <functional>
+#include <string>
 
 namespace ai::openai::codex::frontend {
     class CodexBridge;

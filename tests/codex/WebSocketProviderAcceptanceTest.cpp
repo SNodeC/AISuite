@@ -5,31 +5,23 @@
 #include "CommunicationTrace.h"
 #include "TestHarness.h"
 #include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/protocol/Envelope.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 #include "ai/openai/codex/provider/WebSocketAppServer.h"
-#include "core/EventReceiver.h"
 #include "core/SNodeC.h"
-#include "core/socket/State.h"
-#include "core/socket/stream/ClientFlowController.h"
 #include "core/timer/Timer.h"
-#include "express/Request.h"
-#include "express/Response.h"
 #include "express/legacy/in/WebApp.h"
 #include "express/legacy/in6/WebApp.h"
 #include "express/legacy/un/WebApp.h"
 #include "net/config/ConfigInstance.h"
-#include "net/in/SocketAddress.h"
-#include "net/in/stream/legacy/SocketClient.h"
-#include "net/in6/SocketAddress.h"
-#include "net/in6/stream/legacy/SocketClient.h"
-#include "net/un/stream/legacy/SocketClient.h"
-#include "utils/Timeval.h"
+#include <net/in/stream/legacy/SocketClient.h>
+#include <net/in6/stream/legacy/SocketClient.h>
+#include <net/un/stream/legacy/SocketClient.h>
 #include "utils/base64.h"
 #include "web/http/ConfigHttpParser.h"
 #include "web/http/ConfigWebSocket.h"
 #include "web/http/client/ConfigHTTP.h"
 #include "web/http/server/ConfigHttpServer.h"
-#include "web/http/server/Request.h"
 #include "web/http/server/Response.h"
 #include "web/http/server/SocketContextUpgradeFactory.h"
 #include "web/websocket/SocketContextUpgrade.h"
@@ -37,16 +29,18 @@
 #include "web/websocket/server/SubProtocol.h"
 
 #include <cstddef>
-#include <cstdio>
-#include <functional>
-#include <memory>
+#include <iostream>
 #include <netinet/in.h>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
-#include <string>
 #include <string_view>
-#include <sys/socket.h>
 #include <unistd.h>
+
+namespace web::http::client {
+    class MasterRequest;
+}
 
 namespace {
     namespace codex = ai::openai::codex;

@@ -8,11 +8,11 @@
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <string_view>
 #include <variant>
-
-#include <nlohmann/json.hpp>
 
 namespace apps::codex_bridge_client {
 

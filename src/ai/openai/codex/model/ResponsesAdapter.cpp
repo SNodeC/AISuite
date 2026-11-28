@@ -2,9 +2,18 @@
 #include "ai/openai/codex/model/ResponsesAdapter.h"
 
 #include <cctype>
+#include <cmath>
+#include <exception>
+#include <initializer_list>
 #include <limits>
+#include <nlohmann/detail/iterators/iter_impl.hpp>
+#include <nlohmann/detail/iterators/iteration_proxy.hpp>
+#include <nlohmann/detail/json_ref.hpp>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
+#include <variant>
+#include <vector>
 
 namespace ai::openai::codex::model {
     namespace neutral = ai::model;

@@ -6,6 +6,7 @@
 
 #include "ai/openai/codex/frontend/CodexBridge.h"
 
+#include <nlohmann/json.hpp>
 #include <utility>
 
 namespace ai::openai::codex::frontend::client {

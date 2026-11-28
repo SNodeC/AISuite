@@ -8,18 +8,24 @@
 #include "core/socket/stream/SocketConnection.h"
 #include "net/config/ConfigInstance.h"
 #include "utils/base64.h"
-#include "web/http/client/Response.h"
+#include "web/http/client/ConfigHTTP.h"
+#include "web/http/client/Request.h"
 #include "web/http/client/SocketContext.h"
+#include "web/http/client/SocketContextUpgradeFactory.h"
 #include "web/websocket/SocketContextUpgrade.h"
 #include "web/websocket/SubProtocolContext.h"
 #include "web/websocket/client/SocketContextUpgradeFactory.h"
 #include "web/websocket/client/SubProtocol.h"
 
-#include <cstdint>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
+
+namespace web::http {
+    struct ParserLimits;
+}
 
 namespace ai::openai::codex::provider {
 

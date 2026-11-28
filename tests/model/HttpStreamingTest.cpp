@@ -2,15 +2,17 @@
 #include "TestHarness.h"
 #include "ai/http/StreamingClient.h"
 #include "ai/http/detail/ResponseParser.h"
+#include "ai/model/Provider.h"
 #include "core/SNodeC.h"
-#include "core/socket/stream/SocketConnection.h"
 #include "core/timer/Timer.h"
-#include "net/in/SocketAddress.h"
 #include "web/http/legacy/in/Server.h"
-#include "web/http/server/Request.h"
-#include "web/http/server/Response.h"
+#include "web/http/server/Response.h" // IWYU pragma: keep
 
+#include <algorithm>
 #include <cstring>
+#include <initializer_list>
+#include <string_view>
+#include <utility>
 
 namespace {
     // A byte source at SNode.C's existing SocketConnection boundary, not a

@@ -11,12 +11,9 @@
 #include "utils/SubCommand.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
-
-namespace CLI {
-    class Option;
-}
 
 namespace apps::codex_bridge {
 

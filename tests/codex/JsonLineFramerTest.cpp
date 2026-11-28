@@ -7,9 +7,13 @@
 #include "CommunicationTrace.h"
 #include "TestHarness.h"
 
+#include <cstddef>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 int main() {

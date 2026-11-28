@@ -4,7 +4,10 @@
 
 #include "ai/openai/codex/frontend/CodexBridge.h"
 
+#include <cmath>
 #include <iostream>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
 #include <utility>
 
 namespace ai::openai::codex::frontend {

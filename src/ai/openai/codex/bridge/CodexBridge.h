@@ -5,20 +5,24 @@
 #ifndef AI_OPENAI_CODEX_BRIDGE_CODEXBRIDGE_H
 #define AI_OPENAI_CODEX_BRIDGE_CODEXBRIDGE_H
 
-#include "ai/openai/codex/bridge/Endpoint.h"
 #include "ai/openai/codex/protocol/Envelope.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
 
-#include <nlohmann/json.hpp>
+namespace ai::openai::codex::bridge {
+    class AppServerEndpoint;
+    class FrontendEndpoint;
+}
 
 namespace ai::openai::codex::bridge {
 

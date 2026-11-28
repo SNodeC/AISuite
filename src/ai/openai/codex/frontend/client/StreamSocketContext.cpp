@@ -4,11 +4,17 @@
 
 #include "ai/openai/codex/frontend/client/StreamSocketContext.h"
 
-#include "core/socket/stream/SocketConnection.h"
+#include "core/socket/stream/SocketContext.h"
 
 #include <array>
+#include <exception>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <utility>
+
+namespace core::socket::stream {
+    class SocketConnection;
+}
 
 namespace ai::openai::codex::frontend::client {
 

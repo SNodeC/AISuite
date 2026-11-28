@@ -4,11 +4,13 @@
 
 #include "ai/openai/codex/frontend/StreamSocketContext.h"
 
-#include "core/socket/stream/SocketConnection.h"
+#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "core/socket/stream/SocketContext.h"
 
 #include <array>
+#include <exception>
 #include <iostream>
-#include <stdexcept>
+#include <nlohmann/json.hpp>
 #include <string_view>
 
 namespace ai::openai::codex::frontend {

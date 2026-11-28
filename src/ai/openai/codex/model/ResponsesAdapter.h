@@ -3,8 +3,16 @@
 #define AISUITE_CODEX_MODEL_RESPONSESADAPTER_H
 #include "ai/model/Provider.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <map>
+#include <memory>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <set>
+#include <string>
+#include <string_view>
 
 namespace ai::openai::codex::model {
     struct ToolIdentity {

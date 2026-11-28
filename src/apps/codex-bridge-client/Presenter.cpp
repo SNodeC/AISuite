@@ -7,8 +7,10 @@
 #include "ai/openai/codex/protocol/Envelope.h"
 
 #include <iostream>
-
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
 
 namespace apps::codex_bridge_client {
 

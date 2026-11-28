@@ -1,6 +1,15 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #include "ai/openai/codex/frontend/CodexAgent.h"
 
+#include "ai/agent/Runtime.h"
+#include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
+
+#include <functional>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <optional>
 #include <utility>
 namespace ai::openai::codex::frontend {
     namespace a = ai::agent;

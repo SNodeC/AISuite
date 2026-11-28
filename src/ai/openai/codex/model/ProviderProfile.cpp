@@ -2,13 +2,19 @@
 #include "ai/openai/codex/model/ProviderProfile.h"
 
 #include "ai/openai/codex/protocol/RuntimePaths.h"
+#include "ai/openai/codex/provider/StdioAppServer.h"
 
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <limits>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
+#include <stdlib.h>
 #include <unistd.h>
+#include <utility>
+#include <vector>
 
 namespace ai::openai::codex::model {
     using Json = nlohmann::json;

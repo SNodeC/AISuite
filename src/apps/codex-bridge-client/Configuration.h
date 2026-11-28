@@ -11,10 +11,6 @@
 #include <string>
 #include <string_view>
 
-namespace CLI {
-    class Option;
-}
-
 namespace apps::codex_bridge_client {
 
     inline constexpr std::size_t DefaultMaximumFrameBytes = 64U * 1024U * 1024U;

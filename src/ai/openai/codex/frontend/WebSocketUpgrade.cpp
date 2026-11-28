@@ -5,14 +5,13 @@
 #include "ai/openai/codex/frontend/WebSocketUpgrade.h"
 
 #include "ai/openai/codex/frontend/WebSocketSubProtocol.h"
-#include "core/socket/stream/SocketConnection.h"
 #include "web/websocket/SubProtocolContext.h"
 #include "web/websocket/SubProtocolFactory.h"
 #include "web/websocket/server/SocketContextUpgradeFactory.h"
+#include "web/websocket/server/SubProtocol.h"
 #include "web/websocket/server/SubProtocolFactorySelector.h"
 
 #include <stdexcept>
-#include <string>
 
 namespace ai::openai::codex::frontend {
 

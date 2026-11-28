@@ -4,6 +4,11 @@
 
 #include "ai/openai/codex/protocol/Envelope.h"
 
+#include <cmath>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
+#include <utility>
+
 namespace ai::openai::codex::protocol {
 
     std::string_view toString(Role role) noexcept {

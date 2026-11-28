@@ -2,11 +2,19 @@
 #include "ai/providers/anthropic/AnthropicProvider.h"
 
 #include "ai/http/SseDecoder.h"
+#include "ai/http/StreamingClient.h"
 
 #include <algorithm>
+#include <cmath>
+#include <exception>
+#include <functional>
+#include <memory>
+#include <nlohmann/detail/json_ref.hpp>
 #include <set>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace ai::providers::anthropic {
     using Json = nlohmann::json;

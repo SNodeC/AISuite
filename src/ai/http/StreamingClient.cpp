@@ -4,16 +4,21 @@
 #include "ai/http/detail/ResponseParser.h"
 #include "core/socket/stream/SocketContext.h"
 #include "core/socket/stream/SocketContextFactory.h"
-#include "net/in/stream/legacy/SocketClient.h"
-#include "net/in/stream/tls/SocketClient.h"
+#include <net/in/stream/legacy/SocketClient.h>
+#include <net/in/stream/tls/SocketClient.h>
 
 #include <algorithm>
 #include <arpa/inet.h>
 #include <cctype>
 #include <charconv>
+#include <exception>
+#include <netinet/in.h>
 #include <openssl/ssl.h>
+#include <openssl/types.h>
+#include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 
 namespace ai::http {

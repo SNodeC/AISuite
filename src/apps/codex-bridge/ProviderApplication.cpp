@@ -20,15 +20,22 @@
 
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "ai/openai/codex/provider/WebSocketAppServer.h"
-#include "net/in/stream/legacy/SocketClient.h"
-#include "net/in6/stream/legacy/SocketClient.h"
-#include "net/un/stream/legacy/SocketClient.h"
+#include <net/in/stream/legacy/SocketClient.h>
+#include <net/in6/stream/legacy/SocketClient.h>
+#include <net/un/stream/legacy/SocketClient.h>
 #endif
 
+#include "ai/model/Provider.h"
+#include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
+
+#include <exception>
 #include <iostream>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <optional>
 #include <stdexcept>
-#include <string>
 #include <utility>
+#include <vector>
 
 namespace apps::codex_bridge {
 

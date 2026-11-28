@@ -14,34 +14,29 @@
 #include "apps/codex-bridge-client/Configuration.h"
 #include "apps/codex-bridge-client/Presenter.h"
 #include "apps/codex-bridge-client/StdinReader.h"
-#include "core/EventReceiver.h"
 #include "core/SNodeC.h"
-#include "core/socket/State.h"
-#include "core/socket/stream/ClientFlowController.h"
-#include "net/config/ConfigInstance.h"
-#include "net/in/stream/legacy/SocketClient.h"
-#include "net/in6/stream/legacy/SocketClient.h"
-#include "net/un/stream/legacy/SocketClient.h"
+#include <net/in/stream/legacy/SocketClient.h>
+#include <net/in6/stream/legacy/SocketClient.h>
+#include <net/un/stream/legacy/SocketClient.h>
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-#include "net/in/stream/tls/SocketClient.h"
-#include "net/in6/stream/tls/SocketClient.h"
+#include <net/in/stream/tls/SocketClient.h>
+#include <net/in6/stream/tls/SocketClient.h>
 #endif
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-#include "net/rc/stream/legacy/SocketClient.h"
-#include "net/rc/stream/tls/SocketClient.h"
-#endif
-#if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
-#include "web/http/client/Request.h"
+#include <net/rc/stream/legacy/SocketClient.h>
+#include <net/rc/stream/tls/SocketClient.h>
 #endif
 #include "utils/Config.h"
 
 #include <array>
+#include <cstddef>
 #include <exception>
-#include <functional>
 #include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
+#include <utility>
+
+namespace web::http::client {
+    class MasterRequest;
+}
 
 namespace {
 

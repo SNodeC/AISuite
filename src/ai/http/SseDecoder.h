@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #ifndef AISUITE_AI_HTTP_SSEDECODER_H
 #define AISUITE_AI_HTTP_SSEDECODER_H
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <string_view>

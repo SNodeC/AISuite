@@ -4,6 +4,7 @@
 
 #include "ai/model/Provider.h"
 
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <memory>

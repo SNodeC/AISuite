@@ -2,7 +2,17 @@
 #include "ai/openai/codex/frontend/CodexAgent.h"
 
 #include "TestHarness.h"
+#include "ai/agent/Agent.h"
+#include "ai/openai/codex/frontend/CodexBridge.h"
 
+#include <cmath>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+#include <utility>
+#include <variant>
 #include <vector>
 int main() {
     using Json = nlohmann::json;

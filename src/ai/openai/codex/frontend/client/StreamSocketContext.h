@@ -10,7 +10,13 @@
 #include "core/socket/stream/SocketContext.h"
 
 #include <cstddef>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
 #include <string_view>
+
+namespace core::socket::stream {
+    class SocketConnection;
+}
 
 namespace ai::openai::codex::frontend::client {
 

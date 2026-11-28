@@ -8,19 +8,16 @@
 #include "ai/openai/codex/bridge/Endpoint.h"
 #include "core/socket/stream/SocketContextFactory.h"
 #include "net/config/ConfigInstance.h"
-#include "web/http/ConfigWebSocket.h"
-#include "web/http/client/ConfigHTTP.h"
+#include "web/http/ConfigWebSocket.h"   // IWYU pragma: keep
+#include "web/http/client/ConfigHTTP.h" // IWYU pragma: keep
 #include "web/http/client/Request.h"
 
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
-
-namespace core::socket::stream {
-    class SocketConnection;
-    class SocketContext;
-}
+#include <utility>
 
 namespace ai::openai::codex::bridge {
     class CodexBridge;

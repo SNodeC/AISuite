@@ -5,12 +5,18 @@
 #ifndef AI_OPENAI_CODEX_FRONTEND_STREAMSOCKETCONTEXT_H
 #define AI_OPENAI_CODEX_FRONTEND_STREAMSOCKETCONTEXT_H
 
-#include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/bridge/Endpoint.h"
 #include "ai/openai/codex/protocol/JsonLineFramer.h"
 #include "core/socket/stream/SocketContext.h"
 
 #include <cstddef>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <string_view>
+
+namespace ai::openai::codex::bridge {
+    class CodexBridge;
+}
 
 namespace core::socket::stream {
     class SocketConnection;

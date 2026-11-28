@@ -3,6 +3,8 @@
 #define AISUITE_CODEX_FRONTEND_CODEXAGENT_H
 #include "ai/agent/Agent.h"
 #include "ai/openai/codex/frontend/CodexBridge.h"
+
+#include <string>
 namespace ai::openai::codex::frontend {
     class CodexAgent final : public ai::agent::Agent {
     public:

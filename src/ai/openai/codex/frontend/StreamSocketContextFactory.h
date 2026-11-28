@@ -9,10 +9,6 @@
 
 #include <cstddef>
 
-namespace core::socket::stream {
-    class SocketConnection;
-}
-
 namespace ai::openai::codex::bridge {
     class CodexBridge;
 }

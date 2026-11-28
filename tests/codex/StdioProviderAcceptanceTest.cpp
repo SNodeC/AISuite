@@ -5,17 +5,23 @@
 #include "CommunicationTrace.h"
 #include "TestHarness.h"
 #include "ai/openai/codex/bridge/CodexBridge.h"
+#include "ai/openai/codex/protocol/Envelope.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 #include "ai/openai/codex/provider/StdioAppServer.h"
 #include "core/EventReceiver.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
-#include "utils/Timeval.h"
 
 #include <cstddef>
+#include <functional>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace {
     namespace codex = ai::openai::codex;

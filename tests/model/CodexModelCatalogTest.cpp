@@ -1,14 +1,25 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #include "TestHarness.h"
+#include "ai/model/Provider.h"
 #include "ai/openai/codex/bridge/CodexBridge.h"
 #include "ai/openai/codex/model/ProviderProfile.h"
+#include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 #include "ai/openai/codex/provider/StdioAppServer.h"
 #include "core/SNodeC.h"
 #include "core/timer/Timer.h"
 
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <iostream>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 int main(int argc, char** argv) {
     if (argc != 2)

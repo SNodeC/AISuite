@@ -7,6 +7,8 @@
 #include "ai/openai/codex/frontend/client/ClientConnection.h"
 #include "core/socket/stream/SocketConnection.h"
 #include "net/config/ConfigInstance.h"
+#include "web/http/client/ConfigHTTP.h"
+#include "web/http/client/Request.h"
 #include "web/http/client/SocketContext.h"
 #include "web/websocket/SubProtocolContext.h"
 #include "web/websocket/SubProtocolFactory.h"
@@ -14,11 +16,15 @@
 #include "web/websocket/client/SubProtocol.h"
 #include "web/websocket/client/SubProtocolFactorySelector.h"
 
-#include <cstdint>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string_view>
 #include <utility>
+
+namespace web::http {
+    struct ParserLimits;
+}
 
 namespace ai::openai::codex::frontend::client {
 

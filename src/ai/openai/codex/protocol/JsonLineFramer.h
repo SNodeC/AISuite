@@ -7,10 +7,9 @@
 
 #include <cstddef>
 #include <functional>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <string_view>
-
-#include <nlohmann/json.hpp>
 
 namespace ai::openai::codex::protocol {
 

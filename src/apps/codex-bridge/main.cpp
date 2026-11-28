@@ -11,7 +11,6 @@
 #include "apps/codex-bridge/WebSocketApplication.h"
 #endif
 #include "core/SNodeC.h"
-#include "core/socket/State.h"
 #include "core/timer/Timer.h"
 #if defined(AISUITE_CODEX_FRONTEND_WEBSOCKET)
 #include "express/legacy/in/WebApp.h"
@@ -24,27 +23,26 @@
 #include "web/http/ConfigWebSocket.h"
 #include "web/http/server/ConfigHttpServer.h"
 #endif
-#include "net/in/SocketAddress.h"
-#include "net/in/stream/legacy/SocketServer.h"
+#include <net/in/stream/legacy/SocketServer.h>
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-#include "net/in/stream/tls/SocketServer.h"
+#include <net/in/stream/tls/SocketServer.h>
 #endif
-#include "net/in6/SocketAddress.h"
-#include "net/in6/stream/legacy/SocketServer.h"
+#include <net/in6/stream/legacy/SocketServer.h>
 #if defined(AISUITE_CODEX_FRONTEND_TLS)
-#include "net/in6/stream/tls/SocketServer.h"
+#include <net/in6/stream/tls/SocketServer.h>
 #endif
 #include "net/config/ConfigInstance.h"
 #if defined(AISUITE_CODEX_FRONTEND_RFCOMM)
-#include "net/rc/stream/legacy/SocketServer.h"
-#include "net/rc/stream/tls/SocketServer.h"
+#include <net/rc/stream/legacy/SocketServer.h>
+#include <net/rc/stream/tls/SocketServer.h>
 #endif
-#include "net/un/SocketAddress.h"
-#include "net/un/stream/legacy/SocketServer.h"
+#include <net/un/stream/legacy/SocketServer.h>
 #include "utils/Config.h"
 
+#include <cstddef>
+#include <exception>
 #include <iostream>
-#include <string>
+#include <string_view>
 
 namespace {
 

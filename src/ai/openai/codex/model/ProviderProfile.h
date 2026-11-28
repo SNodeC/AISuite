@@ -2,7 +2,15 @@
 #ifndef AISUITE_CODEX_MODEL_PROVIDERPROFILE_H
 #define AISUITE_CODEX_MODEL_PROVIDERPROFILE_H
 #include "ai/model/Provider.h"
-#include "ai/openai/codex/provider/StdioAppServer.h"
+
+#include <cstdint>
+#include <nlohmann/json_fwd.hpp>
+#include <string>
+
+namespace ai::openai::codex::provider {
+    struct StdioAppServerOptions;
+}
+
 namespace ai::openai::codex::model {
     // Owns the temporary, credential-free catalog for an AISuite provider. Codex
     // remains the conversation authority; this object stores no inference state.

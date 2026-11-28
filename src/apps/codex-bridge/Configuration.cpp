@@ -4,10 +4,13 @@
 
 #include "apps/codex-bridge/Configuration.h"
 
-#include "utils/Config.h"
+#include "utils/SubCommand.h"
 
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace apps::codex_bridge {
 

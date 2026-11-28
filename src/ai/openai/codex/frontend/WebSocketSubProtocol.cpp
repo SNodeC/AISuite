@@ -4,11 +4,15 @@
 
 #include "ai/openai/codex/frontend/WebSocketSubProtocol.h"
 
+#include "ai/openai/codex/bridge/CodexBridge.h"
 #include "core/socket/stream/SocketConnection.h"
 #include "web/websocket/SubProtocolContext.h"
+#include "web/websocket/server/SubProtocol.h"
 
+#include <exception>
 #include <iostream>
-#include <utility>
+#include <map>
+#include <nlohmann/json.hpp>
 
 namespace ai::openai::codex::frontend {
 

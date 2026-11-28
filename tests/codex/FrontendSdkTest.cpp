@@ -6,12 +6,20 @@
 #include "TestHarness.h"
 #include "ai/openai/codex/frontend/CodexBridge.h"
 #include "ai/openai/codex/frontend/client/ClientConnection.h"
+#include "ai/openai/codex/protocol/Envelope.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <string>
-#include <utility>
+#include <string_view>
 #include <vector>
 
 namespace {

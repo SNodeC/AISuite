@@ -1,12 +1,22 @@
 /* SPDX-License-Identifier: LGPL-3.0-or-later OR MIT */
 #ifndef AISUITE_AI_PROVIDERS_ANTHROPIC_PROVIDER_H
 #define AISUITE_AI_PROVIDERS_ANTHROPIC_PROVIDER_H
-#include "ai/http/StreamingClient.h"
 #include "ai/model/Provider.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <map>
+#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
 #include <set>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace ai::http {
+    class StreamingClient;
+}
 
 namespace ai::providers::anthropic {
     struct Configuration {

@@ -11,13 +11,14 @@
 #include "core/pipe/PipeSource.h"
 #include "utils/Timeval.h"
 
-#include <algorithm>
 #include <cerrno>
-#include <csignal>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <fcntl.h>
+#include <initializer_list>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <spawn.h>
 #include <string_view>
 #include <sys/wait.h>

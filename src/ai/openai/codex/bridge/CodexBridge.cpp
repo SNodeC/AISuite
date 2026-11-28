@@ -4,9 +4,13 @@
 
 #include "ai/openai/codex/bridge/CodexBridge.h"
 
+#include "ai/openai/codex/bridge/Endpoint.h"
+
 #include <algorithm>
 #include <array>
 #include <iostream>
+#include <map>
+#include <nlohmann/detail/json_ref.hpp>
 #include <ranges>
 #include <stdexcept>
 #include <utility>

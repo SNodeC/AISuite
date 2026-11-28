@@ -12,43 +12,39 @@
 #include "ai/openai/codex/frontend/client/WebSocketClient.h"
 #include "ai/openai/codex/protocol/generated/ProtocolTypes.h"
 #include "apps/codex-bridge/WebSocketApplication.h"
-#include "core/EventReceiver.h"
 #include "core/SNodeC.h"
-#include "core/socket/State.h"
-#include "core/socket/stream/ClientFlowController.h"
 #include "core/timer/Timer.h"
 #include "express/legacy/in/WebApp.h"
 #include "express/legacy/in6/WebApp.h"
-#include "net/in/SocketAddress.h"
-#include "net/in/stream/legacy/SocketClient.h"
-#include "net/in6/SocketAddress.h"
-#include "net/in6/stream/legacy/SocketClient.h"
+#include <net/in/stream/legacy/SocketClient.h>
+#include <net/in6/stream/legacy/SocketClient.h>
 #if defined(AISUITE_CODEX_TEST_WEBSOCKET_TLS)
 #include "express/tls/in/WebApp.h"
 #include "express/tls/in6/WebApp.h"
-#include "net/in/stream/tls/SocketClient.h"
-#include "net/in6/stream/tls/SocketClient.h"
+#include <net/in/stream/tls/SocketClient.h>
+#include <net/in6/stream/tls/SocketClient.h>
 #endif
+#include "ai/openai/codex/protocol/Envelope.h"
 #include "net/config/ConfigInstance.h"
-#include "utils/Timeval.h"
 #include "web/http/ConfigHttpParser.h"
 #include "web/http/ConfigWebSocket.h"
 #include "web/http/client/ConfigHTTP.h"
-#include "web/http/client/Request.h"
 #include "web/http/server/ConfigHttpServer.h"
 
 #include <cstddef>
-#include <cstdint>
-#include <functional>
-#include <memory>
+#include <iostream>
 #include <netinet/in.h>
+#include <nlohmann/detail/json_ref.hpp>
 #include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <optional>
-#include <string>
 #include <string_view>
-#include <sys/socket.h>
 #include <unistd.h>
 #include <utility>
+
+namespace web::http::client {
+    class MasterRequest;
+}
 
 namespace {
     namespace codex = ai::openai::codex;

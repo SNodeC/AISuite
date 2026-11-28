@@ -4,6 +4,8 @@
 
 #include "apps/codex-bridge-client/Configuration.h"
 
+#include "utils/SubCommand.h"
+
 #include <string>
 
 namespace apps::codex_bridge_client {
